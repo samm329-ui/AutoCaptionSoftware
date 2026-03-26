@@ -29,8 +29,17 @@ ai-server/storage/audio/*
 !ai-server/storage/audio/.gitkeep
 ai-server/storage/rendered/*
 !ai-server/storage/rendered/.gitkeep
+ai-server/storage/exports/*
+!ai-server/storage/exports/.gitkeep
+ai-server/storage/database.json
 ai-server/server.log
 ai-server/error.log
+
+# Temp files
+ai-server/=2.1.0
+
+# Upgrade folder (reference only)
+upgrade/
 
 # Binaries
 ai-server/bin/*.exe
