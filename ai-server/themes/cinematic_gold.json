@@ -1,5 +1,5 @@
 {
-  "name": "Cinematic Gold 🎬",
+  "name": "Cinematic Gold",
   "description": "Elegant golden captions with slide-up animation. Hollywood-inspired premium look.",
   "preview_image": null,
   "style": {
@@ -16,7 +16,7 @@
     "bg_padding": 18
   },
   "animation": {
-    "type": "slide_up",
+    "type": "slide",
     "duration": 0.15
   }
 }

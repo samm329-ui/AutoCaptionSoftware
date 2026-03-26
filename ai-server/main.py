@@ -1,81 +1,120 @@
 """
-CaptionAI — Python AI Processing Server
-FastAPI server for video transcription (WhisperX) and caption rendering (OpenCV + Pillow).
-Uses local file storage (no Supabase required).
+CaptionAI Pro - Correct Pipeline Implementation
+
+Pipeline (CORRECT):
+  media → normalized audio → multilingual ASR → word timestamps → canonical transcript 
+  → smart segmentation → English/Hinglish display tracks → timeline JSON 
+  → live preview → ASS/FFmpeg render
+
+ONE SOURCE OF TRUTH: word-level timed transcript
 """
 
 import os
 import time
 import shutil
 import json
-import sys
 import uuid
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
-
-BASE_DIR = Path(__file__).parent
-BIN_DIR = str(BASE_DIR / "bin")
-FFMPEG_BIN = r"C:\Users\jishu\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1-full_build\bin"
-
-os.environ["PATH"] = FFMPEG_BIN + os.pathsep + os.environ.get("PATH", "")
-os.environ["FFMPEG_BINARY"] = os.path.join(FFMPEG_BIN, "ffmpeg.exe")
-os.environ["FFPROBE_BINARY"] = os.path.join(FFMPEG_BIN, "ffprobe.exe")
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, FileResponse
-import httpx
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from audio import extract_audio
-from transcriber import transcribe_audio, group_words
-from renderer import render_video_with_captions
+from transcription_engine import TranscriptionEngine
+from smart_segmentation import SmartSegmenter
+from display_processor import HinglishProcessor
+from timeline_model import Timeline, Caption, TimelineEditor
+from preview_renderer import PreviewRenderer
+from ass_renderer import ASSRenderer
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).parent
 STORAGE_DIR = BASE_DIR / "storage"
 VIDEOS_DIR = STORAGE_DIR / "videos"
+AUDIO_DIR = STORAGE_DIR / "audio"
 RENDERED_DIR = STORAGE_DIR / "rendered"
-TRANSCRIPTS_DIR = STORAGE_DIR / "transcripts"
-THEMES_DIR = BASE_DIR / "themes"
+TIMELINES_DIR = STORAGE_DIR / "timelines"
+PREVIEWS_DIR = STORAGE_DIR / "previews"
 FONTS_DIR = BASE_DIR / "fonts"
 
-for d in [VIDEOS_DIR, RENDERED_DIR, TRANSCRIPTS_DIR]:
+for d in [VIDEOS_DIR, AUDIO_DIR, RENDERED_DIR, TIMELINES_DIR, PREVIEWS_DIR, FONTS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
+
 
 class LocalStorage:
     def __init__(self):
-        self.jobs: Dict[str, Dict[str, Any]] = {}
-        self.transcripts: Dict[str, Dict[str, Any]] = {}
-        self.renders: Dict[str, Dict[str, Any]] = {}
+        self.projects: Dict[str, Dict[str, Any]] = {}
+        self.timelines: Dict[str, Dict[str, Any]] = {}
+        self.exports: Dict[str, Dict[str, Any]] = {}
     
     def save(self):
-        data = {"jobs": self.jobs, "transcripts": self.transcripts, "renders": self.renders}
-        with open(STORAGE_DIR / "database.json", "w") as f:
-            json.dump(data, f)
+        data = {
+            "projects": self.projects,
+            "timelines": self.timelines,
+            "exports": self.exports
+        }
+        with open(STORAGE_DIR / "database.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
     
     def load(self):
         db_path = STORAGE_DIR / "database.json"
         if db_path.exists():
-            with open(db_path, "r") as f:
-                data = json.load(f)
-                self.jobs = data.get("jobs", {})
-                self.transcripts = data.get("transcripts", {})
-                self.renders = data.get("renders", {})
+            try:
+                with open(db_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.projects = data.get("projects", {})
+                    self.timelines = data.get("timelines", {})
+                    self.exports = data.get("exports", {})
+            except (json.JSONDecodeError, IOError):
+                self.projects = {}
+                self.timelines = {}
+                self.exports = {}
+
 
 storage = LocalStorage()
 storage.load()
 
+transcription_engine: Optional[TranscriptionEngine] = None
+segmenter: Optional[SmartSegmenter] = None
+display_processor: Optional[HinglishProcessor] = None
+preview_renderer: Optional[PreviewRenderer] = None
+ass_renderer: Optional[ASSRenderer] = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("CaptionAI Server starting...")
+    global transcription_engine, segmenter, display_processor, preview_renderer, ass_renderer
+    
+    print("=" * 60)
+    print("CaptionAI Pro - CORRECT PIPELINE")
+    print("=" * 60)
+    
+    transcription_engine = TranscriptionEngine()
+    segmenter = SmartSegmenter()
+    display_processor = HinglishProcessor()
+    preview_renderer = PreviewRenderer()
+    ass_renderer = ASSRenderer(str(FONTS_DIR))
+    
+    print("All engines initialized!")
+    print("Pipeline: media → ASR → timeline → preview → export")
+    
     yield
-    print("CaptionAI Server shutting down...")
+    
     storage.save()
+    print("CaptionAI Pro shutting down...")
 
-app = FastAPI(title="CaptionAI Processing Server", version="1.0.0", lifespan=lifespan)
+
+app = FastAPI(
+    title="CaptionAI Pro",
+    version="3.0.0",
+    description="Correct pipeline: media → ASR → timeline → preview → export",
+    lifespan=lifespan
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,164 +124,642 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health")
-async def health():
-    return {"status": "ok", "service": "CaptionAI Processing Server", "version": "1.0.0", "storage": "local", "timestamp": time.time()}
 
-def update_job_status(job_id: str, status: str, progress: int, step: str, error: Optional[str] = None):
-    if job_id in storage.jobs:
-        storage.jobs[job_id].update({"status": status, "progress": progress, "step": step, "error": error})
-        storage.save()
+def update_project_status(project_id: str, status: str, progress: int, step: str):
+    if project_id in storage.projects:
+        storage.projects[project_id]["status"] = status
+        storage.projects[project_id]["progress"] = progress
+        storage.projects[project_id]["step"] = step
+        storage.projects[project_id]["updated_at"] = time.time()
 
-def update_render_status(render_id: str, status: str, progress: int, step: str, video_url: Optional[str] = None, error: Optional[str] = None):
-    if render_id in storage.renders:
-        data = {"status": status, "progress": progress, "step": step, "error": error}
-        if video_url is not None:
-            data["video_url"] = video_url
-        storage.renders[render_id].update(data)
-        storage.save()
 
-def _run_processing(job_id: str, video_path: str, language: str):
+def run_processing(project_id: str, video_path: str):
+    """
+    CORRECT PIPELINE:
+    1. Normalize audio (mono 16kHz WAV)
+    2. Multilingual ASR with auto-detect
+    3. Build canonical transcript
+    4. Smart segmentation
+    5. Generate display tracks (English, Hinglish)
+    6. Create timeline model
+    """
     try:
-        print(f"[{job_id}] Starting processing...")
-        update_job_status(job_id, "processing", 10, "Extracting audio...")
-        audio_path = extract_audio(video_path)
-        print(f"[{job_id}] Audio extracted: {audio_path}")
-        update_job_status(job_id, "processing", 30, "Transcribing with WhisperX...")
-        result = transcribe_audio(audio_path, language=language)
-        print(f"[{job_id}] Transcription done, segments: {len(result.get('segments', []))}")
-        update_job_status(job_id, "processing", 70, "Grouping words...")
-        word_groups = group_words(result["segments"], words_per_group=3)
-        final_lang = result.get("language", language)
-        
-        storage.transcripts[job_id] = {
-            "job_id": job_id,
-            "segments": result["segments"],
-            "word_groups": word_groups,
-            "language": final_lang
-        }
+        if project_id not in storage.projects:
+            storage.projects[project_id] = {}
+        storage.projects[project_id].update({
+            "id": project_id,
+            "video_path": video_path,
+            "status": "processing",
+            "progress": 10,
+            "step": "Extracting audio...",
+            "created_at": storage.projects[project_id].get("created_at", time.time()),
+            "updated_at": time.time()
+        })
         storage.save()
         
-        print(f"[{job_id}] Transcription COMPLETE!")
-        update_job_status(job_id, "transcribed", 100, "Transcription complete!")
+        print(f"\n[{project_id}] Pipeline Stage 1: Audio Normalization")
+        audio_path = transcription_engine.process_media(video_path, str(AUDIO_DIR))
+        update_project_status(project_id, "processing", 20, "Transcribing with AI...")
+        
+        print(f"\n[{project_id}] Pipeline Stage 2: Multilingual ASR")
+        transcript = transcription_engine.transcribe(audio_path)
+        update_project_status(project_id, "processing", 50, "Processing transcript...")
+        
+        canonical_words = transcript["words"]
+        detected_lang = transcript["language"]
+        duration = transcript.get("duration", 0)
+        
+        print(f"  Detected language: {detected_lang}")
+        print(f"  Words: {len(canonical_words)}")
+        
+        print(f"\n[{project_id}] Pipeline Stage 3: Build Canonical Transcript")
+        storage.projects[project_id]["canonical_transcript"] = {
+            "words": canonical_words,
+            "language": detected_lang,
+            "duration": duration
+        }
+        
+        print(f"\n[{project_id}] Pipeline Stage 4: Smart Segmentation")
+        update_project_status(project_id, "processing", 60, "Creating captions...")
+        segments = segmenter.segment(
+            canonical_words,
+            max_line_width=42,
+            min_pause_gap=0.3,
+            max_reading_speed=25.0
+        )
+        
+        print(f"  Created {len(segments)} segments")
+        
+        print(f"\n[{project_id}] Pipeline Stage 5: Generate Display Tracks")
+        update_project_status(project_id, "processing", 80, "Finalizing...")
+        
+        for seg in segments:
+            original_text = seg["text"]
+            
+            display_text = display_processor.process_text(original_text)
+            display_text = display_processor.format_for_display(display_text)
+            
+            seg["text_hinglish"] = display_text
+            seg["text_english"] = original_text if detected_lang == "en" else original_text
+            seg["emphasis"] = display_processor.detect_emphasis(display_text)
+        
+        print(f"  Display tracks generated")
+        
+        print(f"\n[{project_id}] Pipeline Stage 6: Create Timeline Model")
+        update_project_status(project_id, "processing", 90, "Creating timeline...")
+        
+        timeline = Timeline(
+            id=project_id,
+            source_file=video_path,
+            duration=duration,
+            language=detected_lang,
+            captions=[],
+            created_at=time.time(),
+            updated_at=time.time()
+        )
+        
+        for i, seg in enumerate(segments):
+            cap = Caption(
+                id=f"cap_{i:03d}",
+                index=i,
+                start=seg["start"],
+                end=seg["end"],
+                text=seg["text_hinglish"],
+                words=seg.get("words", []),
+                style="default",
+                animation="pop_in",
+                position={"x": 0.5, "y": 0.82},
+                editable=True,
+                confidence=seg.get("confidence", 1.0),
+                emphasis=seg.get("emphasis", [])
+            )
+            timeline.captions.append(cap)
+        
+        storage.timelines[project_id] = timeline.to_dict()
+        update_project_status(project_id, "transcribed", 100, "Ready for rendering!")
+        storage.projects[project_id]["timeline_id"] = project_id
+        storage.projects[project_id]["timeline"] = timeline.to_dict()
+        storage.save()
+        
+        print(f"\n[{project_id}] Pipeline Complete!")
+        print(f"  Timeline: {len(timeline.captions)} captions")
+        
     except Exception as e:
         import traceback
-        error_details = traceback.format_exc()
-        print(f"ERROR in _run_processing: {error_details}")
-        update_job_status(job_id, "error", 0, f"Error: {e}", error=str(e))
+        print(f"\n[{project_id}] ERROR: {e}")
+        print(traceback.format_exc())
+        
+        if project_id in storage.projects:
+            update_project_status(project_id, "error", 0, f"Error: {str(e)}")
+            storage.projects[project_id]["error"] = str(e)
+        storage.save()
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "version": "3.0.0",
+        "pipeline": "media → ASR → timeline → preview → export",
+        "features": [
+            "Multilingual ASR with auto-detect",
+            "Smart segmentation (no fixed 3-word)",
+            "Mixed-script Hinglish display",
+            "Editable timeline model",
+            "Browser preview",
+            "ASS/FFmpeg export"
+        ]
+    }
+
 
 @app.post("/upload")
-async def upload_video(background_tasks: BackgroundTasks, file: UploadFile = File(...), language: str = Form("auto")):
-    job_id = str(uuid.uuid4())
-    video_path = str(VIDEOS_DIR / f"{job_id}.mp4")
+async def upload_video(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    display_mode: str = Form("hinglish")
+):
+    project_id = str(uuid.uuid4())
+    video_path = str(VIDEOS_DIR / f"{project_id}.mp4")
     
     with open(video_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
     
-    storage.jobs[job_id] = {"id": job_id, "status": "processing", "progress": 0, "step": "Initializing..."}
+    storage.projects[project_id] = {
+        "id": project_id,
+        "filename": file.filename,
+        "video_path": video_path,
+        "display_mode": display_mode,
+        "status": "processing",
+        "created_at": time.time()
+    }
     storage.save()
     
-    background_tasks.add_task(_run_processing, job_id, video_path, language)
-    return {"job_id": job_id, "status": "processing"}
-
-@app.post("/process")
-async def process_video(background_tasks: BackgroundTasks, job_id: str = Form(...), video_url: str = Form(...), language: str = Form("auto")):
-    video_path = str(VIDEOS_DIR / f"{job_id}.mp4")
-    try:
-        with httpx.stream("GET", video_url) as r:
-            r.raise_for_status()
-            with open(video_path, "wb") as f:
-                for chunk in r.iter_bytes():
-                    f.write(chunk)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to download video: {e}")
+    background_tasks.add_task(run_processing, project_id, video_path)
     
-    storage.jobs[job_id] = {"id": job_id, "status": "processing", "progress": 0, "step": "Initializing..."}
+    return {
+        "job_id": project_id,
+        "project_id": project_id,
+        "status": "processing",
+        "message": "Video uploaded. Pipeline started."
+    }
+
+
+@app.get("/project/{project_id}")
+async def get_project(project_id: str):
+    if project_id not in storage.projects:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    project = storage.projects[project_id].copy()
+    
+    if project["status"] == "ready" and project_id in storage.timelines:
+        project["timeline"] = storage.timelines[project_id]
+    
+    return project
+
+
+@app.get("/timeline/{project_id}")
+async def get_timeline(project_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    
+    display_mode = storage.projects.get(project_id, {}).get("display_mode", "hinglish")
+    
+    if display_mode == "english":
+        for cap in timeline["captions"]:
+            cap["text"] = cap.get("text_english", cap["text"])
+    
+    return timeline
+
+
+@app.put("/caption/{project_id}/{caption_id}")
+async def update_caption(
+    project_id: str,
+    caption_id: str,
+    text: str = Form(None),
+    start: float = Form(None),
+    end: float = Form(None),
+    style: str = Form(None),
+    animation: str = Form(None),
+    position_x: float = Form(None),
+    position_y: float = Form(None)
+):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    timeline_obj = Timeline.from_dict(timeline)
+    editor = TimelineEditor(timeline_obj)
+    
+    updates = {}
+    if text is not None:
+        updates["text"] = text
+    if start is not None:
+        updates["start"] = start
+    if end is not None:
+        updates["end"] = end
+    if style is not None:
+        updates["style"] = style
+    if animation is not None:
+        updates["animation"] = animation
+    if position_x is not None or position_y is not None:
+        existing_cap = editor.get_caption(caption_id)
+        pos = existing_cap.position.copy() if existing_cap else {"x": 0.5, "y": 0.82}
+        if position_x is not None:
+            pos["x"] = position_x
+        if position_y is not None:
+            pos["y"] = position_y
+        updates["position"] = pos
+    
+    editor.update_caption(caption_id, **updates)
+    
+    storage.timelines[project_id] = timeline_obj.to_dict()
     storage.save()
-    background_tasks.add_task(_run_processing, job_id, video_path, language)
-    return {"job_id": job_id, "status": "processing"}
+    
+    updated_cap = editor.get_caption(caption_id)
+    return {"success": True, "caption": updated_cap.to_dict() if updated_cap else None}
 
-@app.get("/job/{job_id}")
-async def get_job_status(job_id: str):
-    if job_id in storage.jobs:
-        job = storage.jobs[job_id].copy()
-        if job.get("status") in ["transcribed", "rendering", "completed"]:
-            if job_id in storage.transcripts:
-                job["transcript"] = storage.transcripts[job_id]
-        return job
-    if job_id in storage.renders:
-        r = storage.renders[job_id].copy()
-        return {"id": r["id"], "status": r["status"], "progress": r["progress"], "step": r.get("step", "Rendering..."), "video_url": r.get("video_url"), "error": r.get("error")}
-    raise HTTPException(status_code=404, detail="Job or Render not found")
 
-def _run_rendering(render_id: str, job_id: str, theme_name: str, video_path: str, word_groups: list):
-    try:
-        print(f"[{render_id}] Starting rendering...")
-        update_render_status(render_id, "rendering", 10, "Loading theme...")
-        theme_path = THEMES_DIR / f"{theme_name}.json"
-        if not theme_path.exists():
-            raise FileNotFoundError(f"Theme '{theme_name}' not found")
-        with open(theme_path, "r", encoding="utf-8") as f:
-            theme_config = json.load(f)
-        print(f"[{render_id}] Theme loaded, starting render...")
-        update_render_status(render_id, "rendering", 20, "Rendering captions frame by frame...")
-        output_filename = f"{render_id}_captioned.mp4"
-        output_path = str(RENDERED_DIR / output_filename)
-        render_video_with_captions(video_path=video_path, word_groups=word_groups, theme_config=theme_config, output_path=output_path, fonts_dir=str(FONTS_DIR), progress_callback=lambda p: update_render_status(render_id, "rendering", 20 + int(p * 0.7), "Rendering..."))
-        print(f"[{render_id}] Render complete!")
-        update_render_status(render_id, "rendering", 95, "Saving...")
-        video_url = f"/download/{render_id}"
-        update_render_status(render_id, "completed", 100, "Rendering complete!", video_url=video_url)
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"ERROR in _run_rendering: {error_details}")
-        update_render_status(render_id, "error", 0, f"Error: {e}", error=str(e))
+@app.delete("/caption/{project_id}/{caption_id}")
+async def delete_caption(project_id: str, caption_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    timeline_obj = Timeline.from_dict(timeline)
+    editor = TimelineEditor(timeline_obj)
+    
+    editor.delete_caption(caption_id)
+    
+    storage.timelines[project_id] = timeline_obj.to_dict()
+    storage.save()
+    
+    return {"success": True}
+
+
+@app.post("/caption/{project_id}/{caption_id}/split")
+async def split_caption(project_id: str, caption_id: str, split_at: float = Form(...)):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    timeline_obj = Timeline.from_dict(timeline)
+    editor = TimelineEditor(timeline_obj)
+    
+    result = editor.split_caption(caption_id, split_at)
+    
+    if not result:
+        raise HTTPException(status_code=400, detail="Cannot split at this position")
+    
+    storage.timelines[project_id] = timeline_obj.to_dict()
+    storage.save()
+    
+    return {"success": True, "captions": [c.to_dict() for c in result]}
+
+
+@app.post("/caption/{project_id}/{caption_id}/merge-next")
+async def merge_caption(project_id: str, caption_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    timeline_obj = Timeline.from_dict(timeline)
+    editor = TimelineEditor(timeline_obj)
+    
+    result = editor.merge_caption_with_next(caption_id)
+    
+    if not result:
+        raise HTTPException(status_code=400, detail="Cannot merge (no next caption)")
+    
+    storage.timelines[project_id] = timeline_obj.to_dict()
+    storage.save()
+    
+    return {"success": True, "caption": result.to_dict()}
+
+
+@app.get("/preview/{project_id}")
+async def get_preview(project_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    if project_id not in storage.projects:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    timeline = storage.timelines[project_id]
+    video_path = storage.projects[project_id].get("video_path", "")
+    
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=400, detail="Video file not found")
+    
+    video_url = f"/video/{project_id}"
+    
+    preview_data = preview_renderer.render_for_browser(timeline, video_url)
+    
+    return JSONResponse(content=preview_data)
+
+
+@app.get("/preview-html/{project_id}")
+async def get_preview_html(project_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    if project_id not in storage.projects:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    timeline = storage.timelines[project_id]
+    video_path = storage.projects[project_id].get("video_path", "")
+    
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=400, detail="Video file not found")
+    
+    video_url = f"/video/{project_id}"
+    html_path = PREVIEWS_DIR / f"{project_id}_preview.html"
+    
+    preview_renderer.generate_html_preview(timeline, video_url, str(html_path))
+    
+    return FileResponse(html_path, media_type="text/html")
+
+
+@app.get("/video/{project_id}")
+async def serve_video(project_id: str):
+    if project_id not in storage.projects:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    video_path = storage.projects[project_id].get("video_path", "")
+    
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    return FileResponse(video_path, media_type="video/mp4")
+
 
 @app.post("/render")
-async def render_video(background_tasks: BackgroundTasks, job_id: str = Form(...), theme: str = Form("kalakar_fire")):
-    if job_id not in storage.jobs or storage.jobs[job_id].get("status") != "transcribed":
-        raise HTTPException(status_code=400, detail="Job not ready for rendering")
-    if job_id not in storage.transcripts:
-        raise HTTPException(status_code=400, detail="Transcript data missing")
-    word_groups = storage.transcripts[job_id]["word_groups"]
-    video_path = str(VIDEOS_DIR / f"{job_id}.mp4")
-    if not os.path.exists(video_path):
-        raise HTTPException(status_code=400, detail="Original video not found")
-    render_id = str(uuid.uuid4())
-    storage.renders[render_id] = {"id": render_id, "job_id": job_id, "theme": theme, "status": "rendering", "progress": 0, "step": "Queued for rendering..."}
+async def render_video(
+    background_tasks: BackgroundTasks,
+    job_id: str = Form(...),
+    theme: str = Form("default"),
+    animation: str = Form("pop_in")
+):
+    """Legacy render endpoint compatible with frontend."""
+    if job_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    if job_id not in storage.projects:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    export_id = str(uuid.uuid4())
+    video_path = storage.projects[job_id]["video_path"]
+    timeline = storage.timelines[job_id]
+    
+    storage.exports[export_id] = {
+        "id": export_id,
+        "project_id": job_id,
+        "status": "rendering",
+        "style": theme,
+        "animation": animation,
+        "progress": 0,
+        "step": "Starting render...",
+        "created_at": time.time()
+    }
     storage.save()
-    background_tasks.add_task(_run_rendering, render_id, job_id, theme, video_path, word_groups)
-    return {"render_id": render_id, "status": "rendering"}
+    
+    def do_render():
+        try:
+            exports_dir = STORAGE_DIR / "exports"
+            exports_dir.mkdir(parents=True, exist_ok=True)
+            
+            ass_path = exports_dir / f"{export_id}_captions.ass"
+            output_path = exports_dir / f"{export_id}_output.mp4"
+            
+            storage.exports[export_id]["step"] = "Generating subtitles..."
+            storage.exports[export_id]["progress"] = 20
+            storage.save()
+            
+            ass_renderer.generate_custom_ass(
+                timeline["captions"],
+                str(ass_path),
+                style=theme
+            )
+            
+            storage.exports[export_id]["step"] = "Rendering video..."
+            storage.exports[export_id]["progress"] = 50
+            storage.save()
+            
+            ass_renderer.export_video(video_path, str(ass_path), str(output_path))
+            
+            storage.exports[export_id]["status"] = "completed"
+            storage.exports[export_id]["progress"] = 100
+            storage.exports[export_id]["step"] = "Render complete!"
+            storage.exports[export_id]["output_path"] = str(output_path)
+            storage.save()
+            
+        except Exception as e:
+            storage.exports[export_id]["status"] = "error"
+            storage.exports[export_id]["step"] = f"Error: {str(e)}"
+            storage.exports[export_id]["error"] = str(e)
+            storage.save()
+    
+    background_tasks.add_task(do_render)
+    
+    return {
+        "render_id": export_id,
+        "status": "rendering",
+        "message": "Rendering started"
+    }
+
 
 @app.get("/render/{render_id}")
 async def get_render_status(render_id: str):
-    if render_id not in storage.renders:
+    if render_id not in storage.exports:
         raise HTTPException(status_code=404, detail="Render not found")
-    render_data = storage.renders[render_id].copy()
-    job_id = render_data.get("job_id")
-    if job_id and job_id in storage.transcripts:
-        render_data["transcript"] = storage.transcripts[job_id]
-    return render_data
+    return storage.exports[render_id]
+
 
 @app.get("/download/{render_id}")
-async def download_rendered_video(render_id: str):
-    if render_id not in storage.renders:
+async def download_render(render_id: str):
+    if render_id not in storage.exports:
         raise HTTPException(status_code=404, detail="Render not found")
-    output_filename = f"{render_id}_captioned.mp4"
-    output_path = RENDERED_DIR / output_filename
-    if not output_path.exists():
-        raise HTTPException(status_code=400, detail="Video not available yet")
-    return FileResponse(output_path, media_type="video/mp4", filename=output_filename)
+    
+    export = storage.exports[render_id]
+    
+    if export["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Render not ready")
+    
+    output_path = export.get("output_path", "")
+    
+    if not os.path.exists(output_path):
+        raise HTTPException(status_code=404, detail="Output file not found")
+    
+    return FileResponse(output_path, media_type="video/mp4", filename=f"captioned_{render_id}.mp4")
+
+
+@app.get("/export/project/{project_id}")
+async def export_project_json(project_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    export_path = STORAGE_DIR / "exports" / f"{project_id}_project.json"
+    export_path.parent.mkdir(exist_ok=True)
+    
+    project_data = {
+        "version": "3.0.0",
+        "exported_at": time.time(),
+        "project_id": project_id,
+        "timeline": timeline
+    }
+    
+    with open(export_path, "w", encoding="utf-8") as f:
+        json.dump(project_data, f, indent=2, ensure_ascii=False)
+    
+    return FileResponse(export_path, media_type="application/json", filename=f"{project_id}_project.json")
+
+
+@app.get("/export/ass/{project_id}")
+async def export_ass(project_id: str):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    timeline = storage.timelines[project_id]
+    ass_path = STORAGE_DIR / "exports" / f"{project_id}_captions.ass"
+    ass_path.parent.mkdir(exist_ok=True)
+    
+    ass_renderer.generate_custom_ass(
+        timeline["captions"],
+        str(ass_path),
+        style="default"
+    )
+    
+    return FileResponse(ass_path, media_type="text/plain", filename=f"{project_id}_captions.ass")
+
+
+@app.post("/export/video/{project_id}")
+async def export_video(
+    background_tasks: BackgroundTasks,
+    project_id: str,
+    style: str = Form("default")
+):
+    if project_id not in storage.timelines:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    
+    if project_id not in storage.projects:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    export_id = str(uuid.uuid4())
+    video_path = storage.projects[project_id]["video_path"]
+    timeline = storage.timelines[project_id]
+    
+    storage.exports[export_id] = {
+        "id": export_id,
+        "project_id": project_id,
+        "status": "rendering",
+        "style": style,
+        "created_at": time.time()
+    }
+    storage.save()
+    
+    def do_export():
+        try:
+            ass_path = STORAGE_DIR / "exports" / f"{export_id}_captions.ass"
+            output_path = STORAGE_DIR / "exports" / f"{export_id}_output.mp4"
+            
+            ass_renderer.generate_custom_ass(
+                timeline["captions"],
+                str(ass_path),
+                style=style
+            )
+            
+            ass_renderer.export_video(video_path, str(ass_path), str(output_path))
+            
+            storage.exports[export_id]["status"] = "completed"
+            storage.exports[export_id]["output_path"] = str(output_path)
+            storage.save()
+            
+        except Exception as e:
+            storage.exports[export_id]["status"] = "error"
+            storage.exports[export_id]["error"] = str(e)
+            storage.save()
+    
+    background_tasks.add_task(do_export)
+    
+    return {
+        "export_id": export_id,
+        "status": "rendering",
+        "message": "Export started"
+    }
+
+
+@app.get("/export/status/{export_id}")
+async def get_export_status(export_id: str):
+    if export_id not in storage.exports:
+        raise HTTPException(status_code=404, detail="Export not found")
+    
+    return storage.exports[export_id]
+
+
+@app.get("/export/download/{export_id}")
+async def download_export(export_id: str):
+    if export_id not in storage.exports:
+        raise HTTPException(status_code=404, detail="Export not found")
+    
+    export = storage.exports[export_id]
+    
+    if export["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Export not ready")
+    
+    output_path = export.get("output_path", "")
+    
+    if not os.path.exists(output_path):
+        raise HTTPException(status_code=404, detail="Output file not found")
+    
+    return FileResponse(output_path, media_type="video/mp4", filename=f"captioned_{export_id}.mp4")
+
 
 @app.get("/themes")
 async def list_themes():
-    themes = []
-    for f in THEMES_DIR.glob("*.json"):
-        with open(f, "r", encoding="utf-8") as fp:
-            config = json.load(fp)
-            themes.append({"id": f.stem, "name": config.get("name", f.stem), "description": config.get("description", ""), "preview_image": config.get("preview_image", None)})
-    return {"themes": themes}
+    return {
+        "themes": [
+            {"id": "default", "name": "Default", "description": "White text with shadow", "animation": "pop_in"},
+            {"id": "bold", "name": "Bold", "description": "Bold white text", "animation": "pop_in"},
+            {"id": "gold", "name": "Gold", "description": "Gold colored text", "animation": "fade_in"},
+            {"id": "fire", "name": "Fire", "description": "Orange fire effect", "animation": "pop_in"}
+        ]
+    }
+
+
+@app.get("/job/{job_id}")
+async def get_job_status(job_id: str):
+    if job_id in storage.projects:
+        return storage.projects[job_id].copy()
+    if job_id in storage.timelines:
+        return storage.timelines[job_id].copy()
+    if job_id in storage.exports:
+        export = storage.exports[job_id].copy()
+        if export["status"] == "completed":
+            export["video_url"] = f"/download/{job_id}"
+        return export
+    raise HTTPException(status_code=404, detail="Job not found")
+
+
+@app.get("/styles")
+async def list_styles():
+    return {
+        "styles": [
+            {"id": "default", "name": "Default", "description": "White text with shadow"},
+            {"id": "bold", "name": "Bold", "description": "Bold white text"},
+            {"id": "gold", "name": "Gold", "description": "Gold colored text"},
+            {"id": "fire", "name": "Fire", "description": "Orange fire effect"}
+        ],
+        "animations": [
+            {"id": "pop_in", "name": "Pop In"},
+            {"id": "fade_in", "name": "Fade In"},
+            {"id": "slide_up", "name": "Slide Up"},
+            {"id": "typewriter", "name": "Typewriter"},
+            {"id": "none", "name": "None"}
+        ]
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

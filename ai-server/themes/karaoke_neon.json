@@ -1,5 +1,5 @@
 {
-  "name": "Karaoke Neon 🎤",
+  "name": "Karaoke Neon",
   "description": "Word-by-word karaoke highlighting with neon glow. Great for music and spoken word.",
   "preview_image": null,
   "style": {
@@ -16,7 +16,7 @@
     "bg_padding": 14
   },
   "animation": {
-    "type": "word_by_word",
+    "type": "karaoke",
     "duration": 0.05
   }
 }

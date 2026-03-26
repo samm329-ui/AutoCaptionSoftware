@@ -1,5 +1,5 @@
 {
-  "name": "Kalakar Fire 🔥",
+  "name": "Kalakar Fire",
   "description": "Bold, fiery Bengali-style captions with pop animation. Inspired by Kalakar edits.",
   "preview_image": null,
   "style": {
@@ -16,7 +16,7 @@
     "bg_padding": 16
   },
   "animation": {
-    "type": "pop_scale",
-    "duration": 0.12
+    "type": "pop",
+    "duration": 0.15
   }
 }
