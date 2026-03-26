@@ -1,0 +1,22 @@
+{
+  "name": "Kalakar Fire 🔥",
+  "description": "Bold, fiery Bengali-style captions with pop animation. Inspired by Kalakar edits.",
+  "preview_image": null,
+  "style": {
+    "font": "NotoSansBengali-Black.ttf",
+    "font_size": 56,
+    "position_y": 0.82,
+    "text_color": [255, 255, 255, 255],
+    "stroke_color": [0, 0, 0, 255],
+    "stroke_width": 4,
+    "shadow": true,
+    "highlight_color": [255, 100, 50, 255],
+    "background": false,
+    "bg_color": [0, 0, 0, 160],
+    "bg_padding": 16
+  },
+  "animation": {
+    "type": "pop_scale",
+    "duration": 0.12
+  }
+}

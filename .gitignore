@@ -1,0 +1,37 @@
+﻿# Environment & Secrets
+.env
+.env.local
+service-role-key.json
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Node/Next.js
+node_modules/
+.next/
+out/
+build/
+.next-env.d.ts
+
+# OS & IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Storage & Logs
+ai-server/storage/videos/*
+!ai-server/storage/videos/.gitkeep
+ai-server/storage/audio/*
+!ai-server/storage/audio/.gitkeep
+ai-server/storage/rendered/*
+!ai-server/storage/rendered/.gitkeep
+ai-server/server.log
+ai-server/error.log
+
+# Binaries
+ai-server/bin/*.exe
+ai-server/bin/ffmpeg-master*

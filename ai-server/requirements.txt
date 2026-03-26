@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+python-multipart
+whisperx @ git+https://github.com/m-bain/whisperX.git
+torch>=2.0.0
+torchaudio>=2.0.0
+opencv-python-headless
+Pillow
+numpy
+pydub
+supabase<2.0.0
+python-dotenv
+httpx
+ai4bharat-transliteration
