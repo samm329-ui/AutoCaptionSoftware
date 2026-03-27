@@ -30,6 +30,7 @@ from display_processor import HinglishProcessor
 from timeline_model import Timeline, Caption, TimelineEditor
 from preview_renderer import PreviewRenderer
 from ass_renderer import ASSRenderer
+from text_normalizer import normalize_words
 
 load_dotenv()
 
@@ -94,7 +95,8 @@ async def lifespan(app: FastAPI):
     print("CaptionAI Pro - CORRECT PIPELINE")
     print("=" * 60)
     
-    transcription_engine = TranscriptionEngine()
+    model_size = os.environ.get("WHISPER_MODEL", "base")
+    transcription_engine = TranscriptionEngine(model_size=model_size)
     segmenter = SmartSegmenter()
     display_processor = HinglishProcessor()
     preview_renderer = PreviewRenderer()
@@ -165,14 +167,19 @@ def run_processing(project_id: str, video_path: str):
         transcript = transcription_engine.transcribe(audio_path)
         update_project_status(project_id, "processing", 50, "Processing transcript...")
         
-        canonical_words = transcript["words"]
+        raw_words = transcript["words"]
         detected_lang = transcript["language"]
         duration = transcript.get("duration", 0)
         
         print(f"  Detected language: {detected_lang}")
-        print(f"  Words: {len(canonical_words)}")
+        print(f"  Raw words: {len(raw_words)}")
         
-        print(f"\n[{project_id}] Pipeline Stage 3: Build Canonical Transcript")
+        # ── STAGE 3: ONE NORMALIZATION PASS (text never changes after this) ──
+        print(f"\n[{project_id}] Pipeline Stage 3: Text Normalization")
+        update_project_status(project_id, "processing", 55, "Normalizing language...")
+        canonical_words = normalize_words(raw_words)
+        print(f"  Normalized words: {len(canonical_words)}")
+        
         storage.projects[project_id]["canonical_transcript"] = {
             "words": canonical_words,
             "language": detected_lang,
@@ -194,13 +201,10 @@ def run_processing(project_id: str, video_path: str):
         update_project_status(project_id, "processing", 80, "Finalizing...")
         
         for seg in segments:
-            original_text = seg["text"]
-            
-            display_text = display_processor.process_text(original_text)
-            display_text = display_processor.format_for_display(display_text)
-            
+            # Text is already normalized Hinglish — only format it here
+            display_text = display_processor.process_text(seg["text"])
             seg["text_hinglish"] = display_text
-            seg["text_english"] = original_text if detected_lang == "en" else original_text
+            seg["text_english"] = seg["text"]
             seg["emphasis"] = display_processor.detect_emphasis(display_text)
         
         print(f"  Display tracks generated")
