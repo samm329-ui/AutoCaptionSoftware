@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 
+
 def _get_ffmpeg_exe() -> str:
     """
     Find ffmpeg executable.
@@ -68,6 +69,8 @@ LANG_CODE_MAP = {
 # When Whisper detects these as the language, override to Hindi
 # because Hindi and Urdu are the same spoken language (Hindustani)
 LANG_OVERRIDE_TO_HINDI = {"ur", "urdu"}
+
+
 
 
 class TranscriptionEngine:
@@ -120,7 +123,8 @@ class TranscriptionEngine:
     def transcribe(self, audio_path: str, language: Optional[str] = None) -> Dict[str, Any]:
         """
         Stage 2: Speech Recognition
-        - Auto-detect language (language=None is correct, do not hardcode)
+        - Force Hindi by default to prevent Urdu script output
+        - No longer use initial_prompt (causes over-biasing)
         - Produce word-level timestamps
         - Returns canonical transcript
         """
@@ -138,12 +142,10 @@ class TranscriptionEngine:
 
             audio = whisperx.load_audio(audio_path)
 
-            # Always force language="hi" for Hindi audio.
-            # Whisper cannot reliably distinguish Hindi from Urdu by sound -
-            # they are the same spoken language (Hindustani). Auto-detect
-            # frequently picks "ur" and outputs Arabic script, which breaks
-            # the caption pipeline. Forcing "hi" guarantees Devanagari output.
+            # Keep Hindi as the default so Urdu does not leak Arabic script into
+            # the pipeline. Callers may still override by passing a language code.
             forced_language = language if language else "hi"
+            
             print(f"[TranscriptionEngine] Transcribing with language={forced_language}")
 
             result = self.model.transcribe(
