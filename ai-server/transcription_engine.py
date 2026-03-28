@@ -61,7 +61,13 @@ except ImportError:
 LANG_CODE_MAP = {
     "en": "en", "english": "en",
     "hi": "hi", "hindi": "hi",
+    # Urdu detected by Whisper → treat as Hindi (same spoken language, different script)
+    "ur": "hi", "urdu": "hi",
 }
+
+# When Whisper detects these as the language, override to Hindi
+# because Hindi and Urdu are the same spoken language (Hindustani)
+LANG_OVERRIDE_TO_HINDI = {"ur", "urdu"}
 
 
 class TranscriptionEngine:
@@ -73,6 +79,7 @@ class TranscriptionEngine:
         self.model = None
         self.align_model = None
         self.align_metadata = None
+        self.align_lang = None   # track which lang the align model is loaded for
 
         print(f"[TranscriptionEngine] Initialized")
         print(f"  Device: {self.device}")
@@ -131,28 +138,37 @@ class TranscriptionEngine:
 
             audio = whisperx.load_audio(audio_path)
 
-            # IMPORTANT: language=None → auto-detect. Never hardcode "hi" or "ur".
+            # Always force language="hi" for Hindi audio.
+            # Whisper cannot reliably distinguish Hindi from Urdu by sound -
+            # they are the same spoken language (Hindustani). Auto-detect
+            # frequently picks "ur" and outputs Arabic script, which breaks
+            # the caption pipeline. Forcing "hi" guarantees Devanagari output.
+            forced_language = language if language else "hi"
+            print(f"[TranscriptionEngine] Transcribing with language={forced_language}")
+
             result = self.model.transcribe(
                 audio,
                 batch_size=self.batch_size,
-                language=language  # None means auto-detect
+                language=forced_language
             )
 
-            detected_lang = result.get("language", "hi")
-            print(f"[TranscriptionEngine] Detected language: {detected_lang}")
+            detected_lang = result.get("language", forced_language)
+            print(f"[TranscriptionEngine] Result language: {detected_lang}")
 
-            # Load alignment model
-            if self.align_model is None:
-                lang_code = LANG_CODE_MAP.get(detected_lang, "en")
+            # Load alignment model — reload if language changed since last video
+            lang_code = LANG_CODE_MAP.get(detected_lang, "en")
+            if self.align_model is None or self.align_lang != lang_code:
                 try:
                     self.align_model, self.align_metadata = whisperx.load_align_model(
                         language_code=lang_code,
                         device=self.device
                     )
+                    self.align_lang = lang_code
                     print(f"[TranscriptionEngine] Alignment model loaded for: {lang_code}")
                 except Exception as e:
                     print(f"[TranscriptionEngine] Alignment model failed ({e}), skipping alignment")
                     self.align_model = None
+                    self.align_lang = None
 
             if self.align_model is not None:
                 result = whisperx.align(
@@ -243,6 +259,7 @@ class TranscriptionEngine:
         if self.align_model:
             del self.align_model
             self.align_model = None
+            self.align_lang = None
         gc.collect()
         if self.device == "cuda":
             torch.cuda.empty_cache()

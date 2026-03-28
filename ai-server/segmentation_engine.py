@@ -15,7 +15,7 @@ class CaptionSegmenter:
     def segment(
         self,
         words: List[Dict[str, Any]],
-        max_words: int = 3,
+        max_words: int = 99,   # effectively disabled — breaks happen on pause/punct/chars only
         max_chars: int = 40,
         min_words: int = 1
     ) -> List[Dict[str, Any]]:
@@ -29,8 +29,7 @@ class CaptionSegmenter:
             current_group.append(word_data)
             
             should_break = (
-                len(current_group) >= max_words or
-                self._has_punctuation(word_data["word"]) or
+                self._has_punctuation(word_data.get("word", word_data.get("text", ""))) or
                 self._total_chars(current_group) >= max_chars or
                 (i + 1 < len(words) and self._is_natural_pause(word_data, words[i + 1]))
             )

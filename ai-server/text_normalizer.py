@@ -170,6 +170,33 @@ DEVANAGARI_CHAR_MAP = {
 def _has_devanagari(text: str) -> bool:
     return any(0x0900 <= ord(c) <= 0x097F for c in text)
 
+def _has_urdu_arabic(text: str) -> bool:
+    """Returns True if text contains Arabic/Urdu script characters."""
+    return any(0x0600 <= ord(c) <= 0x06FF for c in text)
+
+def _urdu_to_hinglish(word: str) -> str:
+    """
+    Convert Urdu/Arabic script word directly to Hinglish Roman.
+    Used as a fallback safety net — primary fix is forcing lang=hi in ASR.
+    """
+    URDU_CHAR_MAP = {
+        'ا': 'a', 'آ': 'aa', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ٹ': 't',
+        'ث': 's', 'ج': 'j', 'چ': 'ch', 'ح': 'h', 'خ': 'kh', 'د': 'd',
+        'ڈ': 'd', 'ذ': 'z', 'ر': 'r', 'ڑ': 'r', 'ز': 'z', 'ژ': 'zh',
+        'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'z', 'ط': 't', 'ظ': 'z',
+        'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ک': 'k', 'گ': 'g',
+        'ل': 'l', 'م': 'm', 'ن': 'n', 'ں': 'n', 'و': 'o', 'ہ': 'h',
+        'ھ': 'h', 'ء': 'a', 'ی': 'i', 'ے': 'e', 'ئ': 'i', 'ؤ': 'o',
+        # Vowel marks (harakat)
+        'َ': 'a', 'ِ': 'i', 'ُ': 'u', 'ّ': '', 'ْ': '', 'ً': 'an',
+        'ٍ': 'in', 'ٌ': 'un',
+    }
+    result = []
+    for char in word:
+        result.append(URDU_CHAR_MAP.get(char, ''))
+    return ''.join(result) or word
+
+
 def _has_foreign_script(text: str) -> bool:
     """
     Returns True if text contains any non-Devanagari, non-Latin script.
@@ -284,9 +311,17 @@ def normalize_word(word_text: str) -> str:
     if _is_roman(text):
         return force_roman(text)
 
-    # Foreign script (Urdu, Bengali, Arabic, etc.) → DROP completely
-    # Do this BEFORE force_roman so we drop the whole word, not just characters
+    # Foreign script (Urdu, Bengali, Arabic, etc.)
+    # Urdu → try to transliterate to Hinglish (same spoken language as Hindi)
+    # All other foreign scripts → DROP
     if _has_foreign_script(text):
+        if _has_urdu_arabic(text):
+            # Urdu script: convert directly to Hinglish Roman
+            converted = _urdu_to_hinglish(text)
+            result = force_roman(converted)
+            if result.strip():
+                return result
+        # All other foreign scripts → drop
         return ''
 
     # Pure Devanagari
