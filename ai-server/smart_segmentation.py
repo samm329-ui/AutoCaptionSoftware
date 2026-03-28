@@ -26,9 +26,9 @@ class SmartSegmenter:
     def segment(
         self,
         words: List[Dict[str, Any]],
-        max_line_width: int = 42,
-        min_pause_gap: float = 0.3,
-        max_reading_speed: float = 25.0
+        max_line_width: int = 38,
+        min_pause_gap: float = 0.45,
+        max_reading_speed: float = 18.0
     ) -> List[Dict[str, Any]]:
         """
         Group normalized words into caption segments.

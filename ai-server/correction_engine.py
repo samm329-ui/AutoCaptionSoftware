@@ -1,174 +1,99 @@
-"""
-correction_engine.py
-
-Deterministic correction layer for local CaptionAI deployments.
-
-Goals:
-- Correct a small set of high-frequency Whisper mishears.
-- Keep valid Hinglish / English tokens unchanged.
-- Avoid broad rewrites or hallucination-prone behavior.
-- Provide a short vocabulary hint for Whisper initial_prompt.
-
-This module is intentionally dependency-free (stdlib only).
-"""
-
 from __future__ import annotations
 
-import difflib
 import re
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Optional
 
+from rapidfuzz import fuzz, process
 
-PHONETIC_CORRECTIONS: Dict[str, str] = {
-    # Business / creator words
-    "bijlin": "business",
-    "bislin": "business",
-    "bijnes": "business",
-    "bijalin": "business",
-    "bijlis": "business",
-    "bijnas": "business",
-    "bizlin": "business",
+BASE_DIR = Path(__file__).resolve().parent
+RESOURCE_DIR = BASE_DIR / "resources"
+GLOSSARY_DIR = BASE_DIR / "glossaries"
+DEFAULT_LEXICON_PATH = RESOURCE_DIR / "common_english_words.txt"
+
+URL_RE = re.compile(r"^(?:https?://|www\.|mailto:|@)[^\s]+$", re.IGNORECASE)
+NUMERIC_RE = re.compile(r"^[\d.,:+\-/%₹$€£]+$")
+LATIN_RE = re.compile(r"[A-Za-z]")
+
+# Keep punctuation handling simple and fully ASCII-safe.
+LEADING_PUNCT = '"\'([{'
+TRAILING_PUNCT = '"\')]}.,!?;:'
+
+HINGLISH_CANONICAL = {
+    "fir": "phir",
+    "phir": "phir",
+    "nahi": "nahi",
+    "nahin": "nahi",
+    "nai": "nahi",
+    "hai": "hai",
+    "hain": "hain",
+    "ho": "ho",
+    "main": "main",
+    "mai": "main",
+    "me": "mein",
+    "mein": "mein",
+    "aur": "aur",
+    "lekin": "lekin",
+    "kyunki": "kyunki",
+    "kyun": "kyun",
+    "kya": "kya",
+    "kaise": "kaise",
+    "kahan": "kahan",
+    "kab": "kab",
+    "kaun": "kaun",
+    "ye": "ye",
+    "yeh": "yeh",
+    "wo": "wo",
+    "woh": "woh",
+    "isme": "ismein",
+    "ismein": "ismein",
+    "usme": "usmein",
+    "usmein": "usmein",
+    "to": "toh",
+    "toh": "toh",
+    "bahut": "bahut",
+    "bilkul": "bilkul",
+    "kaafi": "kaafi",
+    "zyada": "zyada",
+    "thoda": "thoda",
+    "thodi": "thodi",
+}
+
+DETERMINISTIC_FIXES = {
+    "phr": "phir",
+    "fir": "phir",
+    "phirr": "phir",
+    "fhir": "phir",
+    "mrgin": "margin",
+    "marjin": "margin",
+    "margen": "margin",
+    "nmbrz": "numbers",
+    "nmbr": "number",
+    "nambar": "number",
+    "numbr": "number",
+    "buisness": "business",
+    "bisness": "business",
     "biznes": "business",
     "biznis": "business",
-
-    "marjin": "margin",
-    "marjan": "margin",
-    "mrjn": "margin",
-    "marjn": "margin",
-
-    "nambar": "number",
-    "nambr": "number",
-    "nmbr": "number",
-    "nmbrz": "numbers",
-    "nambrz": "numbers",
-    "numbr": "number",
-    "numbrs": "numbers",
-    "nombr": "number",
-    "nomber": "number",
-
+    "prfit": "profit",
+    "proft": "profit",
+    "mkt": "market",
+    "mrkt": "market",
+    "kstmr": "customer",
+    "custmr": "customer",
+    "rvnju": "revenue",
+    "revnue": "revenue",
+    "kntnt": "content",
+    "prdkt": "product",
     "strtji": "strategy",
     "stratyji": "strategy",
-    "stratiji": "strategy",
-    "stretji": "strategy",
-    "stratji": "strategy",
-
+    "seels": "sales",
     "sels": "sales",
-    "seils": "sales",
-    "selz": "sales",
-    "seilz": "sales",
-    "seyl": "sales",
-
-    "pris": "price",
     "prais": "price",
-    "prys": "price",
-    "prays": "price",
-    "pryse": "price",
-
-    "prfit": "profit",
-    "prafit": "profit",
-    "prafeet": "profit",
-    "profeet": "profit",
-
-    "bjt": "budget",
-    "bajet": "budget",
+    "pris": "price",
     "budjet": "budget",
-    "bajat": "budget",
-    "bajit": "budget",
-
-    "mrkt": "market",
-    "markit": "market",
-    "markeet": "market",
-    "markat": "market",
-    "markate": "market",
-
-    "kstmr": "customer",
-    "kastmar": "customer",
-    "kastumar": "customer",
-    "kastamar": "customer",
-    "kastemer": "customer",
-
-    "rvnju": "revenue",
-    "revnu": "revenue",
-    "revnyu": "revenue",
-    "ravenyu": "revenue",
-    "ravenu": "revenue",
-
-    "kntnt": "content",
-    "kantent": "content",
-    "kantnt": "content",
-    "kantant": "content",
-    "kontant": "content",
-
-    "brnd": "brand",
-    "braand": "brand",
-    "brend": "brand",
-    "brant": "brand",
-    "brandt": "brand",
-
-    "prdkt": "product",
-    "pradakt": "product",
-    "prodakt": "product",
-    "pradact": "product",
-    "prodact": "product",
-
-    "vdyo": "video",
-    "vidiyo": "video",
-    "vidyo": "video",
-    "vdeo": "video",
-    "veedyo": "video",
-
-    "chnal": "channel",
-    "chanel": "channel",
-    "chanal": "channel",
-    "chaenal": "channel",
-    "chanl": "channel",
-
-    "sabskrayb": "subscribe",
-    "sabskriyb": "subscribe",
-    "sabskraib": "subscribe",
-    "sabscrayb": "subscribe",
-    "sabscribe": "subscribe",
-
-    "folo": "follow",
-    "falu": "follow",
-    "pholo": "follow",
-    "folou": "follow",
-    "phalou": "follow",
-
-    "layk": "like",
-    "laik": "like",
-    "lyke": "like",
-    "lyk": "like",
-
-    "sher": "share",
-    "sheyar": "share",
-    "shear": "share",
-    "sheyr": "share",
-
-    "kament": "comment",
-    "kamnt": "comment",
-    "coment": "comment",
-    "kamant": "comment",
-    "komant": "comment",
-
-    "trend": "trend",
-    "trnd": "trend",
-    "trand": "trend",
-
-    "akant": "account",
-    "akaunt": "account",
+    "bujet": "budget",
     "akount": "account",
-    "acount": "account",
-    "acaunt": "account",
-
-    "vyuz": "views",
-    "vyus": "views",
-    "viuz": "views",
-    "vius": "views",
-    "vyooz": "views",
-
-    # Common contractions
     "cant": "can't",
     "dont": "don't",
     "wont": "won't",
@@ -179,189 +104,164 @@ PHONETIC_CORRECTIONS: Dict[str, str] = {
     "doesnt": "doesn't",
 }
 
-_COMMON_WORDS = """
-a an and are as at be been being but by can could did do does doing done for from get got
-had has have he her here him his i if in into is it its just let like me may might my no not
-of on or our out over said say says she should so than that their them then there these
-they this those to too under up us very was were we what when where who why will with would
-you your
-aur ya par lekin magar phir toh agar kyunki isliye tab jab mein se ka ki ke ne saath bina liye
-bahut bilkul kaafi zyda zyada kam thoda abhi jaldi dheere achha achhi achhe bura bada badi bade
-chhota chhoti chhote naya nayi naye purana purani purane sahi galat theek pehla doosra aakhri
-main tum aap hum woh wo yeh ye ve mera meri mere tumhara tumhari hamara hamari hamare apna apni apne
-kisi koi kuch sab sabhi aaj kal parso yahan wahan upar neeche andar bahar aage peechhe dayen bayen
-paisa paise kaam samay baat baatein cheez log dost bhai yaar din saal ghar jagah raasta duniya zindagi
-desh sheher gaon parivaar maa baap bhaiya
-dekhiye suniye janiye jaante jaanti jaanta samjhe lagta lagti mila mili hua hui hue raha rahi rahe aaya aayi gaya gayi diya di liya kaha suna dekha pata naam
-business margin profit sales price budget market customer revenue content brand product video channel subscribe follow like share comment trend account views
-analytics performance conversion retention acquisition funnel campaign creative organic paid reach impressions clicks website landing page social media platform algorithm monetization
-advertisement sponsorship collaboration partnership investment growth cost value team project strategy quality report data result support service software app system local cloud export import editor subtitle caption render
-numbers number
-""".split()
-
-SAFE_WORDS = frozenset({w.strip().lower() for w in _COMMON_WORDS if w.strip()})
-
-VOCAB_HINT_WORDS = (
-    "business margin profit sales numbers strategy market customer revenue "
-    "content brand product video channel subscribe follow like share comment "
-    "trend price budget account views cost investment growth target audience "
-    "engagement metrics analytics performance conversion retention acquisition "
-    "funnel campaign creative organic paid reach impressions clicks "
-    "website landing page social media platform algorithm monetization "
-    "advertisement sponsorship collaboration partnership subtitle caption render"
-).split()
+HINGLISH_SAFE = set(HINGLISH_CANONICAL.keys()) | {
+    "business", "margin", "profit", "sales", "numbers", "strategy", "market", "customer", "revenue",
+    "content", "channel", "brand", "product", "video", "subscribe", "follow", "like", "share",
+    "comment", "trend", "price", "budget", "account", "views", "growth", "target", "audience",
+    "engagement", "analytics", "performance", "conversion", "retention", "acquisition", "campaign",
+    "creative", "organic", "paid", "reach", "impressions", "clicks", "website", "landing", "page",
+    "social", "media", "platform", "algorithm", "monetization", "advertisement", "sponsorship",
+    "collaboration", "partnership", "phir", "fir", "hai", "nahi", "nahin", "mein", "main", "aur",
+    "lekin", "kyunki", "kyun", "kya", "kaise", "kab", "kahan", "wo", "woh", "ye", "yeh", "tab",
+    "toh", "bahut", "bilkul", "kaafi", "zyada", "thoda", "thodi", "ho", "hain", "tha", "thi", "the",
+    "karna", "karta", "karti", "karte", "jana", "jaana", "aana", "dena", "lena", "kehna", "sunna",
+    "bolna", "samajhna", "batana", "rukna", "chalna", "banana", "lagana", "milna",
+}
 
 
-def build_vocabulary_hint(max_words: int = 48) -> str:
-    seen = []
-    for word in VOCAB_HINT_WORDS:
-        w = word.strip().lower()
-        if w and w not in seen:
-            seen.append(w)
-        if len(seen) >= max_words:
-            break
-    return " ".join(seen)
+def load_word_list(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    out: list[str] = []
+    for line in path.read_text(encoding='utf-8', errors='ignore').splitlines():
+        w = line.strip().lower()
+        if not w or w.startswith('#'):
+            continue
+        if re.fullmatch(r"[a-z][a-z\-']*", w):
+            out.append(w)
+    return out
 
 
-def _strip_wrapping_punct(token: str) -> Tuple[str, str, str]:
+def script_of(text: str) -> str:
+    if not text:
+        return "unknown"
+    if any(0x0900 <= ord(c) <= 0x097F for c in text):
+        return "devanagari"
+    if any(0x0600 <= ord(c) <= 0x06FF for c in text):
+        return "arabic"
+    if any(c.isalpha() and ord(c) < 128 for c in text):
+        return "latin"
+    return "unknown"
+
+
+def phonetic_key(token: str) -> str:
+    token = re.sub(r"[^a-z]", "", token.lower())
+    if not token:
+        return ""
+    token = re.sub(r"[aeiouy]+", "", token)
+    token = re.sub(r"(.)\1+", r"\1", token)
+    return token
+
+
+def split_punct(token: str) -> tuple[str, str, str]:
+    token = token.strip()
     if not token:
         return "", "", ""
-    m = re.match(r"^(\W*)([A-Za-z][A-Za-z'\-]*)(\W*)$", token)
-    if not m:
-        return "", token, ""
-    return m.group(1), m.group(2), m.group(3)
+
+    prefix = []
+    suffix = []
+
+    while token and token[0] in LEADING_PUNCT:
+        prefix.append(token[0])
+        token = token[1:]
+
+    while token and token[-1] in TRAILING_PUNCT:
+        suffix.append(token[-1])
+        token = token[:-1]
+
+    return ''.join(prefix), token, ''.join(reversed(suffix))
 
 
-def _clean_alpha(word: str) -> str:
-    return re.sub(r"[^a-z]", "", word.lower())
+def is_probably_acronym(token: str) -> bool:
+    core = re.sub(r"[^A-Za-z]", "", token)
+    return len(core) >= 2 and core.isupper()
 
 
-def _collapse_repeats(word: str) -> str:
-    return re.sub(r"(.)\1{1,}", r"\1", word)
+class TextRepairEngine:
+    def __init__(self) -> None:
+        lexicon = load_word_list(DEFAULT_LEXICON_PATH)
+        extra: list[str] = []
+        if GLOSSARY_DIR.exists():
+            for file in sorted(GLOSSARY_DIR.glob('*.txt')):
+                extra.extend(load_word_list(file))
 
+        merged: list[str] = []
+        seen: set[str] = set()
+        for word in extra + lexicon + sorted(HINGLISH_SAFE):
+            if word not in seen:
+                seen.add(word)
+                merged.append(word)
 
-def _phonetic_signature(word: str) -> str:
-    w = _clean_alpha(word)
-    if not w:
-        return ""
-    for old, new in (("ph", "f"), ("ck", "k"), ("qu", "kw"), ("x", "ks"), ("sh", "s"), ("ch", "c"), ("j", "z"), ("v", "w")):
-        w = w.replace(old, new)
-    w = _collapse_repeats(w)
-    if len(w) <= 1:
-        return w
-    rest = re.sub(r"[aeiouy]", "", w[1:])
-    return w[0] + rest
+        self.lexicon = merged
+        self.lexicon_set = set(merged)
+        self.phonetic_index: dict[str, str] = {}
+        for word in merged:
+            key = phonetic_key(word)
+            if key and key not in self.phonetic_index:
+                self.phonetic_index[key] = word
 
+    def _best_lexicon_match(self, token: str, min_score: int = 88) -> Optional[str]:
+        if not self.lexicon:
+            return None
+        key = phonetic_key(token)
+        if key and key in self.phonetic_index:
+            candidate = self.phonetic_index[key]
+            if candidate != token:
+                return candidate
+        match = process.extractOne(token, self.lexicon, scorer=fuzz.WRatio)
+        if not match:
+            return None
+        candidate, score, _ = match
+        return candidate if score >= min_score else None
 
-@dataclass
-class CorrectionEngine:
-    explicit_map: Dict[str, str] = field(default_factory=lambda: dict(PHONETIC_CORRECTIONS))
-    safe_words: frozenset[str] = SAFE_WORDS
-    max_candidates: int = 3
-    close_match_cutoff: float = 0.78
-
-    def __post_init__(self) -> None:
-        self._candidate_words = sorted(set(self.safe_words) | set(self.explicit_map.values()))
-        self._signature_index: Dict[str, List[str]] = {}
-        for word in self._candidate_words:
-            sig = _phonetic_signature(word)
-            if sig:
-                self._signature_index.setdefault(sig, []).append(word)
-
-    @staticmethod
-    def looks_broken(token: str) -> bool:
-        w = _clean_alpha(token)
-        if len(w) < 4:
-            return False
-        vowels = sum(1 for c in w if c in "aeiouy")
-        consonants = len(w) - vowels
-        if vowels == 0:
-            return True
-        if len(w) >= 6 and vowels <= 1:
-            return True
-        if re.search(r"(?:[^aeiouy]{4,})", w):
-            return True
-        if w.endswith(("z", "j", "q", "x")) and len(w) >= 5:
-            return True
-        if consonants / max(len(w), 1) >= 0.8:
-            return True
-        return False
-
-    def correct_token(self, token: str, *, confidence: Optional[float] = None) -> str:
+    def repair_token(self, token: str, *, doc_lang: Optional[str] = None, source_script: Optional[str] = None, score: Optional[float] = None) -> str:
         if not token:
-            return token
+            return ""
 
-        prefix, core, suffix = _strip_wrapping_punct(token)
+        prefix, core, suffix = split_punct(token.strip())
         if not core:
-            return token
+            return prefix + suffix
 
-        if any(ch.isdigit() for ch in core):
-            return token
+        lower = core.lower()
 
-        core_l = core.lower()
+        if is_probably_acronym(core) or NUMERIC_RE.fullmatch(core) or URL_RE.fullmatch(core):
+            return prefix + core + suffix
 
-        if core_l in self.safe_words:
-            return prefix + core_l + suffix
+        if lower in HINGLISH_SAFE or lower in self.lexicon_set:
+            return prefix + HINGLISH_CANONICAL.get(lower, lower) + suffix
 
-        if core_l in self.explicit_map:
-            return prefix + self.explicit_map[core_l] + suffix
+        lang = (doc_lang or "").lower()
+        if lang in {"hi", "hindi", "ur", "urdu"} or source_script in {"devanagari", "arabic"}:
+            if lower in DETERMINISTIC_FIXES:
+                return prefix + DETERMINISTIC_FIXES[lower] + suffix
+            if lower in HINGLISH_CANONICAL:
+                return prefix + HINGLISH_CANONICAL[lower] + suffix
 
-        if re.fullmatch(r"[a-z]+(?:'[a-z]+)?(?:-[a-z]+)*", core_l):
-            if not self.looks_broken(core_l):
-                return prefix + core_l + suffix
+        if LATIN_RE.search(core) and lower in self.lexicon_set:
+            return prefix + lower + suffix
 
-        if confidence is not None and confidence >= 0.90 and core_l in self.safe_words:
-            return prefix + core_l + suffix
-
-        if not self.looks_broken(core_l) and core_l not in self._candidate_words:
-            return prefix + core_l + suffix
-
-        candidates = difflib.get_close_matches(
-            core_l,
-            self._candidate_words,
-            n=self.max_candidates,
-            cutoff=self.close_match_cutoff,
-        )
-        if candidates:
-            best = candidates[0]
-            if len(candidates) == 1:
-                return prefix + best + suffix
-            best_score = difflib.SequenceMatcher(None, core_l, best).ratio()
-            second_score = difflib.SequenceMatcher(None, core_l, candidates[1]).ratio()
-            if best_score - second_score >= 0.08:
-                return prefix + best + suffix
-
-        sig = _phonetic_signature(core_l)
-        if sig and sig in self._signature_index:
-            sig_candidates = self._signature_index[sig]
-            if len(sig_candidates) == 1:
-                return prefix + sig_candidates[0] + suffix
-
-            ranked = sorted(
-                ((difflib.SequenceMatcher(None, core_l, cand).ratio(), cand) for cand in sig_candidates),
-                reverse=True,
+        likely_broken = (
+            len(lower) >= 4 and (
+                sum(ch in 'aeiou' for ch in lower) <= 1
+                or re.search(r'(.)\1\1+', lower) is not None
+                or lower.endswith(('z', 'x', 'q'))
+                or len(re.sub(r'[^a-z]', '', lower)) >= 4
             )
-            if ranked:
-                score, best = ranked[0]
-                if score >= 0.80:
-                    return prefix + best + suffix
+        )
+        if likely_broken:
+            threshold = 86 if lang in {"hi", "hindi", "ur", "urdu"} else 91
+            candidate = self._best_lexicon_match(lower, min_score=threshold)
+            if candidate:
+                if len(lower) <= 3 and candidate not in HINGLISH_SAFE:
+                    return prefix + core + suffix
+                return prefix + candidate + suffix
 
-        return prefix + core_l + suffix
+        if lang in {"hi", "hindi", "ur", "urdu"}:
+            if lower in DETERMINISTIC_FIXES:
+                return prefix + DETERMINISTIC_FIXES[lower] + suffix
+            return prefix + lower + suffix
 
-    def correct_text(self, text: str, confidence: Optional[float] = None) -> str:
-        if not text:
-            return text
-        parts = re.split(r"(\s+)", text)
-        fixed: List[str] = []
-        for part in parts:
-            if not part or part.isspace():
-                fixed.append(part)
-            else:
-                fixed.append(self.correct_token(part, confidence=confidence))
-        return "".join(fixed)
-
-    def vocab_hint(self, max_words: int = 48) -> str:
-        return build_vocabulary_hint(max_words=max_words)
+        return prefix + lower + suffix
 
 
-DEFAULT_CORRECTION_ENGINE = CorrectionEngine()
+REPAIR_ENGINE = TextRepairEngine()

@@ -177,7 +177,7 @@ def run_processing(project_id: str, video_path: str):
         # ── STAGE 3: ONE NORMALIZATION PASS (text never changes after this) ──
         print(f"\n[{project_id}] Pipeline Stage 3: Text Normalization")
         update_project_status(project_id, "processing", 55, "Normalizing language...")
-        canonical_words = normalize_words(raw_words)
+        canonical_words = normalize_words(raw_words, doc_lang=detected_lang)
         print(f"  Normalized words: {len(canonical_words)}")
         
         storage.projects[project_id]["canonical_transcript"] = {
@@ -190,9 +190,9 @@ def run_processing(project_id: str, video_path: str):
         update_project_status(project_id, "processing", 60, "Creating captions...")
         segments = segmenter.segment(
             canonical_words,
-            max_line_width=42,
-            min_pause_gap=0.3,
-            max_reading_speed=25.0
+            max_line_width=38,
+            min_pause_gap=0.45,
+            max_reading_speed=18.0
         )
         
         print(f"  Created {len(segments)} segments")

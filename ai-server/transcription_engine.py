@@ -24,7 +24,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 
-
 def _get_ffmpeg_exe() -> str:
     """
     Find ffmpeg executable.
@@ -69,8 +68,6 @@ LANG_CODE_MAP = {
 # When Whisper detects these as the language, override to Hindi
 # because Hindi and Urdu are the same spoken language (Hindustani)
 LANG_OVERRIDE_TO_HINDI = {"ur", "urdu"}
-
-
 
 
 class TranscriptionEngine:
@@ -120,11 +117,12 @@ class TranscriptionEngine:
         print(f"[TranscriptionEngine] Audio normalized: {output_path}")
         return output_path
 
+
     def transcribe(self, audio_path: str, language: Optional[str] = None) -> Dict[str, Any]:
         """
         Stage 2: Speech Recognition
-        - Force Hindi by default to prevent Urdu script output
-        - No longer use initial_prompt (causes over-biasing)
+        - Let WhisperX auto-detect language unless the caller forces one
+        - Force Hindi only for Urdu/Hindi compatibility after detection
         - Produce word-level timestamps
         - Returns canonical transcript
         """
@@ -142,22 +140,23 @@ class TranscriptionEngine:
 
             audio = whisperx.load_audio(audio_path)
 
-            # Keep Hindi as the default so Urdu does not leak Arabic script into
-            # the pipeline. Callers may still override by passing a language code.
-            forced_language = language if language else "hi"
-            
-            print(f"[TranscriptionEngine] Transcribing with language={forced_language}")
+            forced_language = language if language else None
+            if forced_language:
+                print(f"[TranscriptionEngine] Transcribing with language={forced_language}")
+            else:
+                print("[TranscriptionEngine] Transcribing with language=auto")
 
-            result = self.model.transcribe(
-                audio,
-                batch_size=self.batch_size,
-                language=forced_language
-            )
+            transcribe_kwargs = {"batch_size": self.batch_size}
+            if forced_language:
+                transcribe_kwargs["language"] = forced_language
 
-            detected_lang = result.get("language", forced_language)
+            result = self.model.transcribe(audio, **transcribe_kwargs)
+
+            detected_lang = result.get("language", forced_language or "auto")
+            if detected_lang in LANG_OVERRIDE_TO_HINDI:
+                detected_lang = "hi"
             print(f"[TranscriptionEngine] Result language: {detected_lang}")
 
-            # Load alignment model — reload if language changed since last video
             lang_code = LANG_CODE_MAP.get(detected_lang, "en")
             if self.align_model is None or self.align_lang != lang_code:
                 try:
@@ -183,8 +182,8 @@ class TranscriptionEngine:
                 )
 
             canonical_words = self._build_canonical_transcript(result, detected_lang)
+            canonical_words = self._sort_and_clean_words(canonical_words)
 
-            # Estimate duration from audio array
             try:
                 duration = len(audio) / 16000
             except Exception:
@@ -238,6 +237,31 @@ class TranscriptionEngine:
                         })
 
         return words
+
+    def _sort_and_clean_words(self, words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Sort by timestamps and remove empty / duplicate artifacts."""
+        if not words:
+            return []
+
+        cleaned: List[Dict[str, Any]] = []
+        seen = set()
+        for word in sorted(words, key=lambda w: (float(w.get("start", 0) or 0), float(w.get("end", 0) or 0))):
+            text = str(word.get("text", word.get("word", ""))).strip()
+            if not text:
+                continue
+            start = float(word.get("start", 0) or 0)
+            end = float(word.get("end", 0) or 0)
+            key = (text.lower(), round(start, 2), round(end, 2))
+            if key in seen:
+                continue
+            seen.add(key)
+            new_word = word.copy()
+            new_word["text"] = text
+            new_word["word"] = text
+            new_word["start"] = start
+            new_word["end"] = end
+            cleaned.append(new_word)
+        return cleaned
 
     def _fallback_transcript(self) -> Dict[str, Any]:
         """Fallback when WhisperX is not available."""
