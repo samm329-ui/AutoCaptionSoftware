@@ -214,7 +214,11 @@ class TextRepairEngine:
         candidate, score, _ = match
         return candidate if score >= min_score else None
 
-    def repair_token(self, token: str, *, doc_lang: Optional[str] = None, source_script: Optional[str] = None, score: Optional[float] = None) -> str:
+    def repair_token(self, token: str, *, doc_lang: Optional[str] = None, source_script: Optional[str] = None, score: Optional[float] = None, english_mode: bool = False) -> str:
+        """
+        english_mode=True: skip HINGLISH_CANONICAL rewrites entirely.
+        Prevents 'to' becoming 'toh', 'me' becoming 'mein', etc. in English videos.
+        """
         if not token:
             return ""
 
@@ -228,6 +232,9 @@ class TextRepairEngine:
             return prefix + core + suffix
 
         if lower in HINGLISH_SAFE or lower in self.lexicon_set:
+            # In English mode: skip Hinglish canonical rewrites entirely
+            if english_mode:
+                return prefix + lower + suffix
             return prefix + HINGLISH_CANONICAL.get(lower, lower) + suffix
 
         lang = (doc_lang or "").lower()

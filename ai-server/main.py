@@ -30,7 +30,7 @@ from display_processor import HinglishProcessor
 from timeline_model import Timeline, Caption, TimelineEditor
 from preview_renderer import PreviewRenderer
 from ass_renderer import ASSRenderer
-from text_normalizer import normalize_words
+from language_router import route_transcript
 
 load_dotenv()
 
@@ -174,10 +174,10 @@ def run_processing(project_id: str, video_path: str):
         print(f"  Detected language: {detected_lang}")
         print(f"  Raw words: {len(raw_words)}")
         
-        # ── STAGE 3: ONE NORMALIZATION PASS (text never changes after this) ──
-        print(f"\n[{project_id}] Pipeline Stage 3: Text Normalization")
+        # ── STAGE 3: LANGUAGE-ROUTED NORMALIZATION (mode-aware, not one-size-fits-all) ──
+        print(f"\n[{project_id}] Pipeline Stage 3: Language-Routed Normalization")
         update_project_status(project_id, "processing", 55, "Normalizing language...")
-        canonical_words = normalize_words(raw_words, doc_lang=detected_lang)
+        canonical_words = route_transcript(raw_words, detected_lang=detected_lang)
         print(f"  Normalized words: {len(canonical_words)}")
         
         storage.projects[project_id]["canonical_transcript"] = {
