@@ -135,7 +135,7 @@ def update_project_status(project_id: str, status: str, progress: int, step: str
         storage.projects[project_id]["updated_at"] = time.time()
 
 
-def run_processing(project_id: str, video_path: str, output_mode: str = "native"):
+def run_processing(project_id: str, video_path: str):
     """
     CORRECT PIPELINE:
     1. Normalize audio (mono 16kHz WAV)
@@ -176,9 +176,8 @@ def run_processing(project_id: str, video_path: str, output_mode: str = "native"
         
         # ── STAGE 3: LANGUAGE-ROUTED NORMALIZATION (mode-aware, not one-size-fits-all) ──
         print(f"\n[{project_id}] Pipeline Stage 3: Language-Routed Normalization")
-        print(f"  Output mode: {output_mode}")
         update_project_status(project_id, "processing", 55, "Normalizing language...")
-        canonical_words = route_transcript(raw_words, detected_lang=detected_lang, output_mode=output_mode)
+        canonical_words = route_transcript(raw_words, detected_lang=detected_lang)
         print(f"  Normalized words: {len(canonical_words)}")
         
         storage.projects[project_id]["canonical_transcript"] = {
@@ -281,17 +280,8 @@ async def health():
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    display_mode: str = Form("hinglish"),
-    output_mode: str = Form("native")
+    display_mode: str = Form("hinglish")
 ):
-    """
-    Upload video for captioning.
-    
-    output_mode options:
-      - "native": Keep original script (Hindi→Devanagari, English→Latin)
-      - "hinglish": Romanized Hindi/Hinglish
-      - "english": English output
-    """
     project_id = str(uuid.uuid4())
     video_path = str(VIDEOS_DIR / f"{project_id}.mp4")
     
@@ -303,19 +293,17 @@ async def upload_video(
         "filename": file.filename,
         "video_path": video_path,
         "display_mode": display_mode,
-        "output_mode": output_mode,
         "status": "processing",
         "created_at": time.time()
     }
     storage.save()
     
-    background_tasks.add_task(run_processing, project_id, video_path, output_mode)
+    background_tasks.add_task(run_processing, project_id, video_path)
     
     return {
         "job_id": project_id,
         "project_id": project_id,
         "status": "processing",
-        "output_mode": output_mode,
         "message": "Video uploaded. Pipeline started."
     }
 
