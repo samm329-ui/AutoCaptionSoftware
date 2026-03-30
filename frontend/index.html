@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FYAP Pro Dashboard</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            900: '#4c1d95',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & ReactDOM (UMD versions) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel Standalone (for JSX in browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+    
+    <!-- Root Element -->
+    <div id="root"></div>
+
+    <!-- Application Logic -->
+    <!-- Define APIs on window object -->
+    <script type="text/babel" src="/api.js" data-type="module"></script>
+    
+    <!-- Component Definitions -->
+    <script type="text/babel" src="/components/UploadCard.jsx?v=4" data-type="module"></script>
+    <script type="text/babel" src="/components/ProgressCard.jsx?v=4" data-type="module"></script>
+    <script type="text/babel" src="/components/ResultCard.jsx?v=5" data-type="module"></script>
+    <script type="text/babel" src="/components/HistoryList.jsx?v=4" data-type="module"></script>
+    
+    <!-- Main App -->
+    <script type="text/babel" src="/app.jsx?v=5" data-type="module"></script>
+    
+</body>
+</html>
