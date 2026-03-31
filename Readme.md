@@ -1,0 +1,137 @@
+# FYAP Pro - Video Captioning System
+
+## Project Structure
+
+```
+caption-tool-master/
+├── backend/           # FastAPI server (REST API + WebSocket)
+│   ├── api/           # API routes (jobs, health)
+│   ├── main.py        # Entry point, CORS, static file serving
+│   ├── database.py    # SQLite database
+│   └── pipeline_runner.py  # Background job runner
+├── caption_engine/    # AI transcription pipeline
+│   ├── audio.py       # Audio extraction & chunking
+│   ├── transcriber.py # Whisper transcription
+│   ├── lang_detector.py    # Language detection
+│   ├── llm_judge.py       # LLM refinement (Groq)
+│   ├── dual_scorer.py     # Semantic + keyword scoring
+│   ├── hallucination_guard.py  # Hallucination detection
+│   ├── aligner.py     # Word-level timestamp alignment
+│   └── renderer.py    # SRT/VTT generation
+├── web_ui/            # React frontend (CDN-based, no build)
+└── data/             # Database, uploads, cache, logs
+```
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Client (Browser)                      │
+│                  http://localhost:8000                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ HTTP / WebSocket
+┌─────────────────────────▼───────────────────────────────────┐
+│                      FastAPI Backend                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ REST API     │  │ WebSocket    │  │ Static Files     │  │
+│  │ /api/jobs/   │  │ Progress     │  │ /web_ui/*        │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────────┘  │
+│         │                 │                                  │
+│  ┌──────▼─────────────────▼───────┐                        │
+│  │     Pipeline Runner             │                        │
+│  │     (Background Thread)         │                        │
+│  └──────────────┬──────────────────┘                        │
+│                 │ Async Updates                               │
+│  ┌──────────────▼──────────────────┐                          │
+│  │     SQLite Database           │                          │
+│  └───────────────────────────────┘                          │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│                   Caption Engine                             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────────┐   │
+│  │ Audio   │→│ Chunk   │→│ Whisper │→│ Lang Detection  │   │
+│  │ Extract │ │ & Overlap│ │ Transcribe│                 │   │
+│  └─────────┘ └─────────┘ └─────────┘ └────────┬────────┘   │
+│                                                │             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌───────▼─────────┐   │
+│  │ SRT/VTT │←│ Word    │←│ Dual    │←│ LLM Refinement  │   │
+│  │ Output  │ │ Align   │ │ Score   │ │ (Groq)         │   │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 15-Stage Pipeline
+
+| Stage | Component | Purpose |
+|-------|-----------|---------|
+| 1 | Audio Quality Estimation | Measure SNR, speech rate for adaptive thresholds |
+| 2 | Chunking | Split audio with overlap (strict/normal mode) |
+| 3 | Transcription | Whisper ASR with retry logic |
+| 4 | Language Detection | Detect Hindi/English/Hinglish per chunk |
+| 5 | Filler Removal | Strip "um", "uh", "ah" etc. |
+| 6 | LLM Refinement | Groq GPT contextual correction |
+| 7 | Hallucination Guard | Word count diff + n-gram repeat check |
+| 8 | Semantic Scoring | Sentence embeddings similarity |
+| 9 | Keyword Scoring | Jaccard index for word retention |
+| 10 | Chunk Merging | Order-safe parallel merge |
+| 11 | Sentence Splitting | Split into natural sentences |
+| 12 | Word Alignment | WhisperX forced alignment |
+| 13 | Drift Clamping | Prevent timestamp drift |
+| 14 | Alignment Validation | Verify alignment quality |
+| 15 | Output Rendering | Generate SRT/VTT formats |
+
+## Benefits
+
+### High Accuracy
+- **Dual Scoring**: Semantic similarity (60%) + keyword retention (40%)
+- **Hallucination Guard**: Blocks Whisper hallucinations before they propagate
+- **Adaptive Thresholds**: Adjusts confidence based on audio quality
+- **Language-Specific Models**: English and Hindi alignment models
+
+### Robust Error Handling
+- **Retry Logic**: Transcription and alignment with exponential backoff
+- **Fallback Strategy**: Falls back to raw transcript if refined version fails checks
+- **Multi-Stage Validation**: Each stage validates before passing to next
+
+### Production-Ready Features
+- **Real-time Progress**: WebSocket updates during transcription
+- **Background Processing**: Non-blocking job queue
+- **Persistent Storage**: SQLite for job history
+- **Export Options**: Raw captions or burned-in subtitles
+
+### Easy Deployment
+- **Single Command Start**: `python -m uvicorn backend.main:app --reload`
+- **CDN-Based Frontend**: No build step required
+- **Self-Contained**: All components in one repo
+
+## Quick Start
+
+1. Create `.env`:
+   ```env
+   GROQ_API_KEY=your_key_here
+   FFMPEG_PATH=C:\path\to\ffmpeg.exe
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Start server:
+   ```bash
+   python -m uvicorn backend.main:app --reload
+   ```
+
+4. Open: `http://localhost:8000`
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/jobs/` | Upload video, start captioning |
+| GET | `/api/jobs/` | List recent jobs |
+| GET | `/api/jobs/{id}` | Job details with captions |
+| GET | `/api/jobs/{id}/video` | Stream original video |
+| GET | `/api/jobs/{id}/export` | Download video with burned captions |
+| WS | `/api/jobs/{id}/ws` | Real-time progress updates |

@@ -1,10 +1,10 @@
 import aiosqlite
 import os
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'storage', 'database.sqlite')
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'database.sqlite')
 
 async def init_db():
-    # Ensure storage folder exists
+    # Ensure data folder exists
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     
     async with aiosqlite.connect(DB_PATH) as db:

@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from ai_pipeline.main import run_pipeline
+from caption_engine.main import run_pipeline
 from .database import DB_PATH
 import aiosqlite
 from .progress import manager

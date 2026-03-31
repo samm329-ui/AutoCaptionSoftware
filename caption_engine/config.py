@@ -2,14 +2,14 @@
 
 PIPELINE_VERSION = '1.0.0'
 
-# -- Server --
+# -- Backend --
 SERVER_HOST = '127.0.0.1'
 SERVER_PORT = 8000
 
-STORAGE_DIR = 'storage'
-UPLOAD_DIR  = 'storage/uploads'
-OUTPUT_DIR  = 'storage/outputs'
-DB_PATH     = 'storage/fyap_pro.db'
+DATA_DIR = 'data'
+UPLOAD_DIR  = 'data/uploads'
+OUTPUT_DIR  = 'data/outputs'
+DB_PATH     = 'data/fyap_pro.db'
 
 MAX_UPLOAD_SIZE_MB = 500
 
@@ -70,7 +70,7 @@ LM_CHECK_MIN_SCORE       = 0.50
 CONSISTENCY_WORD_DIFF_MAX = 0.05
 
 # -- Cache --
-CACHE_DIR                = 'storage/cache'
+CACHE_DIR                = 'data/cache'
 
 # -- Alignment Models --
 MODEL_ALIGN_EN           = 'WAV2VEC2_ASR_BASE_960H'
@@ -89,4 +89,4 @@ MAX_WORD_DIFF_RATIO      = 0.40
 
 # -- Observability --
 LOG_STRUCTURED           = True
-LOG_DIR                  = 'storage/logs'
+LOG_DIR                  = 'data/logs'

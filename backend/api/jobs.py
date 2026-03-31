@@ -16,7 +16,7 @@ from ..progress import manager
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'storage', 'uploads')
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'uploads')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/", response_model=JobResponse)

@@ -12,7 +12,7 @@ if ffmpeg_exe and os.path.exists(ffmpeg_exe):
         os.environ["PATH"] = ffmpeg_bin + os.pathsep + os.environ["PATH"]
         sys.stdout.write(f"INFO: Global FFmpeg injection successful: {ffmpeg_bin}\n")
 
-# 2. Add project root to path so `ai_pipeline` can be imported
+# 2. Add project root to path so `caption_engine` can be imported
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI
@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
-# These imports will trigger ai_pipeline logic
+# These imports will trigger caption_engine logic
 from .database import init_db
 from .api import health, jobs
 
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    print("Shutting down the server...")
+    print("Shutting down the backend...")
 
 
 app = FastAPI(
@@ -48,7 +48,7 @@ app = FastAPI(
 # CORS configuration for Frontend interaction
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For CDN-based frontend flexibility
+    allow_origins=["*"], # For Web UI flexibility
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,7 +58,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
 
-# Serve the CDN Frontend using StaticFiles
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend')
-os.makedirs(FRONTEND_DIR, exist_ok=True)
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# Serve the Web UI using StaticFiles
+WEB_UI_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web_ui')
+os.makedirs(WEB_UI_DIR, exist_ok=True)
+app.mount("/", StaticFiles(directory=WEB_UI_DIR, html=True), name="web_ui")
