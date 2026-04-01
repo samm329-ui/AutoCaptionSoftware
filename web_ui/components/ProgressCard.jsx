@@ -1,75 +1,134 @@
 window.ProgressCard = ({ jobId, onComplete }) => {
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
     const [status, setStatus] = useState('Initializing');
     const [percent, setPercent] = useState(0);
     const [details, setDetails] = useState('');
     const [error, setError] = useState(null);
     const [retryCount, setRetryCount] = useState(0);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
+    const wsRef = useRef(null);
+    const pollingRef = useRef(null);
 
-    // Timer logic
+    // Reset timer when jobId changes
+    useEffect(() => {
+        setElapsedSeconds(0);
+        setError(null);
+        setIsPaused(false);
+    }, [jobId]);
+
+    // Timer logic - pause when error or paused
     useEffect(() => {
         let interval;
-        if (status !== 'completed' && status !== 'failed') {
+        if (!isPaused && !error && status !== 'completed' && status !== 'failed') {
             interval = setInterval(() => {
                 setElapsedSeconds(prev => prev + 1);
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [status]);
+    }, [status, error, isPaused]);
 
-    useEffect(() => {
-        let ws;
-        
-        const connectWs = () => {
-             const wsUrl = window.api.getWebsocketUrl(jobId);
-             ws = new WebSocket(wsUrl);
+    // Polling fallback function
+    const pollJobStatus = async () => {
+        try {
+            const job = await window.api.fetchJob(jobId);
+            if (job.status === 'completed') {
+                setStatus('completed');
+                setPercent(100);
+                setDetails('Processing Complete');
+                clearInterval(pollingRef.current);
+                setTimeout(() => onComplete(jobId), 500);
+            } else if (job.status === 'failed') {
+                setError(job.error || "Job failed.");
+                setStatus('failed');
+                setIsPaused(true);
+                clearInterval(pollingRef.current);
+            } else if (job.progress !== undefined) {
+                setPercent(job.progress || percent);
+                if (job.step) setDetails(job.step);
+            }
+        } catch (e) {
+            console.error("Poll error:", e);
+        }
+    };
 
-             ws.onmessage = (event) => {
-                 const data = JSON.parse(event.data);
-                 if (data.type === 'progress') {
-                     setStatus(data.status);
-                     setPercent(data.percent);
-                     if (data.details) setDetails(data.details);
-                     
-                     if (data.status.toLowerCase() === 'completed') {
-                         ws.close();
-                         setTimeout(() => onComplete(jobId), 1000);
-                     } else if (data.status.toLowerCase() === 'failed') {
-                         setError(data.details || "Pipeline failed processing.");
-                         ws.close();
-                     }
-                 }
-             };
-             
-             ws.onerror = () => {
-                 console.error("WebSocket error");
-             };
-             
-             ws.onclose = () => {
-                 // Check if it's already complete based on DB via polling fallback
-                 window.api.fetchJob(jobId).then(job => {
-                     if (job.status === 'completed') {
-                         onComplete(jobId);
-                     } else if (job.status === 'failed') {
-                         setError(job.error || "Job disconnected and failed.");
-                     }
-                     // Else we could try to reconnect, but omitting for brevity
-                 });
-             };
+    const connectWs = () => {
+        const wsUrl = window.api.getWebsocketUrl(jobId);
+        wsRef.current = new WebSocket(wsUrl);
+
+        wsRef.current.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'progress') {
+                setStatus(data.status);
+                setPercent(data.percent);
+                if (data.details) setDetails(data.details);
+                
+                if (data.status.toLowerCase() === 'completed') {
+                    wsRef.current.close();
+                    setTimeout(() => onComplete(jobId), 500);
+                } else if (data.status.toLowerCase() === 'failed') {
+                    setError(data.details || "Pipeline failed processing.");
+                    setIsPaused(true);
+                    wsRef.current.close();
+                }
+            }
         };
         
+        wsRef.current.onerror = () => {
+            console.error("WebSocket error, falling back to polling");
+            if (wsRef.current) wsRef.current.close();
+            // Start polling fallback
+            setIsPaused(false);
+            pollingRef.current = setInterval(pollJobStatus, 2000);
+        };
+        
+        wsRef.current.onclose = () => {
+            // Check status via polling if not completed/failed
+            if (status !== 'completed' && status !== 'failed') {
+                pollJobStatus();
+                pollingRef.current = setInterval(pollJobStatus, 2000);
+            }
+        };
+    };
+
+    useEffect(() => {
         connectWs();
         
         return () => {
-            if (ws && ws.readyState !== WebSocket.CLOSED) {
-                ws.close();
+            if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+                wsRef.current.close();
+            }
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
             }
         };
-    }, [jobId, onComplete, retryCount]);
+    }, [jobId, retryCount]);
 
-    const handleRetry = () => {
+    const handleRetry = async () => {
         setError(null);
+        setIsPaused(false);
+        
+        // Poll to get current job status before reconnecting
+        try {
+            const job = await window.api.fetchJob(jobId);
+            if (job.status === 'completed') {
+                onComplete(jobId);
+                return;
+            }
+            if (job.progress !== undefined) {
+                setPercent(job.progress);
+            }
+            if (job.step) {
+                setDetails(job.step);
+            }
+            if (job.status === 'processing' || job.status === 'queued') {
+                setStatus(job.status === 'queued' ? 'Queued' : 'Processing');
+            }
+        } catch (e) {
+            console.error("Failed to fetch job status:", e);
+        }
+        
+        // Retry WebSocket connection
         setRetryCount(prev => prev + 1);
     };
 
