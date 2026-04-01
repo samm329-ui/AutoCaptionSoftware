@@ -121,32 +121,36 @@ window.ResultCard = ({ jobId, onNewJob }) => {
     };
 
     if (loading) return (
-        <div className="text-center p-12 text-slate-500">
-            <div className="animate-pulse">Loading results...</div>
+        <div className="relative w-full max-w-[560px] p-12 rounded-lg bg-surface-container-low border border-outline-variant/10 shadow-2xl flex flex-col items-center justify-center">
+            <span className="material-symbols-outlined text-[32px] text-primary animate-spin mb-4">settings</span>
+            <div className="animate-pulse text-on-surface font-medium uppercase tracking-widest text-sm">Decoding Workspace...</div>
         </div>
     );
     
     if (error) return (
-        <div className="bg-red-50 text-red-600 p-6 rounded-xl border border-red-200">
-            <h3 className="font-bold mb-2">Error loading job</h3>
-            <p>{error}</p>
-            <button onClick={onNewJob} className="mt-4 px-4 py-2 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-100">Go Back</button>
+        <div className="relative w-full max-w-[560px] p-8 rounded-lg bg-error-container/10 border border-error/30 shadow-2xl">
+            <h3 className="font-bold mb-2 text-error text-sm uppercase tracking-wider flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">error</span>
+                Error Loading Workspace
+            </h3>
+            <p className="text-on-surface-variant text-sm">{error}</p>
+            <button onClick={onNewJob} className="mt-6 px-4 py-2 bg-error/10 text-error border border-error/50 rounded uppercase font-bold text-xs tracking-wider hover:bg-error/20 transition-colors">Go Back</button>
         </div>
     );
 
     if (job.status === 'failed') return (
-         <div className="bg-red-50 text-red-600 p-6 rounded-xl border border-red-200 shadow-sm">
-            <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                <window.Icon name="alert-triangle" className="h-5 w-5" />
+         <div className="relative w-full max-w-[560px] p-8 rounded-lg bg-error-container/10 border border-error/50 shadow-2xl">
+             <h3 className="font-bold mb-2 text-error text-sm uppercase tracking-wider flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">gpp_bad</span>
                 Processing Failed
             </h3>
-            <p className="text-sm mb-4">{job.error || "Unknown error during processing"}</p>
+            <p className="text-on-surface text-sm mb-6">{job.error || "Unknown error during processing pipeline."}</p>
             <div className="flex gap-3">
                 <button 
                     onClick={onNewJob}
-                    className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors"
+                    className="bg-error text-on-error hover:bg-error/80 font-bold py-2 px-6 rounded uppercase tracking-wider text-xs shadow-lg transition-all"
                 >
-                    Try Again
+                    Acknowledge & Retry
                 </button>
             </div>
         </div>
@@ -157,48 +161,50 @@ window.ResultCard = ({ jobId, onNewJob }) => {
     const vttBlob = job.vtt_content ? URL.createObjectURL(new Blob([job.vtt_content], { type: 'text/vtt' })) : null;
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="relative w-full max-w-[800px] bg-surface-container-low rounded-lg shadow-2xl border border-outline-variant/10 overflow-hidden flex flex-col">
+            <div className="absolute -inset-[1px] rounded-lg border border-dashed border-outline-variant/30 pointer-events-none z-10"></div>
+            
             {/* Header */}
-            <div className="bg-brand-50 border-b border-brand-100 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div className="bg-surface-container border-b border-outline-variant/20 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-20">
                 <div>
-                    <h2 className="text-lg font-bold text-brand-900 flex items-center gap-2">
-                        <window.Icon name="check-circle" className="h-5 w-5 text-emerald-500" />
-                        Captions Ready
+                    <h2 className="text-sm font-bold tracking-[0.15em] text-primary uppercase mb-1 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px] text-[#34d399]">check_circle</span>
+                        Captions Rendered
                     </h2>
-                    <p className="text-xs text-brand-700 mt-1">
-                        <strong>{job.filename}</strong> — {job.target_lang}
+                    <p className="text-[0.6875rem] font-mono text-on-surface-variant mt-1 uppercase tracking-widest">
+                        <strong className="text-on-surface">{job.filename}</strong> | {job.target_lang}
                     </p>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 flex-wrap flex-shrink-0">
                     <button 
                         onClick={handleExportVideo}
                         disabled={exporting}
-                        className={`bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 px-3 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 ${exporting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        className={`bg-primary hover:bg-primary-fixed text-on-primary text-[0.6875rem] font-bold uppercase tracking-widest py-2 px-4 rounded shadow-lg transition-all flex items-center gap-2 ${exporting ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
                         {exporting ? (
-                            <window.Icon name="loader-2" className="h-3.5 w-3.5 animate-spin" />
+                            <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
                         ) : (
-                            <window.Icon name="film" className="h-3.5 w-3.5" />
+                            <span className="material-symbols-outlined text-[16px]">movie</span>
                         )}
                         {exporting ? 'Exporting...' : 'Export Video'}
                     </button>
                     <button 
                         onClick={() => { setActiveTab('srt'); handleDownload(); }}
-                        className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium py-1.5 px-3 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                        className="bg-surface hover:bg-surface-container-highest border border-outline-variant/30 text-on-surface text-[0.6875rem] font-bold uppercase tracking-widest py-2 px-3 rounded shadow-sm transition-all flex items-center gap-2"
                     >
-                        <window.Icon name="download" className="h-3.5 w-3.5" />
+                        <span className="material-symbols-outlined text-[16px]">download</span>
                         SRT
                     </button>
                     <button 
                         onClick={() => { setActiveTab('vtt'); handleDownload(); }}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium py-1.5 px-3 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                        className="bg-surface hover:bg-surface-container-highest border border-outline-variant/30 text-on-surface text-[0.6875rem] font-bold uppercase tracking-widest py-2 px-3 rounded shadow-sm transition-all flex items-center gap-2"
                     >
-                        <window.Icon name="download" className="h-3.5 w-3.5" />
+                        <span className="material-symbols-outlined text-[16px]">download</span>
                         VTT
                     </button>
                     <button 
                         onClick={onNewJob}
-                        className="bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium py-1.5 px-3 rounded-lg transition-colors"
+                        className="bg-transparent border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface text-[0.6875rem] font-bold uppercase tracking-widest py-2 px-3 rounded transition-colors"
                     >
                         New Job
                     </button>
@@ -206,32 +212,35 @@ window.ResultCard = ({ jobId, onNewJob }) => {
             </div>
             
             {/* Tabs */}
-            <div className="flex border-b border-slate-200">
+            <div className="flex border-b border-outline-variant/20 bg-surface-container relative z-20">
                 {['preview', 'srt', 'vtt'].map(tab => (
                     <button 
                         key={tab}
-                        className={`flex-1 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === tab 
-                            ? 'border-brand-500 text-brand-700 bg-brand-50/50' 
-                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                        className={`flex-1 py-3 text-[0.6875rem] font-bold uppercase tracking-widest border-b-2 transition-all flex justify-center items-center gap-2 ${activeTab === tab 
+                            ? 'border-primary text-primary bg-primary/5' 
+                            : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'}`}
                         onClick={() => setActiveTab(tab)}
                     >
-                        {tab === 'preview' ? '▶ Video Preview' : tab.toUpperCase() + ' Text'}
+                        {tab === 'preview' && <span className="material-symbols-outlined text-[16px]">play_circle</span>}
+                        {tab === 'srt' && <span className="material-symbols-outlined text-[16px]">description</span>}
+                        {tab === 'vtt' && <span className="material-symbols-outlined text-[16px]">subtitles</span>}
+                        {tab === 'preview' ? 'Sequence' : tab + ' Codec'}
                     </button>
                 ))}
             </div>
 
             {/* Content */}
-            <div className="p-4">
+            <div className="p-5 relative z-20">
                 {activeTab === 'preview' ? (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         {/* Video Player */}
-                        <div className="relative bg-black rounded-lg overflow-hidden">
+                        <div className="relative bg-black rounded border border-outline-variant/20 overflow-hidden shadow-inner">
                             <video
                                 ref={videoRef}
                                 src={videoUrl}
                                 controls
                                 onTimeUpdate={handleTimeUpdate}
-                                className="w-full max-h-[360px]"
+                                className="w-full max-h-[400px]"
                                 crossOrigin="anonymous"
                             >
                                 {vttBlob && (
@@ -246,7 +255,7 @@ window.ResultCard = ({ jobId, onNewJob }) => {
                             </video>
                             {/* Floating active caption */}
                             {activeCue && (
-                                <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-black/80 text-white text-sm px-4 py-2 rounded-lg max-w-[90%] text-center backdrop-blur-sm pointer-events-none">
+                                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-surface/90 border border-outline-variant/30 text-on-surface text-sm px-4 py-2 rounded max-w-[90%] text-center backdrop-blur-md pointer-events-none drop-shadow-xl font-medium">
                                     {activeCue.text}
                                 </div>
                             )}
@@ -255,10 +264,10 @@ window.ResultCard = ({ jobId, onNewJob }) => {
                         {/* Timeline Caption List */}
                         <div 
                             ref={cueListRef}
-                            className="bg-slate-50 border border-slate-200 rounded-lg max-h-[250px] overflow-y-auto divide-y divide-slate-100"
+                            className="bg-surface-container border border-outline-variant/20 rounded max-h-[250px] overflow-y-auto divide-y divide-outline-variant/10 shadow-inner"
                         >
                             {parsedCues.length === 0 ? (
-                                <div className="p-4 text-center text-slate-400 text-sm">No caption cues found</div>
+                                <div className="p-6 text-center text-on-surface-variant text-sm font-mono uppercase tracking-widest">No caption events found</div>
                             ) : parsedCues.map((cue) => {
                                 const isActive = currentTime >= cue.start && currentTime <= cue.end;
                                 return (
@@ -266,23 +275,23 @@ window.ResultCard = ({ jobId, onNewJob }) => {
                                         key={cue.index}
                                         data-active={isActive ? "true" : "false"}
                                         onClick={() => seekTo(cue.start)}
-                                        className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-all text-sm ${
+                                        className={`flex items-start gap-4 px-4 py-3 cursor-pointer transition-colors text-sm ${
                                             isActive 
-                                                ? 'bg-brand-100 border-l-4 border-l-brand-500' 
-                                                : 'hover:bg-slate-100 border-l-4 border-l-transparent'
+                                                ? 'bg-primary/10 border-l-2 border-l-primary' 
+                                                : 'hover:bg-surface-container-high border-l-2 border-l-transparent'
                                         }`}
                                     >
-                                        <span className={`flex-shrink-0 font-mono text-xs px-1.5 py-0.5 rounded ${
+                                        <span className={`flex-shrink-0 font-mono text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border ${
                                             isActive 
-                                                ? 'bg-brand-500 text-white' 
-                                                : 'bg-slate-200 text-slate-500'
+                                                ? 'bg-primary text-on-primary border-primary' 
+                                                : 'bg-surface text-on-surface-variant border-outline-variant/30'
                                         }`}>
                                             {formatTime(cue.start)}
                                         </span>
-                                        <span className={`flex-1 ${isActive ? 'text-brand-900 font-medium' : 'text-slate-700'}`}>
+                                        <span className={`flex-1 ${isActive ? 'text-on-surface font-medium' : 'text-on-surface-variant'}`}>
                                             {cue.text}
                                         </span>
-                                        <span className="flex-shrink-0 text-xs text-slate-400">
+                                        <span className={`flex-shrink-0 font-mono text-[10px] uppercase tracking-widest ${isActive ? 'text-primary' : 'text-outline'}`}>
                                             {formatTime(cue.end)}
                                         </span>
                                     </div>
@@ -291,7 +300,7 @@ window.ResultCard = ({ jobId, onNewJob }) => {
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm text-slate-700">
+                    <div className="bg-surface-container border border-outline-variant/20 rounded p-6 h-96 overflow-y-auto font-mono text-xs leading-relaxed text-on-surface shadow-inner">
                         <pre className="whitespace-pre-wrap">
                             {activeTab === 'srt' ? job.srt_content : job.vtt_content}
                         </pre>

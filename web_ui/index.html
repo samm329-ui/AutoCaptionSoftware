@@ -1,57 +1,166 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FYAP Pro Dashboard</title>
+    <title>FYAP Pro Obsidian</title>
+    
+    <!-- Google Fonts: Inter & Material Symbols -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     
     <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
     <script>
         tailwind.config = {
+            darkMode: "class",
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Inter', 'sans-serif'],
+                        headline: ["Inter"],
+                        body: ["Inter"],
+                        label: ["Inter"]
+                    },
+                    fontSize: {
+                        'xs-surgical': '10px',
+                        'sm-surgical': '12px',
+                    },
                     colors: {
-                        brand: {
-                            50: '#f5f3ff',
-                            100: '#ede9fe',
-                            500: '#8b5cf6',
-                            600: '#7c3aed',
-                            900: '#4c1d95',
-                        }
+                        // Dashboard base elements
+                        "background-light": "#F8F8F8",
+                        "background-dark": "#0D0D0D",
+                        "sidebar-dark": "#161616",
+                        "border-dark": "#242424",
+                        
+                        // Combined Material Tokens
+                        "primary-container": "#9795ff",
+                        "on-surface": "#f6f6fc",
+                        "surface-container-high": "#1d2025",
+                        "on-primary-fixed": "#000000",
+                        "on-tertiary-fixed-variant": "#6d104e",
+                        "surface-tint": "#a7a5ff",
+                        "primary-dim": "#645efb",
+                        "surface": "#0c0e12",
+                        "on-secondary": "#280072",
+                        "secondary-container": "#4d329b",
+                        "on-background": "#f6f6fc",
+                        "inverse-surface": "#f9f9ff",
+                        "secondary-dim": "#a68dfa",
+                        "on-primary-container": "#14007e",
+                        "outline-variant": "#46484d",
+                        "on-error-container": "#ffb2b9",
+                        "on-secondary-container": "#d6c9ff",
+                        "on-tertiary-fixed": "#360024",
+                        "primary-fixed": "#9795ff",
+                        "surface-container-low": "#111318",
+                        "tertiary": "#ff9dd1",
+                        "outline": "#74757a",
+                        "surface-container-highest": "#23262c",
+                        "on-secondary-fixed-variant": "#573da6",
+                        "surface-variant": "#23262c",
+                        "secondary-fixed": "#d8caff",
+                        "on-secondary-fixed": "#3a1b88",
+                        "error": "#ff6e84",
+                        "surface-container-lowest": "#000000",
+                        "on-primary": "#1c00a0",
+                        "inverse-on-surface": "#53555a",
+                        "inverse-primary": "#4e45e4",
+                        "surface-dim": "#0c0e12",
+                        "on-tertiary": "#6c0f4d",
+                        "tertiary-dim": "#eb7bba",
+                        "error-container": "#a70138",
+                        "tertiary-fixed-dim": "#ee7ebc",
+                        "surface-container": "#171a1f",
+                        "surface-bright": "#292c32",
+                        "error-dim": "#d73357",
+                        "on-tertiary-container": "#5e0042",
+                        "background": "#0c0e12",
+                        "tertiary-container": "#fa88c8",
+                        "on-error": "#490013",
+                        "secondary-fixed-dim": "#cbbaff",
+                        "primary-fixed-dim": "#8885ff",
+                        "on-surface-variant": "#aaabb0",
+                        "secondary": "#a98ffd",
+                        "on-primary-fixed-variant": "#1a0099",
+                        "tertiary-fixed": "#fd8bca",
+                        "primary": "#a7a5ff"
                     }
                 }
             }
         }
     </script>
     
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+            display: inline-block;
+            line-height: 1;
+        }
+        
+        body {
+            background-color: #0c0e12;
+            color: #f6f6fc;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .surgical-gradient {
+            background: linear-gradient(135deg, #a7a5ff 0%, #645efb 100%);
+        }
+        .laser-glow {
+            box-shadow: 0 0 8px 1px rgba(167, 165, 255, 0.4);
+        }
+        .pixel-grid {
+            background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        
+        /* Dashboard native scrollbars */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a2a2a;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3a3a3a;
+        }
+        .active-nav {
+            background-color: rgba(255, 255, 255, 0.04);
+            border-radius: 4px;
+        }
+    </style>
+    
     <!-- React & ReactDOM (UMD versions) -->
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    
-    <!-- Babel Standalone (for JSX in browser) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
-    
-    <!-- Root Element -->
-    <div id="root"></div>
+<body class="font-sans antialiased text-on-surface bg-background">
+    <!-- Root Element for React app -->
+    <div id="root" class="h-screen w-screen relative"></div>
 
     <!-- Application Logic -->
-    <!-- Define APIs on window object -->
     <script type="text/babel" src="/api.js" data-type="module"></script>
     
     <!-- Component Definitions -->
-    <script type="text/babel" src="/components/UploadCard.jsx?v=4" data-type="module"></script>
-    <script type="text/babel" src="/components/ProgressCard.jsx?v=4" data-type="module"></script>
-    <script type="text/babel" src="/components/ResultCard.jsx?v=5" data-type="module"></script>
-    <script type="text/babel" src="/components/HistoryList.jsx?v=4" data-type="module"></script>
+    <script type="text/babel" src="/components/LoadingScreen.jsx?v=2" data-type="module"></script>
+    <script type="text/babel" src="/components/Dashboard.jsx?v=2" data-type="module"></script>
+    <script type="text/babel" src="/components/UploadCard.jsx?v=5" data-type="module"></script>
+    <script type="text/babel" src="/components/ProgressCard.jsx?v=5" data-type="module"></script>
+    <script type="text/babel" src="/components/ResultCard.jsx?v=6" data-type="module"></script>
     
     <!-- Main App -->
-    <script type="text/babel" src="/app.jsx?v=5" data-type="module"></script>
-    
+    <script type="text/babel" src="/app.jsx?v=6" data-type="module"></script>
 </body>
 </html>

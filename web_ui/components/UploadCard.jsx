@@ -1,4 +1,4 @@
-window.UploadCard = ({ onJobCreated }) => {
+window.UploadCard = ({ onJobCreated, draftId, projectName }) => {
     const { useState, useRef } = React;
     
     const [file, setFile] = useState(null);
@@ -24,6 +24,13 @@ window.UploadCard = ({ onJobCreated }) => {
         
         try {
             const job = await window.api.uploadVideo(file, lang);
+            
+            if (draftId) {
+                const drafts = JSON.parse(localStorage.getItem('fyap_drafts') || '[]');
+                const remaining = drafts.filter(d => d.id !== draftId);
+                localStorage.setItem('fyap_drafts', JSON.stringify(remaining));
+            }
+            
             onJobCreated(job.id);
         } catch (err) {
             setError(err.message);
@@ -33,12 +40,24 @@ window.UploadCard = ({ onJobCreated }) => {
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center">
-            <h2 className="text-xl font-bold text-slate-800 mb-6 w-full">Upload Video</h2>
-            
+        <div className="relative w-full max-w-[560px] p-8 rounded-lg bg-surface-container-low border border-outline-variant/10 shadow-2xl">
+            {/* Top Meta Info */}
+            <div className="flex justify-between items-start mb-8">
+                <div>
+                    <h2 className="text-[0.6875rem] font-bold tracking-[0.15em] text-primary uppercase mb-1">Step 1: Ingestion</h2>
+                    <p className="text-[0.875rem] font-medium text-on-surface">Import Media & Target Language</p>
+                    {projectName && <p className="text-[0.6875rem] mt-2 font-mono text-primary-fixed uppercase tracking-wider bg-black/20 px-2 py-0.5 rounded inline-block">Draft: {projectName}</p>}
+                </div>
+                <div className="text-right">
+                    <p className="text-[0.6875rem] font-mono text-on-surface-variant uppercase tracking-wider">Engine: Ready</p>
+                    <p className="text-[0.6875rem] font-mono text-outline uppercase tracking-wider">Codec: MP4/MOV</p>
+                </div>
+            </div>
+
+            {/* Dropzone */}
             <div 
-                className={`w-full max-w-md border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors
-                    ${file ? 'border-brand-500 bg-brand-50' : 'border-slate-300 hover:border-brand-400 hover:bg-slate-50'}`}
+                className={`w-full border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-all mb-6
+                    ${file ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/50 hover:bg-surface-container-highest'}`}
                 onClick={() => fileInputRef.current.click()}
             >
                 <input 
@@ -50,35 +69,43 @@ window.UploadCard = ({ onJobCreated }) => {
                 />
                 
                 {file ? (
-                    <div className="text-brand-700 font-medium break-all">
-                        Selected: {file.name}
-                        <div className="text-sm text-brand-500 mt-1">{(file.size / (1024*1024)).toFixed(2)} MB</div>
+                    <div className="text-primary font-medium break-all flex flex-col items-center">
+                        <span className="material-symbols-outlined text-[32px] mb-2">video_file</span>
+                        {file.name}
+                        <div className="text-[0.6875rem] font-mono text-on-surface-variant mt-2 uppercase tracking-widest bg-black/20 px-2 py-1 rounded">
+                            {(file.size / (1024*1024)).toFixed(2)} MB
+                        </div>
                     </div>
                 ) : (
-                    <div className="text-slate-500">
-                        <window.Icon name="upload-cloud" className="mx-auto h-12 w-12 text-slate-400 mb-3" />
-                        <p className="font-medium text-slate-700">Click to upload or drag and drop</p>
-                        <p className="text-sm mt-1">MP4, WebM, MOV up to 1GB</p>
+                    <div className="text-outline">
+                        <span className="material-symbols-outlined text-[40px] text-primary/80 mb-4 drop-shadow-[0_0_8px_rgba(167,165,255,0.4)]">cloud_upload</span>
+                        <p className="font-medium text-on-surface">Click to open media dialog</p>
+                        <p className="text-[0.6875rem] font-mono uppercase tracking-widest mt-2">MP4, WebM, MOV Supported</p>
                     </div>
                 )}
             </div>
 
-            <div className="mt-6 w-full max-w-md">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Target Language</label>
-                <select 
-                    value={lang} 
-                    onChange={e => setLang(e.target.value)}
-                    className="w-full rounded-lg border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 border p-2.5"
-                >
-                    <option value="en">English (Translation)</option>
-                    <option value="hi">Hindi (Native)</option>
-                    <option value="hinglish">Hinglish (Hindi + English)</option>
-                    <option value="bn">Bengali (Native)</option>
-                </select>
+            {/* Configuration */}
+            <div className="w-full space-y-2 mb-8">
+                <label className="text-[0.6875rem] font-bold tracking-[0.15em] text-on-surface-variant uppercase">Target Language</label>
+                <div className="relative">
+                    <select 
+                        value={lang} 
+                        onChange={e => setLang(e.target.value)}
+                        className="w-full bg-surface-container-highest border border-outline-variant/30 text-on-surface rounded focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none p-3 lg:text-sm text-base appearance-none shadow-inner"
+                    >
+                        <option value="en">English (Translation)</option>
+                        <option value="hi">Hindi (Native)</option>
+                        <option value="hinglish">Hinglish (Hindi + English)</option>
+                        <option value="bn">Bengali (Native)</option>
+                    </select>
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[20px]">expand_content</span>
+                </div>
             </div>
 
             {error && (
-                <div className="mt-4 text-red-600 bg-red-50 p-3 rounded-lg w-full max-w-md text-sm border border-red-200">
+                <div className="mb-6 border-l-2 border-error bg-error-container/20 p-3 text-[0.875rem] text-error flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[18px]">error</span>
                     {error}
                 </div>
             )}
@@ -86,11 +113,24 @@ window.UploadCard = ({ onJobCreated }) => {
             <button
                 onClick={handleUpload}
                 disabled={!file || isUploading}
-                className={`mt-6 w-full max-w-md py-3 px-4 rounded-lg font-bold text-white shadow transition-all
-                    ${!file || isUploading ? 'bg-slate-300 cursor-not-allowed' : 'bg-brand-600 hover:bg-brand-700 hover:shadow-md'}`}
+                className={`w-full py-3.5 px-4 rounded font-bold uppercase tracking-widest text-[0.75rem] transition-all flex items-center justify-center gap-2
+                    ${!file || isUploading ? 'bg-surface-variant text-outline cursor-not-allowed border border-outline-variant/20' : 'bg-primary text-on-primary hover:bg-primary-fixed hover:shadow-[0_0_15px_rgba(167,165,255,0.3)]'}`}
             >
-                {isUploading ? 'Uploading & Analyzing...' : 'Start Captioning'}
+                {isUploading ? (
+                    <>
+                        <span className="material-symbols-outlined animate-spin text-[16px]">hourglass_empty</span>
+                        Uploading Data...
+                    </>
+                ) : (
+                    <>
+                        <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                        Initialize Surgical Pipeline
+                    </>
+                )}
             </button>
+
+            {/* Subtle Ghost Border Texture */}
+            <div className="absolute -inset-[1px] rounded-lg border border-dashed border-outline-variant/30 pointer-events-none"></div>
         </div>
     );
 };

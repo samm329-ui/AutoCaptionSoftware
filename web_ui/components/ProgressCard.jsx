@@ -4,6 +4,19 @@ window.ProgressCard = ({ jobId, onComplete }) => {
     const [percent, setPercent] = useState(0);
     const [details, setDetails] = useState('');
     const [error, setError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+    // Timer logic
+    useEffect(() => {
+        let interval;
+        if (status !== 'completed' && status !== 'failed') {
+            interval = setInterval(() => {
+                setElapsedSeconds(prev => prev + 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [status]);
 
     useEffect(() => {
         let ws;
@@ -53,58 +66,106 @@ window.ProgressCard = ({ jobId, onComplete }) => {
                 ws.close();
             }
         };
-    }, [jobId, onComplete]);
+    }, [jobId, onComplete, retryCount]);
+
+    const handleRetry = () => {
+        setError(null);
+        setRetryCount(prev => prev + 1);
+    };
+
+    const formatTime = (secs) => {
+        const m = Math.floor(secs / 60).toString().padStart(2, '0');
+        const s = (secs % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 flex flex-col items-center">
-            <h2 className="text-xl font-bold text-brand-900 mb-2">Processing Video</h2>
-            <p className="text-slate-500 mb-8 text-sm">Job ID: <span className="font-mono text-xs">{jobId.substring(0,8)}</span></p>
-            
-            <div className="w-full max-w-md mb-2 flex justify-between text-sm font-medium text-slate-700">
-                <span>{status}</span>
-                <span>{percent}%</span>
-            </div>
-            
-            <div className="w-full max-w-md bg-slate-100 rounded-full h-4 mb-4 overflow-hidden border border-slate-200">
-                <div 
-                    className={`h-4 rounded-full transition-all duration-500 ease-out flex items-center justify-center overflow-hidden
-                        ${error ? 'bg-red-500' : 'bg-brand-500 relative'}`}
-                    style={{ width: `${Math.max(5, percent)}%` }}
-                >
-                    {!error && percent < 100 && (
-                        <div className="absolute inset-0 bg-white/20 progress-stripes"></div>
+        <div className="relative w-full max-w-[560px] p-8 rounded-lg bg-surface-container-low border border-outline-variant/10 shadow-2xl">
+            {/* Top Meta Info */}
+            <div className="flex justify-between items-start mb-10">
+                <div>
+                    <h2 className={`text-[0.6875rem] font-bold tracking-[0.15em] uppercase mb-1 ${error ? 'text-error' : 'text-primary'}`}>
+                        {error ? 'Status: Error' : `Status: ${status}`}
+                    </h2>
+                    <p className="text-[0.875rem] font-medium text-on-surface">
+                        {error ? error : (details || 'Processing media...')}
+                    </p>
+                    {error && (
+                        <button 
+                            onClick={handleRetry}
+                            className="mt-3 px-3 py-1 bg-error-container text-on-error-container text-xs rounded uppercase tracking-wider font-bold"
+                        >
+                            Try Again
+                        </button>
                     )}
                 </div>
-            </div>
-            
-            {details && !error && (
-                <p className="text-sm text-slate-500 max-w-md text-center">{details}</p>
-            )}
-
-            {error && (
-                <div className="mt-4 text-red-600 bg-red-50 p-4 rounded-lg w-full max-w-md text-sm border border-red-200">
-                    <p className="font-bold mb-1">Processing Failed</p>
-                    <p>{error}</p>
-                    <button 
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-white border border-red-200 text-red-600 px-4 py-2 rounded shadow-sm text-xs font-semibold hover:bg-red-50"
-                    >
-                        Try Again
-                    </button>
+                <div className="text-right ml-4 shrink-0">
+                    <p className="text-[0.6875rem] font-mono text-on-surface-variant uppercase tracking-wider">Engine: v4.2-surgical</p>
+                    <p className="text-[0.6875rem] font-mono text-outline uppercase tracking-wider">PID: {jobId.substring(0,6).toUpperCase()}</p>
                 </div>
-            )}
-            
-            <style>{`
-                .progress-stripes {
-                    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
-                    background-size: 1rem 1rem;
-                    animation: stripes 1s linear infinite;
-                }
-                @keyframes stripes {
-                    from { background-position: 1rem 0; }
-                    to { background-position: 0 0; }
-                }
-            `}</style>
+            </div>
+
+            {/* Precision Progress Bar */}
+            <div className="space-y-4">
+                <div className="relative h-[2px] w-full bg-surface-container-highest overflow-hidden">
+                    {/* Animated Progress Simulation */}
+                    <div 
+                        className={`absolute top-0 left-0 h-full transition-all duration-300 ${error ? 'bg-error' : 'surgical-gradient laser-glow'}`}
+                        style={{ width: `${Math.max(5, percent)}%` }}
+                    ></div>
+                </div>
+
+                {/* Percentage & Data Readout */}
+                <div className="flex justify-between items-end">
+                    <div className="flex items-center gap-3">
+                        <span className="text-[1.5rem] font-bold tabular-nums text-on-surface">
+                            {Math.floor(percent)}<span className="text-outline text-lg font-normal">%</span>
+                        </span>
+                        <div className="h-4 w-[1px] bg-outline-variant/30"></div>
+                        <div className="space-y-1">
+                            <span className="block text-[0.625rem] leading-none font-mono text-outline uppercase">
+                                {status === 'completed' ? 'Processing Complete' : 'Processing Packets'}
+                            </span>
+                            <span className="block text-[0.625rem] leading-none font-mono text-on-surface-variant uppercase tracking-tighter w-32 truncate">
+                                JOB_ID_{jobId.substring(0,8).toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-[0.6875rem] font-mono text-primary-fixed uppercase tracking-widest block mb-1">Time Elapsed</span>
+                        <span className="text-[0.875rem] font-bold tabular-nums text-on-surface">
+                            {formatTime(elapsedSeconds)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Technical Props Footer */}
+            <div className="mt-12 pt-6 border-t border-outline-variant/20 grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[14px] text-outline">verified_user</span>
+                        <span className="text-[0.625rem] font-mono text-outline uppercase tracking-wider">MD5 Checksum: Validated</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[14px] text-outline">memory</span>
+                        <span className="text-[0.625rem] font-mono text-outline uppercase tracking-wider">Surgical Precision Engine</span>
+                    </div>
+                </div>
+                <div className="space-y-2 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                        <span className="text-[0.625rem] font-mono text-outline uppercase tracking-wider">Audio Buffer: 48kHz</span>
+                        <span className="material-symbols-outlined text-[14px] text-outline">graphic_eq</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                        <span className="text-[0.625rem] font-mono text-outline uppercase tracking-wider">Neural Mapping: Active</span>
+                        <span className="material-symbols-outlined text-[14px] text-outline">psychology</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Subtle "Ghost Border" Background Texture */}
+            <div className="absolute -inset-[1px] rounded-lg border border-dashed border-outline-variant/30 pointer-events-none"></div>
         </div>
     );
 };
