@@ -131,10 +131,18 @@ window.ResultCard = ({ jobId, onNewJob }) => {
         <div className="relative w-full max-w-[560px] p-8 rounded-lg bg-error-container/10 border border-error/30 shadow-2xl">
             <h3 className="font-bold mb-2 text-error text-sm uppercase tracking-wider flex items-center gap-2">
                 <span className="material-symbols-outlined text-[18px]">error</span>
-                Error Loading Workspace
+                Network Error
             </h3>
             <p className="text-on-surface-variant text-sm">{error}</p>
-            <button onClick={onNewJob} className="mt-6 px-4 py-2 bg-error/10 text-error border border-error/50 rounded uppercase font-bold text-xs tracking-wider hover:bg-error/20 transition-colors">Go Back</button>
+            <div className="flex gap-3 mt-6">
+                <button 
+                    onClick={() => { setError(null); setLoading(true); window.api.fetchJob(jobId).then(data => { setJob(data); setLoading(false); if (data.srt_content) setParsedCues(parseSRT(data.srt_content)); }).catch(err => { setError(err.message); setLoading(false); }); }}
+                    className="px-4 py-2 bg-primary text-on-primary border border-primary/50 rounded uppercase font-bold text-xs tracking-wider hover:bg-primary-fixed transition-colors"
+                >
+                    Retry
+                </button>
+                <button onClick={onNewJob} className="px-4 py-2 bg-error/10 text-error border border-error/50 rounded uppercase font-bold text-xs tracking-wider hover:bg-error/20 transition-colors">Go Back</button>
+            </div>
         </div>
     );
 
