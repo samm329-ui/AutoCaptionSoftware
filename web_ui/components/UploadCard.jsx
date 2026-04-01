@@ -25,15 +25,28 @@ window.UploadCard = ({ onJobCreated, draftId, projectName }) => {
         try {
             const job = await window.api.uploadVideo(file, lang);
             
+            // Only delete draft AFTER successful upload
             if (draftId) {
                 const drafts = JSON.parse(localStorage.getItem('fyap_drafts') || '[]');
                 const remaining = drafts.filter(d => d.id !== draftId);
                 localStorage.setItem('fyap_drafts', JSON.stringify(remaining));
             }
             
+            // Save job to localStorage for persistence
+            const savedJobs = JSON.parse(localStorage.getItem('fyap_jobs') || '[]');
+            savedJobs.unshift({
+                id: job.id,
+                filename: file.name,
+                created_at: new Date().toISOString(),
+                status: 'processing',
+                target_lang: lang
+            });
+            localStorage.setItem('fyap_jobs', JSON.stringify(savedJobs.slice(0, 50)));
+            
             onJobCreated(job.id);
         } catch (err) {
             setError(err.message);
+            // Keep draft on error so user can retry
         } finally {
             setIsUploading(false);
         }
