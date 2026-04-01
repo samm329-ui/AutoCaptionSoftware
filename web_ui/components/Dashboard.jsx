@@ -3,29 +3,61 @@ window.Dashboard = ({ onProjectCreated, onOpenJob }) => {
     const [recentJobs, setRecentJobs] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const loadJobs = async () => {
-            try {
-                const data = await window.api.fetchJobs();
-                if (data && data.jobs) {
-                    const drafts = JSON.parse(localStorage.getItem('fyap_drafts') || '[]');
-                    const formattedDrafts = drafts.map(d => ({
-                        id: d.id,
-                        filename: d.name,
-                        created_at: d.created_at,
-                        status: 'Draft'
-                    }));
-                    
-                    const combined = [...formattedDrafts, ...data.jobs].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-                    setRecentJobs(combined);
+    const loadJobs = async () => {
+        try {
+            const data = await window.api.fetchJobs();
+            const apiJobs = (data && data.jobs) ? data.jobs : [];
+            
+            // Merge API jobs with localStorage jobs (API jobs take priority for same ID)
+            const savedJobs = JSON.parse(localStorage.getItem('fyap_jobs') || '[]');
+            const mergedJobs = [...savedJobs];
+            
+            apiJobs.forEach(apiJob => {
+                const existingIndex = mergedJobs.findIndex(j => j.id === apiJob.id);
+                if (existingIndex >= 0) {
+                    mergedJobs[existingIndex] = apiJob; // Update with API data
+                } else {
+                    mergedJobs.push(apiJob); // Add new
                 }
-            } catch (err) {
-                console.error("Failed to fetch jobs", err);
-            } finally {
-                setLoading(false);
-            }
-        };
+            });
+            
+            // Save merged list back
+            localStorage.setItem('fyap_jobs', JSON.stringify(mergedJobs.slice(0, 100)));
+            
+            // Load drafts
+            const drafts = JSON.parse(localStorage.getItem('fyap_drafts') || '[]');
+            const formattedDrafts = drafts.map(d => ({
+                id: d.id,
+                filename: d.name,
+                created_at: d.created_at,
+                status: 'Draft'
+            }));
+            
+            const combined = [...formattedDrafts, ...mergedJobs].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+            setRecentJobs(combined);
+        } catch (err) {
+            console.error("Failed to fetch jobs, loading from localStorage", err);
+            // Fallback to localStorage only
+            const savedJobs = JSON.parse(localStorage.getItem('fyap_jobs') || '[]');
+            const drafts = JSON.parse(localStorage.getItem('fyap_drafts') || '[]');
+            const formattedDrafts = drafts.map(d => ({
+                id: d.id,
+                filename: d.name,
+                created_at: d.created_at,
+                status: 'Draft'
+            }));
+            const combined = [...formattedDrafts, ...savedJobs].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+            setRecentJobs(combined);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         loadJobs();
+        // Poll every 15s for status updates
+        const interval = setInterval(loadJobs, 15000);
+        return () => clearInterval(interval);
     }, []);
 
     const handleNewProject = () => {
