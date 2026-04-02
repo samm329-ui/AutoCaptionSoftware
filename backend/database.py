@@ -23,17 +23,6 @@ async def init_db():
             )
         ''')
         await db.commit()
-        
-        # Mark any jobs stuck in "processing" as "failed" on server restart
-        # This happens when server was killed/interrupted during processing
-        await db.execute('''
-            UPDATE jobs 
-            SET status = 'failed', 
-                error = 'Processing interrupted - server was restarted',
-                completed_at = CURRENT_TIMESTAMP
-            WHERE status = 'processing'
-        ''')
-        await db.commit()
 
 async def get_db():
     db = await aiosqlite.connect(DB_PATH)

@@ -5,24 +5,13 @@ window.Dashboard = ({ onProjectCreated, onOpenJob }) => {
 
     const loadJobs = async () => {
         try {
-            const data = await window.api.fetchJobs();
-            const apiJobs = (data && data.jobs) ? data.jobs : [];
+            // API returns an array directly, not {jobs: [...]}
+            const apiJobs = await window.api.fetchJobs();
             
-            // Merge API jobs with localStorage jobs (API jobs take priority for same ID)
-            const savedJobs = JSON.parse(localStorage.getItem('fyap_jobs') || '[]');
-            const mergedJobs = [...savedJobs];
-            
-            apiJobs.forEach(apiJob => {
-                const existingIndex = mergedJobs.findIndex(j => j.id === apiJob.id);
-                if (existingIndex >= 0) {
-                    mergedJobs[existingIndex] = apiJob; // Update with API data
-                } else {
-                    mergedJobs.push(apiJob); // Add new
-                }
-            });
-            
-            // Save merged list back
-            localStorage.setItem('fyap_jobs', JSON.stringify(mergedJobs.slice(0, 100)));
+            // Update localStorage with fresh API data
+            if (Array.isArray(apiJobs) && apiJobs.length > 0) {
+                localStorage.setItem('fyap_jobs', JSON.stringify(apiJobs.slice(0, 100)));
+            }
             
             // Load drafts
             const drafts = JSON.parse(localStorage.getItem('fyap_drafts') || '[]');
@@ -33,7 +22,10 @@ window.Dashboard = ({ onProjectCreated, onOpenJob }) => {
                 status: 'Draft'
             }));
             
-            const combined = [...formattedDrafts, ...mergedJobs].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+            // Use API jobs if available, otherwise localStorage
+            const jobsToUse = Array.isArray(apiJobs) && apiJobs.length > 0 ? apiJobs : JSON.parse(localStorage.getItem('fyap_jobs') || '[]');
+            
+            const combined = [...formattedDrafts, ...jobsToUse].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
             setRecentJobs(combined);
         } catch (err) {
             console.error("Failed to fetch jobs, loading from localStorage", err);
