@@ -22,7 +22,7 @@ window.Icon = ({ name, className }) => {
 
 const App = () => {
     const { useState, useEffect } = React;
-    // view can be: 'loading', 'dashboard', 'upload', 'progress', 'result', 'editor'
+    // view can be: 'loading', 'dashboard', 'upload', 'progress', 'result'
     const [view, setView] = useState('loading');
     const [currentJobId, setCurrentJobId] = useState(null);
     const [projectName, setProjectName] = useState('');
@@ -65,15 +65,6 @@ const App = () => {
         } else if (status === 'completed' || status === 'failed') {
             setView('result');
         }
-    };
-
-    const handleOpenEditor = (jobId) => {
-        setCurrentJobId(jobId);
-        setView('editor');
-    };
-
-    const handleCloseEditor = () => {
-        setView('result');
     };
 
     return (
@@ -127,7 +118,7 @@ const App = () => {
                         <div className="w-full max-w-4xl mx-auto flex items-center justify-center relative z-10 min-h-[500px]">
                             {view === 'upload' && <window.UploadCard onJobCreated={handleJobCreated} draftId={draftId} projectName={projectName} />}
                             {view === 'progress' && currentJobId && <window.ProgressCard jobId={currentJobId} onComplete={handleJobComplete} />}
-                            {view === 'result' && currentJobId && <window.ResultCard jobId={currentJobId} onNewJob={handleNewJob} onOpenEditor={handleOpenEditor} />}
+                            {view === 'result' && currentJobId && <window.ResultCard jobId={currentJobId} onNewJob={handleNewJob} />}
                         </div>
                     </main>
 
@@ -147,11 +138,6 @@ const App = () => {
                         </div>
                     </footer>
                 </div>
-            )}
-
-            {/* Editor View */}
-            {view === 'editor' && currentJobId && (
-                <window.Editor jobId={currentJobId} onClose={handleCloseEditor} />
             )}
         </>
     );
