@@ -39,9 +39,36 @@ window.api = {
     },
     
     getWebsocketUrl(jobId) {
-        // Convert http:// to ws://
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = this.BASE_URL.replace(/^https?:\/\//, '');
         return `${protocol}//${host}/api/jobs/${jobId}/ws`;
+    },
+
+    async fetchTimeline(jobId) {
+        const response = await fetch(`${this.BASE_URL}/api/editor/projects/${jobId}/timeline`);
+        if (!response.ok) throw new Error(`Failed to fetch timeline: ${response.statusText}`);
+        return response.json();
+    },
+
+    async updateTimeline(jobId, timeline) {
+        const response = await fetch(`${this.BASE_URL}/api/editor/projects/${jobId}/timeline`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(timeline)
+        });
+        if (!response.ok) throw new Error(`Failed to save timeline: ${response.statusText}`);
+        return response.json();
+    },
+
+    async fetchThumbnails(jobId, count = 10) {
+        const response = await fetch(`${this.BASE_URL}/api/editor/projects/${jobId}/thumbnails?count=${count}`);
+        if (!response.ok) throw new Error(`Failed to fetch thumbnails: ${response.statusText}`);
+        return response.json();
+    },
+
+    async exportCaptions(jobId, format = 'srt') {
+        const response = await fetch(`${this.BASE_URL}/api/editor/projects/${jobId}/captions/${format}`);
+        if (!response.ok) throw new Error(`Failed to export captions: ${response.statusText}`);
+        return response.blob();
     }
 };

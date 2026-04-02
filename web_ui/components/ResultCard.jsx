@@ -1,4 +1,4 @@
-window.ResultCard = ({ jobId, onNewJob }) => {
+window.ResultCard = ({ jobId, onNewJob, onOpenEditor }) => {
     const { useState, useEffect, useRef, useCallback } = React;
     const [job, setJob] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -203,6 +203,15 @@ window.ResultCard = ({ jobId, onNewJob }) => {
                     </p>
                 </div>
                 <div className="flex gap-2 flex-wrap flex-shrink-0">
+                    {onOpenEditor && (
+                        <button 
+                            onClick={() => onOpenEditor(jobId)}
+                            className="bg-tertiary hover:bg-tertiary-fixed text-on-tertiary text-[0.6875rem] font-bold uppercase tracking-widest py-2 px-4 rounded shadow-lg transition-all flex items-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">video_library</span>
+                            Open Editor
+                        </button>
+                    )}
                     <button 
                         onClick={handleExportVideo}
                         disabled={exporting}
