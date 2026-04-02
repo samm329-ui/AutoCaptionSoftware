@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 
 # These imports will trigger caption_engine logic
 from .database import init_db
-from .api import health, jobs
+from .api import health, jobs, editor
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,6 +57,7 @@ app.add_middleware(
 # Add API routers
 app.include_router(health.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
+app.include_router(editor.router, prefix="/api")
 
 # Serve the Web UI using StaticFiles
 WEB_UI_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'web_ui')

@@ -19,7 +19,12 @@ async def init_db():
                 completed_at TIMESTAMP,
                 error TEXT,
                 vtt_content TEXT,
-                srt_content TEXT
+                srt_content TEXT,
+                video_meta_json TEXT,
+                timeline_json TEXT,
+                edited_srt_content TEXT,
+                edited_vtt_content TEXT,
+                segments_json TEXT
             )
         ''')
         await db.commit()

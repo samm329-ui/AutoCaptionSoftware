@@ -16,3 +16,7 @@ aiosqlite
 python-multipart
 aiofiles
 python-dotenv
+
+# === Video Editor ===
+av>=12.0.0
+Pillow>=10.0.0
