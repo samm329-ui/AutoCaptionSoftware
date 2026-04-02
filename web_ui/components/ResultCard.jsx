@@ -152,13 +152,32 @@ window.ResultCard = ({ jobId, onNewJob }) => {
                 <span className="material-symbols-outlined text-[18px]">gpp_bad</span>
                 Processing Failed
             </h3>
+            <p className="text-on-surface-variant text-sm mb-2">Job: <span className="font-mono text-on-surface">{job.filename}</span></p>
             <p className="text-on-surface text-sm mb-6">{job.error || "Unknown error during processing pipeline."}</p>
             <div className="flex gap-3">
                 <button 
-                    onClick={onNewJob}
-                    className="bg-error text-on-error hover:bg-error/80 font-bold py-2 px-6 rounded uppercase tracking-wider text-xs shadow-lg transition-all"
+                    onClick={async () => {
+                        // Reset job status and restart
+                        setLoading(true);
+                        setError(null);
+                        try {
+                            const data = await window.api.fetchJob(jobId);
+                            setJob(data);
+                            setLoading(false);
+                        } catch (err) {
+                            setError(err.message);
+                            setLoading(false);
+                        }
+                    }}
+                    className="bg-primary text-on-primary hover:bg-primary-fixed font-bold py-2 px-6 rounded uppercase tracking-wider text-xs shadow-lg transition-all"
                 >
-                    Acknowledge & Retry
+                    Retry
+                </button>
+                <button 
+                    onClick={onNewJob}
+                    className="bg-surface-container text-on-surface border border-outline-variant/30 hover:bg-surface-container-high font-bold py-2 px-6 rounded uppercase tracking-wider text-xs transition-all"
+                >
+                    New Project
                 </button>
             </div>
         </div>

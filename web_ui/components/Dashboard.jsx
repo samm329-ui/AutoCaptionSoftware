@@ -189,11 +189,17 @@ window.Dashboard = ({ onProjectCreated, onOpenJob }) => {
                                         </tr>
                                     ) : recentJobs.length === 0 ? (
                                         <tr>
-                                            <td colSpan="4" className="py-8 text-center text-sm-surgical text-slate-500">No recent projects found.</td>
+                                            <td colSpan="4" className="py-8 text-center text-sm-surgical text-slate-500">No recent projects found. Create a new project to get started.</td>
                                         </tr>
                                     ) : (
                                         recentJobs.map(job => (
-                                            <tr key={job.id} onClick={() => job.status === 'Draft' ? onProjectCreated(job.filename, job.id) : onOpenJob(job.id, job.status)} className="group hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-colors cursor-pointer">
+                                            <tr key={job.id} onClick={() => {
+                                                if (job.status === 'Draft') {
+                                                    onProjectCreated(job.filename, job.id);
+                                                } else {
+                                                    onOpenJob(job.id, job.status);
+                                                }
+                                            }} className={`group hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-colors cursor-pointer ${job.status === 'failed' ? 'opacity-75' : ''}`}>
                                                 <td className="py-3 px-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-6 bg-slate-200 dark:bg-slate-800 rounded-sm overflow-hidden flex items-center justify-center border border-slate-300 dark:border-white/5 group-hover:border-primary/30 transition-all">
