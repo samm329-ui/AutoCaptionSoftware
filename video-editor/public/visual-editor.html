@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visual Editor</title>
+  <style>
+    :root {
+      --ve-primary: #6366f1;
+      --ve-primary-hover: #4f46e5;
+      --ve-bg: #1e1e2e;
+      --ve-surface: #2a2a3e;
+      --ve-surface-hover: #363650;
+      --ve-border: #3d3d5c;
+      --ve-text: #e2e8f0;
+      --ve-text-muted: #94a3b8;
+      --ve-success: #22c55e;
+      --ve-warning: #f59e0b;
+      --ve-danger: #ef4444;
+      --ve-radius: 8px;
+      --ve-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    .ve-hidden { display: none !important; }
+
+    /* Toggle Button */
+    #ve-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--ve-primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 24px;
+      z-index: 99998;
+      box-shadow: var(--ve-shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, background 0.2s;
+    }
+    #ve-toggle:hover {
+      transform: scale(1.1);
+      background: var(--ve-primary-hover);
+    }
+
+    /* Main Panel */
+    #ve-panel {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 380px;
+      max-height: calc(100vh - 100px);
+      background: var(--ve-bg);
+      border-radius: var(--ve-radius);
+      box-shadow: var(--ve-shadow);
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--ve-text);
+      font-size: 13px;
+    }
+
+    /* Panel Header */
+    .ve-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--ve-surface);
+      border-bottom: 1px solid var(--ve-border);
+    }
+    .ve-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ve-header-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .ve-btn-icon {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: var(--ve-text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .ve-btn-icon:hover {
+      background: var(--ve-surface-hover);
+      color: var(--ve-text);
+    }
+    .ve-btn-close {
+      color: var(--ve-danger);
+    }
+
+    /* Tabs */
+    .ve-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--ve-border);
+      background: var(--ve-surface);
+    }
+    .ve-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--ve-text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .ve-tab:hover {
+      color: var(--ve-text);
+      background: var(--ve-surface-hover);
+    }
+    .ve-tab.active {
+      color: var(--ve-primary);
+      border-bottom: 2px solid var(--ve-primary);
+    }
+
+    /* Panel Content */
+    .ve-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .ve-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .ve-content::-webkit-scrollbar-thumb {
+      background: var(--ve-border);
+      border-radius: 3px;
+    }
+
+    /* Tab Content */
+    .ve-tab-content {
+      display: none;
+    }
+    .ve-tab-content.active {
+      display: block;
+    }
+
+    /* Section */
+    .ve-section {
+      margin-bottom: 16px;
+    }
+    .ve-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--ve-text-muted);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    /* Form Controls */
+    .ve-form-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .ve-form-label {
+      width: 70px;
+      font-size: 12px;
+      color: var(--ve-text-muted);
+      flex-shrink: 0;
+    }
+    .ve-input {
+      flex: 1;
+      padding: 6px 10px;
+      background: var(--ve-surface);
+      border: 1px solid var(--ve-border);
+      border-radius: 4px;
+      color: var(--ve-text);
+      font-size: 12px;
+      width: 100%;
+    }
+    .ve-input:focus {
+      outline: none;
+      border-color: var(--ve-primary);
+    }
+    .ve-input-group {
+      display: flex;
+      gap: 4px;
+    }
+    .ve-input-group .ve-input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Range Slider */
+    .ve-range-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ve-range {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 4px;
+      background: var(--ve-border);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .ve-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--ve-primary);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .ve-range-value {
+      width: 45px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--ve-text-muted);
+    }
+
+    /* Buttons */
+    .ve-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .ve-btn-primary {
+      background: var(--ve-primary);
+      color: white;
+    }
+    .ve-btn-primary:hover {
+      background: var(--ve-primary-hover);
+    }
+    .ve-btn-secondary {
+      background: var(--ve-surface);
+      color: var(--ve-text);
+      border: 1px solid var(--ve-border);
+    }
+    .ve-btn-secondary:hover {
+      background: var(--ve-surface-hover);
+    }
+    .ve-btn-danger {
+      background: var(--ve-danger);
+      color: white;
+    }
+    .ve-btn-sm {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    .ve-btn-group {
+      display: flex;
+      gap: 8px;
+    }
+    .ve-btn-group .ve-btn {
+      flex: 1;
+    }
+
+    /* Color Input */
+    .ve-color-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ve-color-input {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 0;
+    }
+    .ve-color-value {
+      flex: 1;
+    }
+
+    /* Select */
+    .ve-select {
+      flex: 1;
+      padding: 6px 10px;
+      background: var(--ve-surface);
+      border: 1px solid var(--ve-border);
+      border-radius: 4px;
+      color: var(--ve-text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .ve-select:focus {
+      outline: none;
+      border-color: var(--ve-primary);
+    }
+
+    /* Element Tree */
+    .ve-tree {
+      background: var(--ve-surface);
+      border-radius: var(--ve-radius);
+      padding: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .ve-tree-item {
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .ve-tree-item:hover {
+      background: var(--ve-surface-hover);
+    }
+    .ve-tree-item.selected {
+      background: var(--ve-primary);
+      color: white;
+    }
+    .ve-tree-tag {
+      background: var(--ve-border);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--ve-text-muted);
+    }
+    .ve-tree-item.selected .ve-tree-tag {
+      background: rgba(255,255,255,0.2);
+      color: white;
+    }
+    .ve-tree-indent {
+      margin-left: 16px;
+    }
+
+    /* Selected Element Info */
+    .ve-selected-info {
+      background: var(--ve-surface);
+      border-radius: var(--ve-radius);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .ve-selected-tag {
+      display: inline-block;
+      background: var(--ve-primary);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+    .ve-selected-path {
+      font-size: 11px;
+      color: var(--ve-text-muted);
+      word-break: break-all;
+    }
+
+    /* Action Buttons */
+    .ve-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 12px;
+      background: var(--ve-surface);
+      border-top: 1px solid var(--ve-border);
+    }
+
+    /* Element Overlay */
+    #ve-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99997;
+    }
+    #ve-overlay .ve-element-box {
+      position: absolute;
+      border: 2px solid var(--ve-primary);
+      pointer-events: none;
+      transition: all 0.1s;
+    }
+    #ve-overlay .ve-element-box.hover {
+      border-color: var(--ve-warning);
+      background: rgba(245, 158, 11, 0.1);
+    }
+    #ve-overlay .ve-element-box.selected {
+      border-color: var(--ve-success);
+      background: rgba(34, 197, 94, 0.1);
+    }
+    #ve-overlay .ve-element-label {
+      position: absolute;
+      top: -20px;
+      left: 0;
+      background: var(--ve-primary);
+      color: white;
+      padding: 2px 6px;
+      font-size: 10px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Toast */
+    #ve-toast {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      background: var(--ve-surface);
+      color: var(--ve-text);
+      padding: 12px 20px;
+      border-radius: var(--ve-radius);
+      box-shadow: var(--ve-shadow);
+      z-index: 999999;
+      font-size: 13px;
+      transform: translateY(20px);
+      opacity: 0;
+      transition: all 0.3s;
+    }
+    #ve-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    #ve-toast.success {
+      border-left: 4px solid var(--ve-success);
+    }
+    #ve-toast.error {
+      border-left: 4px solid var(--ve-danger);
+    }
+
+    /* Code Modal */
+    .ve-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .ve-modal {
+      background: var(--ve-bg);
+      border-radius: var(--ve-radius);
+      width: 100%;
+      max-width: 600px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .ve-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--ve-surface);
+      border-bottom: 1px solid var(--ve-border);
+    }
+    .ve-modal-header h4 {
+      font-size: 14px;
+    }
+    .ve-modal-content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .ve-modal-content textarea {
+      width: 100%;
+      height: 300px;
+      background: var(--ve-surface);
+      border: 1px solid var(--ve-border);
+      border-radius: 4px;
+      color: var(--ve-text);
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      padding: 12px;
+      resize: none;
+    }
+    .ve-modal-content textarea:focus {
+      outline: none;
+      border-color: var(--ve-primary);
+    }
+    .ve-modal-footer {
+      padding: 12px 16px;
+      background: var(--ve-surface);
+      border-top: 1px solid var(--ve-border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* History Panel */
+    .ve-history-item {
+      padding: 8px;
+      background: var(--ve-surface);
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ve-history-item.current {
+      background: var(--ve-primary);
+      color: white;
+    }
+    .ve-history-item.future {
+      opacity: 0.5;
+    }
+
+    /* Tooltips */
+    [data-tooltip] {
+      position: relative;
+    }
+    [data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ve-surface);
+      color: var(--ve-text);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 999999;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Toggle Button -->
+<button id="ve-toggle" title="Visual Editor">✏️</button>
+
+<!-- Main Panel -->
+<div id="ve-panel" class="ve-hidden">
+  <!-- Header -->
+  <div class="ve-header">
+    <h3>📐 Visual Editor</h3>
+    <div class="ve-header-actions">
+      <button class="ve-btn-icon" data-tooltip="Help" onclick="ve.showHelp()">?</button>
+      <button class="ve-btn-icon" data-tooltip="Export JSON" onclick="ve.exportJSON()">📥</button>
+      <button class="ve-btn-icon ve-btn-close" data-tooltip="Close" onclick="ve.toggle()">✕</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="ve-tabs">
+    <button class="ve-tab active" data-tab="inspect">Inspect</button>
+    <button class="ve-tab" data-tab="style">Style</button>
+    <button class="ve-tab" data-tab="tree">Tree</button>
+    <button class="ve-tab" data-tab="history">History</button>
+  </div>
+
+  <!-- Content -->
+  <div class="ve-content">
+    <!-- Inspect Tab -->
+    <div class="ve-tab-content active" data-content="inspect">
+      <div id="ve-selected-info" class="ve-selected-info">
+        <div class="ve-selected-tag">No element selected</div>
+        <div class="ve-selected-path">Click on any element to inspect</div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Position</div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Position</span>
+          <select class="ve-select" id="ve-position" onchange="ve.updateProperty('position', this.value)">
+            <option value="static">static</option>
+            <option value="relative">relative</option>
+            <option value="absolute">absolute</option>
+            <option value="fixed">fixed</option>
+            <option value="sticky">sticky</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Top</span>
+          <input type="text" class="ve-input" id="ve-top" placeholder="auto" onchange="ve.updateProperty('top', this.value)">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Left</span>
+          <input type="text" class="ve-input" id="ve-left" placeholder="auto" onchange="ve.updateProperty('left', this.value)">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Right</span>
+          <input type="text" class="ve-input" id="ve-right" placeholder="auto" onchange="ve.updateProperty('right', this.value)">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Bottom</span>
+          <input type="text" class="ve-input" id="ve-bottom" placeholder="auto" onchange="ve.updateProperty('bottom', this.value)">
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Size</div>
+        <div class="ve-range-row">
+          <span style="width:50px;font-size:11px;color:var(--ve-text-muted)">Width</span>
+          <input type="range" class="ve-range" id="ve-width-range" min="0" max="2000" oninput="ve.updateSize('width', this.value)">
+          <input type="text" class="ve-input" id="ve-width" style="width:60px" onchange="ve.updateProperty('width', this.value)">
+        </div>
+        <div class="ve-range-row">
+          <span style="width:50px;font-size:11px;color:var(--ve-text-muted)">Height</span>
+          <input type="range" class="ve-range" id="ve-height-range" min="0" max="2000" oninput="ve.updateSize('height', this.value)">
+          <input type="text" class="ve-input" id="ve-height" style="width:60px" onchange="ve.updateProperty('height', this.value)">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Max W</span>
+          <input type="text" class="ve-input" id="ve-max-width" placeholder="none" onchange="ve.updateProperty('maxWidth', this.value)">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Min W</span>
+          <input type="text" class="ve-input" id="ve-min-width" placeholder="none" onchange="ve.updateProperty('minWidth', this.value)">
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Display</div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Display</span>
+          <select class="ve-select" id="ve-display" onchange="ve.updateProperty('display', this.value)">
+            <option value="block">block</option>
+            <option value="inline">inline</option>
+            <option value="inline-block">inline-block</option>
+            <option value="flex">flex</option>
+            <option value="grid">grid</option>
+            <option value="none">none</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Style Tab -->
+    <div class="ve-tab-content" data-content="style">
+      <div class="ve-section">
+        <div class="ve-section-title">Spacing</div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Margin</span>
+          <div class="ve-input-group">
+            <input type="text" class="ve-input" id="ve-margin-top" placeholder="T" onchange="ve.updateSpacing('margin', 'top', this.value)">
+            <input type="text" class="ve-input" id="ve-margin-right" placeholder="R" onchange="ve.updateSpacing('margin', 'right', this.value)">
+            <input type="text" class="ve-input" id="ve-margin-bottom" placeholder="B" onchange="ve.updateSpacing('margin', 'bottom', this.value)">
+            <input type="text" class="ve-input" id="ve-margin-left" placeholder="L" onchange="ve.updateSpacing('margin', 'left', this.value)">
+          </div>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Padding</span>
+          <div class="ve-input-group">
+            <input type="text" class="ve-input" id="ve-padding-top" placeholder="T" onchange="ve.updateSpacing('padding', 'top', this.value)">
+            <input type="text" class="ve-input" id="ve-padding-right" placeholder="R" onchange="ve.updateSpacing('padding', 'right', this.value)">
+            <input type="text" class="ve-input" id="ve-padding-bottom" placeholder="B" onchange="ve.updateSpacing('padding', 'bottom', this.value)">
+            <input type="text" class="ve-input" id="ve-padding-left" placeholder="L" onchange="ve.updateSpacing('padding', 'left', this.value)">
+          </div>
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Colors</div>
+        <div class="ve-color-row">
+          <span class="ve-form-label">Background</span>
+          <input type="color" class="ve-color-input" id="ve-bg-color" onchange="ve.updateProperty('backgroundColor', this.value)">
+          <input type="text" class="ve-input ve-color-value" id="ve-bg-color-value" onchange="ve.updateColor('backgroundColor', this.value)">
+        </div>
+        <div class="ve-color-row">
+          <span class="ve-form-label">Text</span>
+          <input type="color" class="ve-color-input" id="ve-color" onchange="ve.updateProperty('color', this.value)">
+          <input type="text" class="ve-input ve-color-value" id="ve-color-value" onchange="ve.updateColor('color', this.value)">
+        </div>
+        <div class="ve-color-row">
+          <span class="ve-form-label">Border</span>
+          <input type="color" class="ve-color-input" id="ve-border-color" onchange="ve.updateProperty('borderColor', this.value)">
+          <input type="text" class="ve-input ve-color-value" id="ve-border-color-value" onchange="ve.updateColor('borderColor', this.value)">
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Border</div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Width</span>
+          <input type="text" class="ve-input" id="ve-border-width" placeholder="0px" onchange="ve.updateProperty('borderWidth', this.value)">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Style</span>
+          <select class="ve-select" id="ve-border-style" onchange="ve.updateProperty('borderStyle', this.value)">
+            <option value="none">none</option>
+            <option value="solid">solid</option>
+            <option value="dashed">dashed</option>
+            <option value="dotted">dotted</option>
+            <option value="double">double</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Radius</span>
+          <input type="text" class="ve-input" id="ve-border-radius" placeholder="0px" onchange="ve.updateProperty('borderRadius', this.value)">
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Typography</div>
+        <div class="ve-range-row">
+          <span style="width:50px;font-size:11px;color:var(--ve-text-muted)">Size</span>
+          <input type="range" class="ve-range" id="ve-font-size-range" min="8" max="100" oninput="ve.updateFontSize(this.value)">
+          <input type="text" class="ve-input" id="ve-font-size" style="width:60px" onchange="ve.updateProperty('fontSize', this.value + 'px')">
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Weight</span>
+          <select class="ve-select" id="ve-font-weight" onchange="ve.updateProperty('fontWeight', this.value)">
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="300">300</option>
+            <option value="400">normal</option>
+            <option value="500">500</option>
+            <option value="600">600</option>
+            <option value="700">bold</option>
+            <option value="800">800</option>
+            <option value="900">900</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Align</span>
+          <select class="ve-select" id="ve-text-align" onchange="ve.updateProperty('textAlign', this.value)">
+            <option value="left">left</option>
+            <option value="center">center</option>
+            <option value="right">right</option>
+            <option value="justify">justify</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Family</span>
+          <input type="text" class="ve-input" id="ve-font-family" placeholder="inherit" onchange="ve.updateProperty('fontFamily', this.value)">
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Flexbox</div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Direction</span>
+          <select class="ve-select" id="ve-flex-direction" onchange="ve.updateProperty('flexDirection', this.value)">
+            <option value="row">row</option>
+            <option value="column">column</option>
+            <option value="row-reverse">row-reverse</option>
+            <option value="column-reverse">column-reverse</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Justify</span>
+          <select class="ve-select" id="ve-justify-content" onchange="ve.updateProperty('justifyContent', this.value)">
+            <option value="flex-start">start</option>
+            <option value="center">center</option>
+            <option value="flex-end">end</option>
+            <option value="space-between">space-between</option>
+            <option value="space-around">space-around</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Align</span>
+          <select class="ve-select" id="ve-align-items" onchange="ve.updateProperty('alignItems', this.value)">
+            <option value="stretch">stretch</option>
+            <option value="flex-start">start</option>
+            <option value="center">center</option>
+            <option value="flex-end">end</option>
+          </select>
+        </div>
+        <div class="ve-form-row">
+          <span class="ve-form-label">Gap</span>
+          <input type="text" class="ve-input" id="ve-gap" placeholder="0px" onchange="ve.updateProperty('gap', this.value)">
+        </div>
+      </div>
+
+      <div class="ve-section">
+        <div class="ve-section-title">Effects</div>
+        <div class="ve-range-row">
+          <span style="width:50px;font-size:11px;color:var(--ve-text-muted)">Opacity</span>
+          <input type="range" class="ve-range" id="ve-opacity-range" min="0" max="100" oninput="ve.updateOpacity(this.value)">
+          <input type="text" class="ve-input" id="ve-opacity" style="width:60px" onchange="ve.updateProperty('opacity', (this.value / 100).toString())">
+        </div>
+        <div class="ve-range-row">
+          <span style="width:50px;font-size:11px;color:var(--ve-text-muted)">Shadow</span>
+          <input type="text" class="ve-input" id="ve-box-shadow" placeholder="none" onchange="ve.updateProperty('boxShadow', this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Tree Tab -->
+    <div class="ve-tab-content" data-content="tree">
+      <div class="ve-section">
+        <div class="ve-section-title">DOM Structure</div>
+        <div id="ve-tree" class="ve-tree">
+          <!-- Tree will be populated by JS -->
+        </div>
+      </div>
+      <div class="ve-section">
+        <div class="ve-section-title">Actions</div>
+        <div class="ve-btn-group">
+          <button class="ve-btn ve-btn-secondary ve-btn-sm" onclick="ve.toggleVisibility()">👁 Toggle</button>
+          <button class="ve-btn ve-btn-secondary ve-btn-sm" onclick="ve.lockElement()">🔒 Lock</button>
+          <button class="ve-btn ve-btn-secondary ve-btn-sm" onclick="ve.deleteElement()">🗑 Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="ve-tab-content" data-content="history">
+      <div class="ve-section">
+        <div class="ve-section-title">Undo / Redo</div>
+        <div class="ve-btn-group">
+          <button class="ve-btn ve-btn-primary" onclick="ve.undo()" id="ve-undo-btn">↶ Undo</button>
+          <button class="ve-btn ve-btn-primary" onclick="ve.redo()" id="ve-redo-btn">↷ Redo</button>
+        </div>
+      </div>
+      <div class="ve-section">
+        <div class="ve-section-title">History</div>
+        <div id="ve-history-list" style="max-height: 300px; overflow-y: auto;">
+          <!-- History items -->
+        </div>
+      </div>
+      <div class="ve-section">
+        <div class="ve-section-title">Preset Changes</div>
+        <div class="ve-btn-group">
+          <button class="ve-btn ve-btn-secondary" onclick="ve.savePreset()">💾 Save</button>
+          <button class="ve-btn ve-btn-secondary" onclick="ve.loadPresets()">📂 Load</button>
+          <button class="ve-btn ve-btn-danger" onclick="ve.clearHistory()">🗑 Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions Footer -->
+  <div class="ve-actions">
+    <button class="ve-btn ve-btn-secondary" onclick="ve.copyHTML()">📋 Copy HTML</button>
+    <button class="ve-btn ve-btn-secondary" onclick="ve.copyCSS()">🎨 Copy CSS</button>
+    <button class="ve-btn ve-btn-secondary" onclick="ve.copyJSON()">📄 Copy JSON</button>
+    <button class="ve-btn ve-btn-danger" onclick="ve.resetElement()">↺ Reset</button>
+  </div>
+</div>
+
+<!-- Overlay for element selection -->
+<div id="ve-overlay"></div>
+
+<!-- Toast -->
+<div id="ve-toast"></div>
+
+<!-- Code Modal -->
+<div id="ve-code-modal" class="ve-modal-overlay ve-hidden">
+  <div class="ve-modal">
+    <div class="ve-modal-header">
+      <h4 id="ve-modal-title">Code</h4>
+      <button class="ve-btn-icon" onclick="ve.closeModal()">✕</button>
+    </div>
+    <div class="ve-modal-content">
+      <textarea id="ve-code-content" readonly></textarea>
+    </div>
+    <div class="ve-modal-footer">
+      <button class="ve-btn ve-btn-secondary" onclick="ve.closeModal()">Close</button>
+      <button class="ve-btn ve-btn-primary" onclick="ve.copyFromModal()">Copy</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Visual Editor Core
+const ve = {
+  enabled: false,
+  selectedElement: null,
+  hoveredElement: null,
+  history: [],
+  historyIndex: -1,
+  maxHistory: 50,
+  savedStyles: {},
+  
+  // Initialize
+  init() {
+    const toggle = document.getElementById('ve-toggle');
+    const panel = document.getElementById('ve-panel');
+    
+    toggle.addEventListener('click', () => this.toggle());
+    
+    // Tab switching
+    document.querySelectorAll('.ve-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.ve-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.ve-tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelector(`[data-content="${tab.dataset.tab}"]`).classList.add('active');
+      });
+    });
+    
+    // Global mouse events
+    document.addEventListener('mouseover', (e) => this.handleHover(e));
+    document.addEventListener('mouseout', (e) => this.handleHoverOut(e));
+    document.addEventListener('click', (e) => this.handleClick(e));
+    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+    
+    this.renderHistory();
+  },
+  
+  // Toggle panel
+  toggle() {
+    this.enabled = !this.enabled;
+    const panel = document.getElementById('ve-panel');
+    const toggle = document.getElementById('ve-toggle');
+    
+    if (this.enabled) {
+      panel.classList.remove('ve-hidden');
+      toggle.textContent = '✕';
+      document.getElementById('ve-overlay').style.pointerEvents = 'auto';
+    } else {
+      panel.classList.add('ve-hidden');
+      toggle.textContent = '✏️';
+      this.clearOverlay();
+      document.getElementById('ve-overlay').style.pointerEvents = 'none';
+    }
+  },
+  
+  // Handle hover
+  handleHover(e) {
+    if (!this.enabled || e.target === document.getElementById('ve-panel') || 
+        e.target === document.getElementById('ve-toggle') ||
+        e.target.closest('#ve-panel') || e.target.closest('#ve-toggle')) return;
+    
+    this.hoveredElement = e.target;
+    this.renderOverlay();
+  },
+  
+  handleHoverOut(e) {
+    if (e.target === this.hoveredElement) {
+      this.hoveredElement = null;
+      this.renderOverlay();
+    }
+  },
+  
+  // Handle click
+  handleClick(e) {
+    if (!this.enabled) return;
+    if (e.target === document.getElementById('ve-panel') || 
+        e.target === document.getElementById('ve-toggle') ||
+        e.target.closest('#ve-panel') || e.target.closest('#ve-toggle')) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    this.selectElement(e.target);
+  },
+  
+  // Handle keyboard
+  handleKeydown(e) {
+    if (!this.enabled) return;
+    
+    if (e.key === 'Escape') {
+      this.toggle();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (this.selectedElement && !e.target.matches('input, textarea')) {
+        this.deleteElement();
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      if (e.shiftKey) {
+        this.redo();
+      } else {
+        this.undo();
+      }
+    }
+  },
+  
+  // Select element
+  selectElement(el) {
+    // Save previous state
+    if (this.selectedElement && this.selectedElement !== el) {
+      this.saveState(`Deselect ${this.getElementTag(this.selectedElement)}`);
+    }
+    
+    this.selectedElement = el;
+    this.saveState(`Select ${this.getElementTag(el)}`);
+    this.updateUI();
+    this.renderOverlay();
+    this.renderTree();
+  },
+  
+  // Get element tag
+  getElementTag(el) {
+    const tag = el.tagName.toLowerCase();
+    const id = el.id ? `#${el.id}` : '';
+    const cls = el.className ? `.${el.className.split(' ').join('.')}` : '';
+    return `${tag}${id}${cls}`.substring(0, 50);
+  },
+  
+  // Get element selector
+  getElementSelector(el) {
+    if (el.id) return `#${el.id}`;
+    let selector = el.tagName.toLowerCase();
+    if (el.className) {
+      const classes = el.className.split(' ').filter(c => c && !c.startsWith('ve-'));
+      if (classes.length) selector += '.' + classes.join('.');
+    }
+    return selector;
+  },
+  
+  // Update UI with element properties
+  updateUI() {
+    if (!this.selectedElement) return;
+    
+    const el = this.selectedElement;
+    const style = getComputedStyle(el);
+    
+    // Selected info
+    const info = document.getElementById('ve-selected-info');
+    info.innerHTML = `
+      <div class="ve-selected-tag">${this.getElementTag(el)}</div>
+      <div class="ve-selected-path">${this.getElementSelector(el)}</div>
+    `;
+    
+    // Position
+    document.getElementById('ve-position').value = style.position;
+    document.getElementById('ve-top').value = style.top;
+    document.getElementById('ve-left').value = style.left;
+    document.getElementById('ve-right').value = style.right;
+    document.getElementById('ve-bottom').value = style.bottom;
+    
+    // Size
+    document.getElementById('ve-width').value = style.width;
+    document.getElementById('ve-width-range').value = parseInt(style.width) || 0;
+    document.getElementById('ve-height').value = style.height;
+    document.getElementById('ve-height-range').value = parseInt(style.height) || 0;
+    document.getElementById('ve-max-width').value = style.maxWidth;
+    document.getElementById('ve-min-width').value = style.minWidth;
+    
+    // Display
+    document.getElementById('ve-display').value = style.display;
+    
+    // Spacing
+    document.getElementById('ve-margin-top').value = style.marginTop;
+    document.getElementById('ve-margin-right').value = style.marginRight;
+    document.getElementById('ve-margin-bottom').value = style.marginBottom;
+    document.getElementById('ve-margin-left').value = style.marginLeft;
+    document.getElementById('ve-padding-top').value = style.paddingTop;
+    document.getElementById('ve-padding-right').value = style.paddingRight;
+    document.getElementById('ve-padding-bottom').value = style.paddingBottom;
+    document.getElementById('ve-padding-left').value = style.paddingLeft;
+    
+    // Colors
+    document.getElementById('ve-bg-color').value = this.rgbToHex(style.backgroundColor) || '#000000';
+    document.getElementById('ve-bg-color-value').value = style.backgroundColor;
+    document.getElementById('ve-color').value = this.rgbToHex(style.color) || '#000000';
+    document.getElementById('ve-color-value').value = style.color;
+    document.getElementById('ve-border-color').value = this.rgbToHex(style.borderColor) || '#000000';
+    document.getElementById('ve-border-color-value').value = style.borderColor;
+    
+    // Border
+    document.getElementById('ve-border-width').value = style.borderWidth;
+    document.getElementById('ve-border-style').value = style.borderStyle;
+    document.getElementById('ve-border-radius').value = style.borderRadius;
+    
+    // Typography
+    document.getElementById('ve-font-size').value = parseInt(style.fontSize);
+    document.getElementById('ve-font-size-range').value = parseInt(style.fontSize);
+    document.getElementById('ve-font-weight').value = style.fontWeight;
+    document.getElementById('ve-text-align').value = style.textAlign;
+    document.getElementById('ve-font-family').value = style.fontFamily;
+    
+    // Flexbox
+    document.getElementById('ve-flex-direction').value = style.flexDirection || 'row';
+    document.getElementById('ve-justify-content').value = style.justifyContent || 'flex-start';
+    document.getElementById('ve-align-items').value = style.alignItems || 'stretch';
+    document.getElementById('ve-gap').value = style.gap;
+    
+    // Effects
+    document.getElementById('ve-opacity').value = Math.round(parseFloat(style.opacity) * 100);
+    document.getElementById('ve-opacity-range').value = Math.round(parseFloat(style.opacity) * 100);
+    document.getElementById('ve-box-shadow').value = style.boxShadow || 'none';
+  },
+  
+  // Render overlay boxes
+  renderOverlay() {
+    const overlay = document.getElementById('ve-overlay');
+    overlay.innerHTML = '';
+    
+    [this.hoveredElement, this.selectedElement].forEach(el => {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const isSelected = el === this.selectedElement;
+      
+      const box = document.createElement('div');
+      box.className = `ve-element-box ${isSelected ? 'selected' : 'hover'}`;
+      box.style.cssText = `
+        left: ${rect.left}px;
+        top: ${rect.top}px;
+        width: ${rect.width}px;
+        height: ${rect.height}px;
+      `;
+      
+      if (!isSelected) {
+        const label = document.createElement('div');
+        label.className = 've-element-label';
+        label.textContent = this.getElementTag(el);
+        box.appendChild(label);
+      }
+      
+      overlay.appendChild(box);
+    });
+  },
+  
+  clearOverlay() {
+    document.getElementById('ve-overlay').innerHTML = '';
+  },
+  
+  // Render DOM tree
+  renderTree() {
+    const tree = document.getElementById('ve-tree');
+    tree.innerHTML = '';
+    
+    const buildTree = (el, depth = 0) => {
+      const item = document.createElement('div');
+      item.className = `ve-tree-item ${el === this.selectedElement ? 'selected' : ''}`;
+      item.style.paddingLeft = `${depth * 12 + 8}px`;
+      item.innerHTML = `
+        <span>${el.tagName.toLowerCase()}</span>
+        <span class="ve-tree-tag">${this.getElementSelector(el)}</span>
+      `;
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectElement(el);
+      });
+      tree.appendChild(item);
+      
+      Array.from(el.children).forEach(child => {
+        if (!child.className || !child.className.startsWith('ve-')) {
+          buildTree(child, depth + 1);
+        }
+      });
+    };
+    
+    if (document.body) {
+      buildTree(document.body);
+    }
+  },
+  
+  // Update properties
+  updateProperty(prop, value) {
+    if (!this.selectedElement) return;
+    this.selectedElement.style[prop] = value;
+    this.saveState(`Update ${prop}`);
+    this.renderOverlay();
+  },
+  
+  updateSize(prop, value) {
+    if (!this.selectedElement) return;
+    this.selectedElement.style[prop] = value + 'px';
+    document.getElementById(`ve-${prop}`).value = value + 'px';
+    this.saveState(`Update ${prop}`);
+    this.renderOverlay();
+  },
+  
+  updateSpacing(type, side, value) {
+    if (!this.selectedElement) return;
+    const prop = `${type}${side.charAt(0).toUpperCase() + side.slice(1)}`;
+    this.selectedElement.style[prop] = value;
+    this.saveState(`Update ${prop}`);
+    this.renderOverlay();
+  },
+  
+  updateColor(prop, value) {
+    if (!this.selectedElement) return;
+    this.selectedElement.style[prop] = value;
+    this.saveState(`Update ${prop}`);
+    this.renderOverlay();
+  },
+  
+  updateFontSize(value) {
+    if (!this.selectedElement) return;
+    this.selectedElement.style.fontSize = value + 'px';
+    document.getElementById('ve-font-size').value = value;
+    this.saveState('Update fontSize');
+    this.renderOverlay();
+  },
+  
+  updateOpacity(value) {
+    if (!this.selectedElement) return;
+    this.selectedElement.style.opacity = (value / 100).toString();
+    document.getElementById('ve-opacity').value = value;
+    this.saveState('Update opacity');
+    this.renderOverlay();
+  },
+  
+  // History management
+  saveState(action) {
+    if (!this.selectedElement) return;
+    
+    // Remove future states
+    this.history = this.history.slice(0, this.historyIndex + 1);
+    
+    // Add new state
+    this.history.push({
+      element: this.selectedElement,
+      selector: this.getElementSelector(this.selectedElement),
+      tag: this.getElementTag(this.selectedElement),
+      styles: this.selectedElement.style.cssText,
+      action: action,
+      timestamp: Date.now()
+    });
+    
+    // Limit history
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+    
+    this.historyIndex = this.history.length - 1;
+    this.renderHistory();
+    this.saveToStorage();
+  },
+  
+  undo() {
+    if (this.historyIndex < 0) return;
+    
+    const state = this.history[this.historyIndex];
+    const el = document.querySelector(state.selector);
+    if (el) {
+      el.style.cssText = state.styles;
+      this.selectedElement = el;
+      this.updateUI();
+      this.renderOverlay();
+    }
+    
+    this.historyIndex--;
+    this.renderHistory();
+    this.showToast('Undo: ' + state.action, 'success');
+  },
+  
+  redo() {
+    if (this.historyIndex >= this.history.length - 1) return;
+    
+    this.historyIndex++;
+    const state = this.history[this.historyIndex];
+    const el = document.querySelector(state.selector);
+    if (el) {
+      el.style.cssText = state.styles;
+      this.selectedElement = el;
+      this.updateUI();
+      this.renderOverlay();
+    }
+    
+    this.renderHistory();
+    this.showToast('Redo: ' + state.action, 'success');
+  },
+  
+  renderHistory() {
+    const list = document.getElementById('ve-history-list');
+    list.innerHTML = this.history.map((h, i) => `
+      <div class="ve-history-item ${i === this.historyIndex ? 'current' : ''} ${i > this.historyIndex ? 'future' : ''}">
+        ${i === this.historyIndex ? '▶' : ''} ${h.action}
+      </div>
+    `).reverse().join('');
+    
+    document.getElementById('ve-undo-btn').disabled = this.historyIndex < 0;
+    document.getElementById('ve-redo-btn').disabled = this.historyIndex >= this.history.length - 1;
+  },
+  
+  // Element actions
+  toggleVisibility() {
+    if (!this.selectedElement) return;
+    const isHidden = this.selectedElement.style.display === 'none';
+    this.selectedElement.style.display = isHidden ? '' : 'none';
+    this.saveState(isHidden ? 'Show element' : 'Hide element');
+    this.showToast(isHidden ? 'Element shown' : 'Element hidden', 'success');
+  },
+  
+  lockElement() {
+    if (!this.selectedElement) return;
+    this.selectedElement.style.pointerEvents = 'none';
+    this.saveState('Lock element');
+    this.showToast('Element locked', 'success');
+  },
+  
+  deleteElement() {
+    if (!this.selectedElement) return;
+    if (!confirm('Delete this element?')) return;
+    
+    this.saveState('Delete element');
+    this.selectedElement.remove();
+    this.selectedElement = null;
+    this.updateUI();
+    this.clearOverlay();
+    this.renderTree();
+    this.showToast('Element deleted', 'success');
+  },
+  
+  resetElement() {
+    if (!this.selectedElement) return;
+    if (!confirm('Reset element to original styles?')) return;
+    
+    this.selectedElement.style.cssText = '';
+    this.saveState('Reset styles');
+    this.updateUI();
+    this.renderOverlay();
+    this.showToast('Styles reset', 'success');
+  },
+  
+  // Copy functions
+  copyHTML() {
+    if (!this.selectedElement) {
+      this.showToast('No element selected', 'error');
+      return;
+    }
+    this.showCodeModal('HTML', this.selectedElement.outerHTML);
+  },
+  
+  copyCSS() {
+    if (!this.selectedElement) {
+      this.showToast('No element selected', 'error');
+      return;
+    }
+    const style = getComputedStyle(this.selectedElement);
+    const css = Object.fromEntries(
+      Object.entries(style).filter(([k]) => !isNaN(k))
+    );
+    const cssText = Object.entries(css).map(([k, v]) => `${k}: ${v};`).join('\n');
+    this.showCodeModal('CSS', cssText);
+  },
+  
+  copyJSON() {
+    if (!this.selectedElement) {
+      this.showToast('No element selected', 'error');
+      return;
+    }
+    const style = getComputedStyle(this.selectedElement);
+    const data = {
+      selector: this.getElementSelector(this.selectedElement),
+      styles: {}
+    };
+    
+    const cssProps = ['width', 'height', 'margin', 'padding', 'border', 'background', 'color', 'font', 'display', 'position', 'top', 'left', 'flex'];
+    cssProps.forEach(prop => {
+      if (style[prop] && style[prop] !== '') {
+        data.styles[prop] = style[prop];
+      }
+    });
+    
+    this.showCodeModal('JSON', JSON.stringify(data, null, 2));
+  },
+  
+  showCodeModal(title, content) {
+    document.getElementById('ve-modal-title').textContent = title;
+    document.getElementById('ve-code-content').value = content;
+    document.getElementById('ve-code-modal').classList.remove('ve-hidden');
+  },
+  
+  closeModal() {
+    document.getElementById('ve-code-modal').classList.add('ve-hidden');
+  },
+  
+  copyFromModal() {
+    const content = document.getElementById('ve-code-content').value;
+    navigator.clipboard.writeText(content).then(() => {
+      this.showToast('Copied to clipboard!', 'success');
+      this.closeModal();
+    });
+  },
+  
+  // Export/Import
+  exportJSON() {
+    const data = {
+      exported: new Date().toISOString(),
+      elements: this.history.map(h => ({
+        selector: h.selector,
+        styles: h.styles
+      }))
+    };
+    this.showCodeModal('Export JSON', JSON.stringify(data, null, 2));
+  },
+  
+  // Presets
+  savePreset() {
+    if (!this.selectedElement) {
+      this.showToast('No element selected', 'error');
+      return;
+    }
+    const name = prompt('Preset name:');
+    if (!name) return;
+    
+    this.savedStyles[name] = {
+      selector: this.getElementSelector(this.selectedElement),
+      styles: this.selectedElement.style.cssText
+    };
+    
+    localStorage.setItem('ve-presets', JSON.stringify(this.savedStyles));
+    this.showToast('Preset saved: ' + name, 'success');
+  },
+  
+  loadPresets() {
+    const presets = JSON.parse(localStorage.getItem('ve-presets') || '{}');
+    const names = Object.keys(presets);
+    
+    if (names.length === 0) {
+      this.showToast('No presets saved', 'error');
+      return;
+    }
+    
+    const name = prompt(`Available presets:\n${names.join('\n')}\n\nEnter preset name:`);
+    if (!name || !presets[name]) return;
+    
+    const preset = presets[name];
+    const el = document.querySelector(preset.selector);
+    if (el) {
+      el.style.cssText = preset.styles;
+      this.selectedElement = el;
+      this.updateUI();
+      this.renderOverlay();
+      this.saveState('Apply preset: ' + name);
+      this.showToast('Preset applied: ' + name, 'success');
+    }
+  },
+  
+  clearHistory() {
+    if (!confirm('Clear all history?')) return;
+    this.history = [];
+    this.historyIndex = -1;
+    this.renderHistory();
+    localStorage.removeItem('ve-history');
+    this.showToast('History cleared', 'success');
+  },
+  
+  // Storage
+  saveToStorage() {
+    try {
+      localStorage.setItem('ve-history', JSON.stringify(this.history.slice(-20)));
+    } catch (e) {
+      console.warn('Could not save history:', e);
+    }
+  },
+  
+  loadFromStorage() {
+    try {
+      const saved = localStorage.getItem('ve-history');
+      if (saved) {
+        this.history = JSON.parse(saved);
+        this.historyIndex = this.history.length - 1;
+        this.renderHistory();
+      }
+    } catch (e) {
+      console.warn('Could not load history:', e);
+    }
+  },
+  
+  // Utility
+  rgbToHex(rgb) {
+    if (!rgb || rgb.startsWith('#')) return rgb;
+    const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+    if (!match) return null;
+    return '#' + [match[1], match[2], match[3]].map(x => {
+      const hex = parseInt(x).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+  },
+  
+  showToast(message, type = 'success') {
+    const toast = document.getElementById('ve-toast');
+    toast.textContent = message;
+    toast.className = `show ${type}`;
+    setTimeout(() => toast.className = '', 2000);
+  },
+  
+  showHelp() {
+    alert(`
+Visual Editor Help
+==================
+- Click any element to select it
+- Use tabs to switch between Inspect/Style/Tree/History
+- Edit properties in the panel
+- Ctrl+Z: Undo
+- Ctrl+Shift+Z: Redo
+- Delete key: Remove selected element
+- Escape: Toggle editor
+- Copy HTML/CSS/JSON of selected element
+    `);
+  }
+};
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+  ve.init();
+  ve.loadFromStorage();
+});
+
+// Also init immediately if DOM is already ready
+if (document.readyState !== 'loading') {
+  ve.init();
+  ve.loadFromStorage();
+}
+</script>
+
+</body>
+</html>
