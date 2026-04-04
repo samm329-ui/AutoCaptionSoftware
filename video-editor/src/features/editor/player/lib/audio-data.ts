@@ -3,7 +3,7 @@ import { AudioData, getAudioData, visualizeAudio } from "@remotion/media-utils";
 import { isEqual } from "lodash";
 
 interface AudioDataCache {
-  data: AudioData;
+  data: AudioData | null;
   lastAccessed: number;
 }
 
@@ -23,7 +23,6 @@ export class AudioDataManager {
 
   private async loadAudioData(src: string, id: string): Promise<void> {
     try {
-      console.log("Loading audio data for", src);
       const data = await getAudioData(src);
       this.audioDatas[id] = {
         data,
@@ -31,16 +30,13 @@ export class AudioDataManager {
       };
       this.cleanupCache();
     } catch (error) {
-      console.error(`Error loading audio data for ${src}:`, error instanceof Error ? error.message : String(error));
-
-      // If it's an EncodingError (no audio track), just ignore it
-      if (error instanceof Error && error.name === "EncodingError") {
-        console.log(`No audio track found for ${src}, ignoring`);
-        return;
-      }
-
-      // For other errors, still throw them
-      throw error;
+      // Silent video blobs have no audio track — Remotion throws.
+      // Store null so this item contributes silence instead.
+      this.audioDatas[id] = {
+        data: null,
+        lastAccessed: Date.now()
+      };
+      this.cleanupCache();
     }
   }
 
@@ -114,13 +110,15 @@ export class AudioDataManager {
     this.items = this.items.map((item) => {
       if (item.id === newItem.id) {
         if (item.details.src !== newItem.details.src) {
-          this.loadAudioData(newItem.details.src, item.id).catch(console.error);
+          this.loadAudioData(newItem.details.src, item.id).catch(() => {
+            // Silent blobs fail silently — already handled in loadAudioData
+          });
         }
         return newItem;
       }
       return item;
     });
-    this.frameCache.clear(); // Clear frame cache when items are updated
+    this.frameCache.clear();
   }
 
   private combineValues = (
@@ -141,7 +139,9 @@ export class AudioDataManager {
 
     const visualizationValues = this.items.map((item, index) => {
       const cache = this.audioDatas[item.id];
-      if (!cache) return Array(this.numberOfSamples).fill(0);
+      if (!cache || !cache.data) {
+        return Array(this.numberOfSamples).fill(0);
+      }
 
       const frameTime =
         frame -
