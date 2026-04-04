@@ -30,6 +30,7 @@ import useLayoutStore from "./store/use-layout-store";
 import ControlItemHorizontal from "./control-item-horizontal";
 import { design } from "./mock";
 import { Separator } from "@/components/ui/separator";
+import MediaToolbar from "./media-toolbar";
 
 const stateManager = new StateManager({
   size: {
@@ -60,8 +61,11 @@ const SceneContainer = ({
           <ResizableHandle className="bg-border/90" withHandle />
 
           <ResizablePanel defaultSize={35} minSize={25}>
-            <div className="w-full h-full">
-              {playerRef && <Timeline stateManager={stateManager} />}
+            <div className="w-full h-full flex flex-col">
+              <MediaToolbar />
+              <div className="flex-1 min-h-0">
+                {playerRef && <Timeline stateManager={stateManager} />}
+              </div>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>

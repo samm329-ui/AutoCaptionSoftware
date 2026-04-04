@@ -29,6 +29,8 @@ import PreviewTrackItem from "./items/preview-drag-item";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useStateManagerEvents } from "../hooks/use-state-manager-events";
 import { useResizbleTimeline } from "../hooks/use-resizable-timeline";
+import TimelineToolbar from "../timeline-toolbar";
+import { TimelineVerticalScrollbar } from "./vertical-scrollbar";
 
 CanvasTimeline.registerItems({
   Text,
@@ -257,43 +259,54 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   }, [scale]);
 
   return (
-    <div
-      ref={timelineContainerRef}
-      id="timeline-container"
-      className="relative w-full overflow-hidden bg-card"
-      style={{
-        height: `${timelineHeight}px`,
-        borderTopWidth: "1px",
-        borderTopStyle: "solid",
-        borderTopColor: "transparent"
-      }}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseOut={onMouseOut}
-    >
-      <Header />
-      <Ruler
-        onClick={onClickRuler}
-        scrollLeft={scrollLeft}
-        onScroll={onRulerScroll}
-      />
-      <Playhead scrollLeft={scrollLeft} />
-      <div className="flex">
-        <div
-          style={{
-            width: timelineOffsetX
-          }}
-          className="relative flex-none"
+    <div className="flex h-full">
+      <TimelineToolbar className="w-12 shrink-0" />
+      
+      <div
+        ref={timelineContainerRef}
+        id="timeline-container"
+        className="relative flex-1 overflow-hidden bg-card"
+        style={{
+          height: `${timelineHeight}px`,
+          borderTopWidth: "1px",
+          borderTopStyle: "solid",
+          borderTopColor: "transparent"
+        }}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseOut={onMouseOut}
+      >
+        <Header />
+        <Ruler
+          onClick={onClickRuler}
+          scrollLeft={scrollLeft}
+          onScroll={onRulerScroll}
         />
-        <div style={{ height: canvasSize.height }} className="relative flex-1">
+        <Playhead scrollLeft={scrollLeft} />
+        <div className="flex">
           <div
-            style={{ height: canvasSize.height }}
-            ref={containerRef}
-            className="absolute top-0 w-full"
-          >
-            <canvas id="designcombo-timeline-canvas" ref={canvasElRef} />
+            style={{
+              width: timelineOffsetX
+            }}
+            className="relative flex-none"
+          />
+          <div style={{ height: canvasSize.height }} className="relative flex-1">
+            <div
+              style={{ height: canvasSize.height }}
+              ref={containerRef}
+              className="absolute top-0 w-full"
+            >
+              <canvas id="designcombo-timeline-canvas" ref={canvasElRef} />
+            </div>
           </div>
         </div>
+        
+        <div 
+          className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-card/90 to-transparent pointer-events-none"
+          style={{ top: "50px" }}
+        />
+        
+        <TimelineVerticalScrollbar className="top-[50px]" />
       </div>
     </div>
   );

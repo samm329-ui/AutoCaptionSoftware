@@ -45,8 +45,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching voices:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
-      { error: "Failed to fetch voices" },
-      { status: 500 }
+      { 
+        voices: [],
+        pagination: { hasMore: false }
+      },
+      { status: 200 }
     );
   }
 }
