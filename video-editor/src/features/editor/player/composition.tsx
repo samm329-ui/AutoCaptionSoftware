@@ -18,14 +18,36 @@ const Composition = () => {
     size,
     transitionsMap,
     structure,
-    activeIds
+    activeIds,
+    tracks
   } = useStore();
   const frame = useCurrentFrame();
 
+  const hiddenTrackIds = new Set(
+    tracks.filter((t) => (t as any).hidden).map((t) => t.id)
+  );
+
+  const mutedTrackIds = new Set(
+    tracks.filter((t) => (t as any).muted).map((t) => t.id)
+  );
+
+  const trackForItem = (itemId: string) =>
+    tracks.find((t) => t.items.includes(itemId));
+
+  const visibleTrackItemIds = trackItemIds.filter((id) => {
+    const track = trackForItem(id);
+    if (track && hiddenTrackIds.has(track.id)) return false;
+    return true;
+  });
+
+  const visibleTrackItemsMap = Object.fromEntries(
+    Object.entries(trackItemsMap).filter(([id]) => visibleTrackItemIds.includes(id))
+  );
+
   const groupedItems = groupTrackItems({
-    trackItemIds,
+    trackItemIds: visibleTrackItemIds,
     transitionsMap,
-    trackItemsMap: trackItemsMap
+    trackItemsMap: visibleTrackItemsMap
   });
   const mediaItems = Object.values(trackItemsMap).filter((item) => {
     return item.type === "video" || item.type === "audio";
@@ -193,6 +215,7 @@ const Composition = () => {
       {groupedItems.map((group, index) => {
         if (group.length === 1) {
           const item = trackItemsMap[group[0].id];
+          const owningTrack = trackForItem(item.id);
           return SequenceItem[item.type](item, {
             fps,
             handleTextChange,
@@ -200,7 +223,9 @@ const Composition = () => {
             editableTextId,
             frame,
             size,
-            isTransition: false
+            isTransition: false,
+            mutedTrackIds,
+            owningTrackId: owningTrack?.id,
           });
         }
         const firstItem = trackItemsMap[group[0].id];
@@ -217,12 +242,15 @@ const Composition = () => {
                   direction: item.direction
                 });
               }
+              const owningTrack = trackForItem(item.id);
               return SequenceItem[item.type](trackItemsMap[item.id], {
                 fps,
                 handleTextChange,
                 editableTextId,
                 isTransition: true,
-                size
+                size,
+                mutedTrackIds,
+                owningTrackId: owningTrack?.id,
               });
             })}
           </TransitionSeries>
