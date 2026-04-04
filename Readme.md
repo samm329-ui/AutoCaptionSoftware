@@ -1,4 +1,10 @@
-# FYAP Pro - Video Captioning System
+# FYAP Pro - Video Captioning & Editing System
+
+## Project Overview
+
+FYAP Pro is a comprehensive video editing and captioning system featuring:
+- **AI-Powered Captioning**: 15-stage transcription pipeline with Whisper, LLM refinement, and dual scoring
+- **Professional Video Editor**: Browser-based timeline editor with multi-track support, keyframes, and effects
 
 ## Project Structure
 
@@ -19,8 +25,10 @@ caption-tool-master/
 │   ├── aligner.py     # Word-level timestamp alignment
 │   └── renderer.py    # SRT/VTT generation
 ├── web_ui/            # React frontend (CDN-based, no build)
+├── video-editor/      # Next.js Video Editor
+│   └── src/
+│       └── features/editor/  # Timeline, player, effects panels
 └── data/             # Database, uploads, cache, logs
-```
 
 ## System Architecture
 
@@ -135,3 +143,51 @@ caption-tool-master/
 | GET | `/api/jobs/{id}/video` | Stream original video |
 | GET | `/api/jobs/{id}/export` | Download video with burned captions |
 | WS | `/api/jobs/{id}/ws` | Real-time progress updates |
+
+---
+
+## Video Editor
+
+Professional browser-based video editor with timeline, effects, and multi-track support.
+
+### Features
+
+- **Timeline Editing**: Multi-track timeline with drag-and-drop
+- **Keyframe Animation**: Linear, bezier, ease interpolation
+- **Trim Tools**: Ripple, rolling, slip, slide, rate stretch
+- **Magnetic Snapping**: Auto-snap to playhead, clips, markers
+- **Undo/Redo**: Full history with 120 depth
+- **Effect Controls Panel**: Premiere Pro-style property editor
+- **Project Panel**: Media bin for assets
+- **Timeline Markers**: Color-coded markers for navigation
+- **Media Probing**: Auto-detect video/audio/image duration and dimensions
+
+### Tech Stack
+
+- Next.js 14
+- React + TypeScript
+- Tailwind CSS
+- Remotion (video rendering)
+- Zustand (state management)
+- @designcombo/timeline (canvas timeline)
+
+### Getting Started
+
+```bash
+cd video-editor
+pnpm install
+pnpm dev
+```
+
+Open: `http://localhost:3000/edit`
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| Space | Play/Pause |
+| Left Arrow | Previous Frame |
+| Right Arrow | Next Frame |
+| Ctrl+Z | Undo |
+| Ctrl+Shift+Z | Redo |
+| Delete | Delete Selected |
