@@ -31,6 +31,10 @@ import { useStateManagerEvents } from "../hooks/use-state-manager-events";
 import { useResizbleTimeline } from "../hooks/use-resizable-timeline";
 import TimelineToolbar from "../timeline-toolbar";
 import { TimelineVerticalScrollbar } from "./vertical-scrollbar";
+import TimelineMarkersLayer from "../panels/timeline-markers";
+import DecibelMeter from "./decibel-meter";
+import TrackHeaders from "./track-headers";
+import { useTrackOrdering } from "../hooks/use-track-ordering";
 
 CanvasTimeline.registerItems({
   Text,
@@ -71,6 +75,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   const { setTimeline } = useStore();
 
   useStateManagerEvents(stateManager);
+  useTrackOrdering(canvasRef);
 
   // Theme change re-render
   useEffect(() => {
@@ -308,6 +313,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
           scrollLeft={scrollLeft}
           onScroll={onRulerScroll}
         />
+        <TimelineMarkersLayer scrollLeft={scrollLeft} />
         <Playhead scrollLeft={scrollLeft} />
         <div className="flex">
           <div
@@ -315,7 +321,9 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
               width: timelineOffsetX
             }}
             className="relative flex-none"
-          />
+          >
+            <TrackHeaders canvasRef={canvasRef} scrollLeft={scrollLeft} />
+          </div>
           <div style={{ height: canvasSize.height }} className="relative flex-1">
             <div
               style={{ height: canvasSize.height }}
@@ -334,6 +342,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 
         <TimelineVerticalScrollbar className="top-[50px]" />
       </div>
+
+      <DecibelMeter />
     </div>
   );
 };
