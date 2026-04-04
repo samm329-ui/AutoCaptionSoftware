@@ -14,6 +14,8 @@ export interface SequenceItemOptions {
   size?: ISize;
   frame?: number;
   isTransition?: boolean;
+  mutedTrackIds?: Set<string>;
+  owningTrackId?: string;
 }
 
 export const BaseSequence = ({
