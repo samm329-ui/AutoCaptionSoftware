@@ -9,7 +9,7 @@ import {
 import { PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
 import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import useStore from "../store/use-store";
-import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut } from "lucide-react";
+import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   getFitZoomLevel,
   getNextZoomLevel,
@@ -48,6 +48,7 @@ const IconPlayerPauseFilled = ({ size }: { size: number }) => (
     <path d="M17 4h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h2a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2z" />
   </svg>
 );
+
 const IconPlayerSkipBack = ({ size }: { size: number }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -81,6 +82,7 @@ const IconPlayerSkipForward = ({ size }: { size: number }) => (
     <path d="M20 5l0 14" />
   </svg>
 );
+
 const Header = () => {
   const [playing, setPlaying] = useState(false);
   const { duration, fps, scale, playerRef, activeIds } = useStore();
@@ -88,6 +90,7 @@ const Header = () => {
   useUpdateAnsestors({ playing, playerRef });
 
   const currentFrame = useCurrentPlayerFrame(playerRef);
+  const safeFps = fps || 30;
 
   const doActiveDelete = () => {
     dispatch(LAYER_DELETE);
@@ -118,6 +121,18 @@ const Header = () => {
     dispatch(PLAYER_PAUSE);
   };
 
+  const handleFrameBack = () => {
+    const newFrame = Math.max(0, currentFrame - 1);
+    const timeMs = (newFrame / safeFps) * 1000;
+    playerRef?.current?.seekTo(Math.round(timeMs / 1000));
+  };
+
+  const handleFrameForward = () => {
+    const newFrame = currentFrame + 1;
+    const timeMs = (newFrame / safeFps) * 1000;
+    playerRef?.current?.seekTo(Math.round(timeMs / 1000));
+  };
+
   useEffect(() => {
     playerRef?.current?.addEventListener("play", () => {
       setPlaying(true);
@@ -134,6 +149,38 @@ const Header = () => {
       });
     };
   }, [playerRef]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const key = e.key;
+
+      switch (key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          handleFrameBack();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          handleFrameForward();
+          break;
+        case " ":
+          e.preventDefault();
+          if (playing) {
+            handlePause();
+          } else {
+            handlePlay();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentFrame, playing, safeFps, playerRef]);
 
   return (
     <div
@@ -159,7 +206,7 @@ const Header = () => {
             width: "100%",
             display: "grid",
             gridTemplateColumns: isLargeScreen
-              ? "1fr 260px 1fr"
+              ? "1fr 300px 1fr"
               : "1fr 1fr 1fr",
             alignItems: "center"
           }}
@@ -200,24 +247,22 @@ const Header = () => {
             </Button>
           </div>
           <div className="flex items-center justify-center">
-            <div>
+            <div className="flex items-center gap-1">
               <Button
-                className="hidden lg:inline-flex"
-                onClick={doActiveDelete}
+                onClick={handleFrameBack}
                 variant={"ghost"}
                 size={"icon"}
+                className="h-7 w-7"
+                title="Previous Frame (Left Arrow)"
               >
-                <IconPlayerSkipBack size={14} />
+                <ChevronLeft size={14} />
               </Button>
               <Button
-                onClick={() => {
-                  if (playing) {
-                    return handlePause();
-                  }
-                  handlePlay();
-                }}
+                onClick={handlePlay}
                 variant={"ghost"}
                 size={"icon"}
+                className="h-7 w-7"
+                title="Play/Pause"
               >
                 {playing ? (
                   <IconPlayerPauseFilled size={14} />
@@ -226,44 +271,56 @@ const Header = () => {
                 )}
               </Button>
               <Button
-                className="hidden lg:inline-flex"
-                onClick={doActiveSplit}
+                onClick={handlePause}
                 variant={"ghost"}
                 size={"icon"}
+                className="h-7 w-7"
+                title="Pause"
               >
-                <IconPlayerSkipForward size={14} />
+                <IconPlayerPauseFilled size={14} />
+              </Button>
+              <Button
+                onClick={handleFrameForward}
+                variant={"ghost"}
+                size={"icon"}
+                className="h-7 w-7"
+                title="Next Frame (Right Arrow)"
+              >
+                <ChevronRight size={14} />
               </Button>
             </div>
             <div
-              className="text-xs font-light flex"
+              className="text-xs font-light flex ml-3"
               style={{
                 alignItems: "center",
-                gridTemplateColumns: "54px 4px 54px",
-                paddingTop: "2px",
                 justifyContent: "center"
               }}
             >
               <div
-                className="font-medium text-zinc-200"
+                className="font-medium text-zinc-200 tabular-nums"
                 style={{
                   display: "flex",
-                  justifyContent: "center"
+                  justifyContent: "center",
+                  minWidth: "60px"
                 }}
-                data-current-time={currentFrame / fps}
                 id="video-current-time"
               >
-                {frameToTimeString({ frame: currentFrame }, { fps })}
+                {frameToTimeString({ frame: currentFrame }, { fps: safeFps })}
               </div>
-              <span className="px-1">|</span>
+              <span className="px-1 text-muted-foreground">|</span>
               <div
-                className="text-muted-foreground hidden lg:block"
+                className="text-muted-foreground tabular-nums"
                 style={{
                   display: "flex",
-                  justifyContent: "center"
+                  justifyContent: "center",
+                  minWidth: "60px"
                 }}
               >
                 {timeToString({ time: duration })}
               </div>
+              <span className="px-1 text-muted-foreground text-[10px] ml-1">
+                F:{currentFrame}
+              </span>
             </div>
           </div>
 
@@ -310,32 +367,38 @@ const ZoomControl = ({
   };
 
   return (
-    <div className="flex items-center justify-end">
-      <div className="flex lg:border-l pl-4 pr-2">
-        <Button size={"icon"} variant={"ghost"} onClick={onZoomOutClick}>
-          <ZoomOut size={16} />
+    <div className="flex items-center justify-end pr-2">
+      <div className="flex items-center gap-1">
+        <Button size={"icon"} variant={"ghost"} onClick={onZoomOutClick} className="h-7 w-7" title="Zoom Out">
+          <ZoomOut size={14} />
         </Button>
-        <Slider
-          className="w-28 hidden lg:flex"
-          value={[localValue]}
-          min={0}
-          max={12}
-          step={1}
-          onValueChange={(e) => {
-            setLocalValue(e[0]); // Update local state
-          }}
-          onValueCommit={() => {
-            const zoom = getZoomByIndex(localValue);
-            onChangeTimelineScale(zoom); // Propagate value to parent when user commits change
-          }}
-        />
-        <Button size={"icon"} variant={"ghost"} onClick={onZoomInClick}>
-          <ZoomIn size={16} />
+        <div className="hidden lg:flex items-center gap-1">
+          <Slider
+            className="w-24"
+            value={[localValue]}
+            min={0}
+            max={12}
+            step={0.5}
+            onValueChange={(e) => {
+              setLocalValue(e[0]);
+            }}
+            onValueCommit={() => {
+              const zoom = getZoomByIndex(localValue);
+              onChangeTimelineScale(zoom);
+            }}
+          />
+          <span className="text-[10px] text-muted-foreground w-8 text-center tabular-nums">
+            {scale.index.toFixed(1)}x
+          </span>
+        </div>
+        <Button size={"icon"} variant={"ghost"} onClick={onZoomInClick} className="h-7 w-7" title="Zoom In">
+          <ZoomIn size={14} />
         </Button>
-        <Button onClick={onZoomFitClick} variant={"ghost"} size={"icon"}>
+        <Button onClick={onZoomFitClick} variant={"ghost"} size={"icon"} className="h-7 w-7" title="Fit">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
           >
             <path

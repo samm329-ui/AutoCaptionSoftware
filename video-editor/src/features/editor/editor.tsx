@@ -127,10 +127,13 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
     const timelineContainer = document.getElementById("timeline-container");
     if (!timelineContainer) return;
 
+    const MEDIA_TOOLBAR_HEIGHT = 36;
+    const TIMELINE_TOOLBAR_WIDTH = 64;
+    
     timeline?.resize(
       {
-        height: timelineContainer.clientHeight - 90,
-        width: timelineContainer.clientWidth - 40,
+        height: timelineContainer.clientHeight - 50,
+        width: timelineContainer.clientWidth - TIMELINE_TOOLBAR_WIDTH - 24,
       },
       {
         force: true,

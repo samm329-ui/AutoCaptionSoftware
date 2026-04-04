@@ -4,7 +4,10 @@ import {
   TIMELINE_OFFSET_X_LARGE
 } from "../constants/constants";
 
+const TIMELINE_TOOLBAR_WIDTH = 64;
+
 export function useTimelineOffsetX(): number {
   const isSmallScreen = useIsSmallScreen();
-  return isSmallScreen ? TIMELINE_OFFSET_X_SMALL : TIMELINE_OFFSET_X_LARGE;
+  const baseOffset = isSmallScreen ? TIMELINE_OFFSET_X_SMALL : TIMELINE_OFFSET_X_LARGE;
+  return baseOffset + TIMELINE_TOOLBAR_WIDTH;
 }

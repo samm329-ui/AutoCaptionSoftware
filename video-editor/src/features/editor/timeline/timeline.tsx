@@ -130,8 +130,9 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 
     if (!canvasEl || !timelineContainerEl) return;
 
+    const TOOLBAR_WIDTH = 64;
     const containerWidth =
-      (document.getElementById("timeline-header")?.clientWidth || 0) - 70;
+      (document.getElementById("timeline-header")?.clientWidth || 0) - TOOLBAR_WIDTH - 24;
     const containerHeight =
       (document.getElementById("playhead")?.clientHeight || 0) -
       (document.getElementById("playhead-handle")?.clientHeight || 0) -
@@ -260,7 +261,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 
   return (
     <div className="flex h-full">
-      <TimelineToolbar className="w-12 shrink-0" />
+      <TimelineToolbar className="w-16 shrink-0" />
       
       <div
         ref={timelineContainerRef}

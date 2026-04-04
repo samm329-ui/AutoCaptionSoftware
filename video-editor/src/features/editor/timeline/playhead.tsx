@@ -15,12 +15,17 @@ import { useTheme } from "next-themes";
 const Playhead = ({ scrollLeft }: { scrollLeft: number }) => {
   const playheadRef = useRef<HTMLDivElement>(null);
   const { playerRef, fps, scale } = useStore();
-  const currentFrame = useCurrentPlayerFrame(playerRef);
+  const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
+  
+  const safeFps = fps || 30;
+  const safeScaleZoom = scale?.zoom || (1 / 300);
+  const safeScrollLeft = scrollLeft || 0;
+  
   const position =
-    timeMsToUnits((currentFrame / fps) * 1000, scale.zoom) - scrollLeft;
+    timeMsToUnits((currentFrame / safeFps) * 1000, safeScaleZoom) - safeScrollLeft;
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
-  const [dragStartPosition, setDragStartPosition] = useState(position);
+  const [dragStartPosition, setDragStartPosition] = useState(0);
   const timelineOffsetX = useTimelineOffsetX();
 
   const { theme, resolvedTheme } = useTheme();
@@ -49,7 +54,7 @@ const Playhead = ({ scrollLeft }: { scrollLeft: number }) => {
     setIsDragging(true);
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     setDragStartX(clientX);
-    setDragStartPosition(position);
+    setDragStartPosition(isNaN(position) ? 0 : position);
   };
 
   const handleMouseMove = (
@@ -104,7 +109,7 @@ const Playhead = ({ scrollLeft }: { scrollLeft: number }) => {
       id="playhead"
       style={{
         position: "absolute",
-        left: timelineOffsetX + TIMELINE_OFFSET_CANVAS_LEFT + position,
+        left: timelineOffsetX + TIMELINE_OFFSET_CANVAS_LEFT + (isNaN(position) ? 0 : position),
         top: 50,
         width: 1,
         height: "calc(100% - 40px)",
