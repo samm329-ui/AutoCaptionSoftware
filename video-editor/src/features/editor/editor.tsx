@@ -53,6 +53,10 @@ import ProjectPanel from "./panels/project-panel";
 import EffectControlsPanel from "./panels/effect-controls-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// Runtime hooks
+import { useKeyframePlayback } from "./hooks/use-keyframe-playback";
+import { useMarkerShortcuts } from "./engine/marker-engine";
+
 const stateManager = new StateManager({
   size: {
     width: 1080,
@@ -192,6 +196,8 @@ export default function Editor() {
   const [loaded, setLoaded] = useState(false);
 
   useTimelineEvents();
+  useKeyframePlayback();
+  useMarkerShortcuts();
 
   const activeId = activeIds[0];
   const activeTrackItem = activeId ? (trackItemsMap[activeId] as ITrackItem) : null;
