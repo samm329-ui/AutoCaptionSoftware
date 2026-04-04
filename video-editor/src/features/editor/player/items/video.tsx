@@ -13,7 +13,7 @@ export const Video = ({
   item: IVideo;
   options: SequenceItemOptions;
 }) => {
-  const { fps, frame } = options;
+  const { fps, frame, mutedTrackIds, owningTrackId } = options;
   const { details, animations } = item;
   const playbackRate = item.playbackRate || 1;
   const { animationIn, animationOut, animationTimed } = getAnimations(
@@ -30,6 +30,10 @@ export const Video = ({
   };
   const { durationInFrames } = calculateFrames(item.display, fps);
   const currentFrame = (frame || 0) - (item.display.from * fps) / 1000;
+
+  const isTrackMuted = owningTrackId && mutedTrackIds?.has(owningTrackId);
+  const baseVolume = details.volume ?? 0;
+  const effectiveVolume = isTrackMuted ? 0 : baseVolume;
 
   const children = (
     <BoxAnim
@@ -57,7 +61,7 @@ export const Video = ({
               endAt={(item.trim?.to! / 1000) * fps || 1 / fps}
               playbackRate={playbackRate}
               src={details.src}
-              volume={details.volume || 0 / 100}
+              volume={effectiveVolume / 100}
             />
           </div>
         </MaskAnim>
