@@ -9,15 +9,17 @@ import {
   PLAYER_SEEK_BY,
   PLAYER_TOGGLE_PLAY
 } from "../constants/events";
-import { LAYER_PREFIX, LAYER_SELECTION } from "@designcombo/state";
-import { EDIT_OBJECT } from "@designcombo/state";
+import { LAYER_PREFIX, LAYER_SELECTION, EDIT_OBJECT } from "@designcombo/state";
 import { TIMELINE_SEEK, TIMELINE_PREFIX } from "@designcombo/timeline";
 import { getSafeCurrentFrame } from "../utils/time";
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
 
 const useTimelineEvents = () => {
   const { playerRef, fps, timeline, setState } = useStore();
 
-  //handle player events
   useEffect(() => {
     const playerEvents = subject.pipe(
       filter(({ key }) => key.startsWith(PLAYER_PREFIX))
@@ -34,6 +36,7 @@ const useTimelineEvents = () => {
         }
       }
     });
+
     const playerEventsSubscription = playerEvents.subscribe((obj) => {
       if (obj.key === PLAYER_SEEK) {
         const time = obj.value?.payload?.time;
@@ -65,7 +68,6 @@ const useTimelineEvents = () => {
     };
   }, [playerRef, fps]);
 
-  // handle selection events
   useEffect(() => {
     const selectionEvents = subject.pipe(
       filter(({ key }) => key.startsWith(LAYER_PREFIX))
@@ -73,49 +75,28 @@ const useTimelineEvents = () => {
 
     const selectionSubscription = selectionEvents.subscribe((obj) => {
       if (obj.key === LAYER_SELECTION) {
+        const activeIds = obj.value?.payload?.activeIds;
         setState({
-          activeIds: obj.value?.payload.activeIds
+          activeIds: Array.isArray(activeIds) ? activeIds : []
         });
       }
     });
-    return () => selectionSubscription.unsubscribe();
-  }, [timeline]);
 
-  // handle edit object events - sync trackItemsMap changes
+    return () => selectionSubscription.unsubscribe();
+  }, [timeline, setState]);
+
   useEffect(() => {
-    const editSubscription = subject.pipe(
-      filter(({ key }) => key === EDIT_OBJECT)
-    ).subscribe((obj) => {
-      const payload = obj.value?.payload;
-      if (payload && typeof payload === "object") {
-        setState((state: any) => {
-          const updatedTrackItemsMap = { ...state.trackItemsMap };
-          for (const [id, changes] of Object.entries(payload)) {
-            const existing = updatedTrackItemsMap[id];
-            if (existing && changes && typeof changes === "object") {
-              const changeObj = changes as Record<string, any>;
-              updatedTrackItemsMap[id] = {
-                ...existing,
-                ...changeObj,
-                details: {
-                  ...(existing.details || {}),
-                  ...(changeObj.details || {}),
-                },
-                display: {
-                  ...(existing.display || {}),
-                  ...(changeObj.display || {}),
-                },
-                trim: {
-                  ...(existing.trim || {}),
-                  ...(changeObj.trim || {}),
-                },
-              };
-            }
-          }
-          return { ...state, trackItemsMap: updatedTrackItemsMap };
+    const editSubscription = subject
+      .pipe(filter(({ key }) => key === EDIT_OBJECT))
+      .subscribe((obj) => {
+        const payload = obj.value?.payload;
+        if (!isPlainObject(payload)) return;
+
+        setState({
+          trackItemsMap: payload as Record<string, any>
         });
-      }
-    });
+      });
+
     return () => editSubscription.unsubscribe();
   }, [setState]);
 };
