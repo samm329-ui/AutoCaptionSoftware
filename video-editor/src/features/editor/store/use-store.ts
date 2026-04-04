@@ -45,9 +45,28 @@ interface ITimelineStore {
   };
   viewTimeline: boolean;
   setViewTimeline: (viewTimeline: boolean) => void;
+
+  // Undo/Redo
+  historyPast: any[];
+  historyFuture: any[];
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
-const useStore = create<ITimelineStore>((set) => ({
+const MAX_HISTORY = 120;
+
+function cloneState(state: any) {
+  try {
+    return structuredClone(state);
+  } catch {
+    return JSON.parse(JSON.stringify(state));
+  }
+}
+
+const useStore = create<ITimelineStore>((set, get) => ({
   compositions: [],
   structure: [],
   setCompositions: (compositions) => set({ compositions }),
@@ -67,7 +86,6 @@ const useStore = create<ITimelineStore>((set) => ({
   duration: 1000,
   fps: 30,
   scale: {
-    // 1x distance (second 0 to second 5, 5 segments).
     index: 7,
     unit: 300,
     zoom: 1 / 300,
@@ -87,6 +105,82 @@ const useStore = create<ITimelineStore>((set) => ({
   transitionsMap: {},
   trackItemsMap: {},
   sceneMoveableRef: null,
+
+  // Undo/Redo state
+  historyPast: [],
+  historyFuture: [],
+  canUndo: false,
+  canRedo: false,
+
+  pushHistory: () => {
+    const state = get();
+    const snapshot = cloneState({
+      tracks: state.tracks,
+      trackItemIds: state.trackItemIds,
+      transitionIds: state.transitionIds,
+      transitionsMap: state.transitionsMap,
+      trackItemsMap: state.trackItemsMap,
+      structure: state.structure,
+      activeIds: state.activeIds,
+      duration: state.duration,
+    });
+    set({
+      historyPast: [...state.historyPast, snapshot].slice(-MAX_HISTORY),
+      historyFuture: [],
+      canUndo: true,
+      canRedo: false,
+    });
+  },
+
+  undo: () => {
+    const state = get();
+    if (state.historyPast.length === 0) return;
+    
+    const currentSnapshot = cloneState({
+      tracks: state.tracks,
+      trackItemIds: state.trackItemIds,
+      transitionIds: state.transitionIds,
+      transitionsMap: state.transitionsMap,
+      trackItemsMap: state.trackItemsMap,
+      structure: state.structure,
+      activeIds: state.activeIds,
+      duration: state.duration,
+    });
+    
+    const previous = state.historyPast[state.historyPast.length - 1];
+    set({
+      ...previous,
+      historyPast: state.historyPast.slice(0, -1),
+      historyFuture: [currentSnapshot, ...state.historyFuture].slice(0, MAX_HISTORY),
+      canUndo: state.historyPast.length > 1,
+      canRedo: true,
+    });
+  },
+
+  redo: () => {
+    const state = get();
+    if (state.historyFuture.length === 0) return;
+    
+    const currentSnapshot = cloneState({
+      tracks: state.tracks,
+      trackItemIds: state.trackItemIds,
+      transitionIds: state.transitionIds,
+      transitionsMap: state.transitionsMap,
+      trackItemsMap: state.trackItemsMap,
+      structure: state.structure,
+      activeIds: state.activeIds,
+      duration: state.duration,
+    });
+    
+    const next = state.historyFuture[0];
+    set({
+      ...next,
+      historyPast: [...state.historyPast, currentSnapshot].slice(-MAX_HISTORY),
+      historyFuture: state.historyFuture.slice(1),
+      canUndo: true,
+      canRedo: state.historyFuture.length > 1,
+    });
+  },
 
   setTimeline: (timeline: Timeline) =>
     set(() => ({

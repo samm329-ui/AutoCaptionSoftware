@@ -6,7 +6,7 @@ export default async function Page({
   params: Promise<{ id: string[] }>;
 }) {
   const { id } = await params;
-  const [sceneId] = id; // Get the first ID from the array
+  const [sceneId] = id;
 
-  return <Editor id={sceneId} />;
+  return <Editor />;
 }

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { dispatch } from "@designcombo/events";
 import { ADD_VIDEO, ADD_IMAGE, ADD_AUDIO } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
+import { probeMediaFile, type MediaAsset } from "@/features/editor/utils/media-probe";
 
 export interface UploadedFile {
   id: string;
@@ -14,11 +15,16 @@ export interface UploadedFile {
   status: "completed" | "uploading" | "failed";
   progress: number;
   createdAt: number;
+  duration?: number;
+  width?: number;
+  height?: number;
 }
 
 interface IUploadStore {
   uploads: UploadedFile[];
+  mediaAssets: MediaAsset[];
   addUpload: (upload: UploadedFile) => void;
+  addMediaAsset: (asset: MediaAsset) => void;
   removeUpload: (id: string) => void;
   clearUploads: () => void;
   showUploadModal: boolean;
@@ -27,10 +33,16 @@ interface IUploadStore {
 
 export const useUploadStore = create<IUploadStore>((set) => ({
   uploads: [],
+  mediaAssets: [],
   
   addUpload: (upload) =>
     set((state) => ({
       uploads: [upload, ...state.uploads]
+    })),
+  
+  addMediaAsset: (asset) =>
+    set((state) => ({
+      mediaAssets: [asset, ...state.mediaAssets]
     })),
   
   removeUpload: (id) =>
@@ -38,7 +50,7 @@ export const useUploadStore = create<IUploadStore>((set) => ({
       uploads: state.uploads.filter((u) => u.id !== id)
     })),
   
-  clearUploads: () => set({ uploads: [] }),
+  clearUploads: () => set({ uploads: [], mediaAssets: [] }),
   
   showUploadModal: false,
   setShowUploadModal: (show) => set({ showUploadModal: show })
@@ -51,7 +63,10 @@ export function addFileToTimeline(upload: UploadedFile): void {
       src: upload.objectUrl
     },
     metadata: {
-      previewUrl: upload.type === "video" ? upload.objectUrl : undefined
+      previewUrl: upload.type === "video" ? upload.objectUrl : undefined,
+      duration: upload.duration,
+      width: upload.width,
+      height: upload.height,
     }
   };
   
@@ -70,7 +85,7 @@ export function addFileToTimeline(upload: UploadedFile): void {
         payload: {
           ...payload,
           type: "image",
-          display: { from: 0, to: 5000 }
+          display: { from: 0, to: (upload.duration || 5) * 1000 }
         },
         options: {}
       });
@@ -85,4 +100,39 @@ export function addFileToTimeline(upload: UploadedFile): void {
       });
       break;
   }
+}
+
+export async function handleFileUpload(files: File[]): Promise<UploadedFile[]> {
+  const { addUpload, addMediaAsset } = useUploadStore.getState();
+  const uploaded: UploadedFile[] = [];
+  
+  for (const file of files) {
+    try {
+      const asset = await probeMediaFile(file);
+      addMediaAsset(asset);
+      
+      const upload: UploadedFile = {
+        id: asset.id,
+        fileName: asset.name,
+        filePath: `local/${Date.now()}_${asset.name}`,
+        fileSize: file.size,
+        contentType: file.type,
+        type: asset.kind as "video" | "image" | "audio",
+        objectUrl: asset.url || "",
+        status: "completed",
+        progress: 100,
+        createdAt: Date.now(),
+        duration: asset.duration,
+        width: asset.width,
+        height: asset.height,
+      };
+      
+      addUpload(upload);
+      uploaded.push(upload);
+    } catch (error) {
+      console.error(`Failed to probe ${file.name}:`, error);
+    }
+  }
+  
+  return uploaded;
 }

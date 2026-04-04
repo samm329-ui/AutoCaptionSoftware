@@ -8,13 +8,14 @@ export const useResizbleTimeline = () => {
   const { timeline } = useStore();
 
   const onMouseDown = (ev: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-    const { y } = timelineContainerRef.current!.getBoundingClientRect();
+    if (!timelineContainerRef.current) return;
+    const { y } = timelineContainerRef.current.getBoundingClientRect();
     const cursorPosition = ev.clientY - y;
     if (cursorPosition > 15 || cursorPosition < -15) return;
     setIsResizing(true);
 
     const startY = ev.clientY;
-    const timelineHeight = timelineContainerRef.current!.offsetHeight;
+    const timelineHeight = timelineContainerRef.current.offsetHeight;
     let currentHeight = 0;
 
     const onMouseMove = (ev: MouseEvent) => {
@@ -46,23 +47,23 @@ export const useResizbleTimeline = () => {
   };
 
   const onMouseMove = (ev: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-    if (isResizing) return;
-    const { y } = timelineContainerRef.current!.getBoundingClientRect();
+    if (isResizing || !timelineContainerRef.current) return;
+    const { y } = timelineContainerRef.current.getBoundingClientRect();
     const cursorPosition = ev.clientY - y;
 
     if (cursorPosition <= 15 && cursorPosition >= -15) {
-      timelineContainerRef.current!.style.cursor = "row-resize";
-      timelineContainerRef.current!.style.borderTopColor = "#2B64EB";
+      timelineContainerRef.current.style.cursor = "row-resize";
+      timelineContainerRef.current.style.borderTopColor = "#2B64EB";
     } else {
-      timelineContainerRef.current!.style.borderTopColor = "transparent";
-      timelineContainerRef.current!.style.cursor = "default";
+      timelineContainerRef.current.style.borderTopColor = "transparent";
+      timelineContainerRef.current.style.cursor = "default";
     }
   };
 
   const onMouseOut = () => {
-    if (isResizing) return;
-    timelineContainerRef.current!.style.borderTopColor = "transparent";
-    timelineContainerRef.current!.style.cursor = "default";
+    if (isResizing || !timelineContainerRef.current) return;
+    timelineContainerRef.current.style.borderTopColor = "transparent";
+    timelineContainerRef.current.style.cursor = "default";
   };
 
   React.useEffect(() => {

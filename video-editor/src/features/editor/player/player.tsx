@@ -11,15 +11,20 @@ const Player = () => {
     setPlayerRef(playerRef as React.RefObject<PlayerRef>);
   }, []);
 
+  const safeDuration = duration || 1000;
+  const safeFps = fps || 30;
+  const safeSize = size || { width: 1080, height: 1920 };
+  const safeDurationInFrames = Math.max(1, Math.round((safeDuration / 1000) * safeFps));
+
   return (
     <RemotionPlayer
       ref={playerRef}
       component={Composition}
-      durationInFrames={Math.round((duration / 1000) * fps) || 1}
-      compositionWidth={size.width}
-      compositionHeight={size.height}
+      durationInFrames={safeDurationInFrames}
+      compositionWidth={safeSize.width}
+      compositionHeight={safeSize.height}
       className={`h-full w-full bg-[${background.value}]`}
-      fps={30}
+      fps={safeFps}
       overflowVisible
     />
   );

@@ -10,6 +10,7 @@ import {
   PLAYER_TOGGLE_PLAY
 } from "../constants/events";
 import { LAYER_PREFIX, LAYER_SELECTION } from "@designcombo/state";
+import { EDIT_OBJECT } from "@designcombo/state";
 import { TIMELINE_SEEK, TIMELINE_PREFIX } from "@designcombo/timeline";
 import { getSafeCurrentFrame } from "../utils/time";
 
@@ -79,6 +80,44 @@ const useTimelineEvents = () => {
     });
     return () => selectionSubscription.unsubscribe();
   }, [timeline]);
+
+  // handle edit object events - sync trackItemsMap changes
+  useEffect(() => {
+    const editSubscription = subject.pipe(
+      filter(({ key }) => key === EDIT_OBJECT)
+    ).subscribe((obj) => {
+      const payload = obj.value?.payload;
+      if (payload && typeof payload === "object") {
+        setState((state: any) => {
+          const updatedTrackItemsMap = { ...state.trackItemsMap };
+          for (const [id, changes] of Object.entries(payload)) {
+            const existing = updatedTrackItemsMap[id];
+            if (existing && changes && typeof changes === "object") {
+              const changeObj = changes as Record<string, any>;
+              updatedTrackItemsMap[id] = {
+                ...existing,
+                ...changeObj,
+                details: {
+                  ...(existing.details || {}),
+                  ...(changeObj.details || {}),
+                },
+                display: {
+                  ...(existing.display || {}),
+                  ...(changeObj.display || {}),
+                },
+                trim: {
+                  ...(existing.trim || {}),
+                  ...(changeObj.trim || {}),
+                },
+              };
+            }
+          }
+          return { ...state, trackItemsMap: updatedTrackItemsMap };
+        });
+      }
+    });
+    return () => editSubscription.unsubscribe();
+  }, [setState]);
 };
 
 export default useTimelineEvents;

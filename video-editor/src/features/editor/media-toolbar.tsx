@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { useUploadStore, addFileToTimeline, type UploadedFile } from "@/store/upload-store";
+import { useUploadStore, addFileToTimeline, type UploadedFile, handleFileUpload } from "@/store/upload-store";
 import {
   Video as VideoIcon,
   Image as ImageIcon,
@@ -70,42 +70,12 @@ function MediaToolbar() {
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files);
-      
-      for (const file of files) {
-        const id = crypto.randomUUID();
-        const objectUrl = URL.createObjectURL(file);
-        
-        let type: "video" | "image" | "audio" = "video";
-        if (file.type.startsWith("image/")) type = "image";
-        else if (file.type.startsWith("audio/")) type = "audio";
-        
-        const upload: UploadedFile = {
-          id,
-          fileName: file.name,
-          filePath: `local/${Date.now()}_${file.name}`,
-          fileSize: file.size,
-          contentType: file.type,
-          type,
-          objectUrl,
-          status: "completed",
-          progress: 100,
-          createdAt: Date.now()
-        };
-        
-        addUpload(upload);
-        
-        if (type === "video") {
-          const thumb = await extractVideoThumbnail(file);
-          if (thumb) {
-            setVideoThumbnails((prev) => ({ ...prev, [id]: thumb }));
-          }
-        }
-      }
+      await handleFileUpload(files);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [addUpload, extractVideoThumbnail]);
+  }, []);
 
   const handleAddText = () => {
     dispatch(ADD_TEXT, {

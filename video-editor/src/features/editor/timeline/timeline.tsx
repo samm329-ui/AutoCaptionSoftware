@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
 import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
@@ -49,7 +49,6 @@ CanvasTimeline.registerItems({
 
 const EMPTY_SIZE = { width: 0, height: 0 };
 const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
-  // prevent duplicate scroll events
   const canScrollRef = useRef(false);
   const [scrollLeft, setScrollLeft] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +58,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   const { scale, playerRef, fps, duration, setState, timeline } = useStore();
   const currentFrame = useCurrentPlayerFrame(playerRef);
   const [canvasSize, setCanvasSize] = useState(EMPTY_SIZE);
+  const canvasSizeRef = useRef(EMPTY_SIZE);
   const timelineOffsetX = useTimelineOffsetX();
   const {
     timelineContainerRef,
@@ -68,12 +68,11 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     onMouseOut
   } = useResizbleTimeline();
   const { theme } = useTheme();
-
   const { setTimeline } = useStore();
 
-  // Use the extracted state manager events hook
   useStateManagerEvents(stateManager);
 
+  // Theme change re-render
   useEffect(() => {
     const timeout = setTimeout(() => {
       timeline?.requestRenderAll();
@@ -81,9 +80,10 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     return () => clearTimeout(timeout);
   }, [theme, timeline]);
 
+  // Auto-scroll during playback
   useEffect(() => {
     if (playerRef?.current) {
-      canScrollRef.current = playerRef?.current.isPlaying();
+      canScrollRef.current = playerRef.current.isPlaying();
     }
   }, [playerRef?.current?.isPlaying()]);
 
@@ -117,13 +117,12 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     }
   }, [currentFrame]);
 
-  const onResizeCanvas = (payload: { width: number; height: number }) => {
-    setCanvasSize({
-      width: payload.width,
-      height: payload.height
-    });
-  };
+  // Keep canvasSizeRef in sync
+  useEffect(() => {
+    canvasSizeRef.current = canvasSize;
+  }, [canvasSize]);
 
+  // Initialize canvas once
   useEffect(() => {
     const canvasEl = canvasElRef.current;
     const timelineContainerEl = timelineContainerRef.current;
@@ -137,6 +136,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       (document.getElementById("playhead")?.clientHeight || 0) -
       (document.getElementById("playhead-handle")?.clientHeight || 0) -
       40;
+
     const canvas = new CanvasTimeline(canvasEl, {
       width: containerWidth,
       height: containerHeight,
@@ -146,7 +146,9 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       },
       selectionColor: "rgba(0, 216, 214,0.1)",
       selectionBorderColor: "rgba(0, 216, 214,1.0)",
-      onResizeCanvas,
+      onResizeCanvas: (payload: { width: number; height: number }) => {
+        canvasSizeRef.current = payload;
+      },
       scale: scale,
       state: stateManager,
       duration,
@@ -217,7 +219,6 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     });
 
     canvasRef.current = canvas;
-
     setCanvasSize({ width: containerWidth, height: containerHeight });
     setTimeline(canvas);
 
@@ -225,6 +226,33 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       canvas.purge();
     };
   }, []);
+
+  // Update canvas scale when zoom changes
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    canvasRef.current.setScale(scale);
+    canvasRef.current.requestRenderAll();
+  }, [scale]);
+
+  // Recalculate canvas dimensions when scale changes (no setCanvasSize call to avoid loop)
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const TOOLBAR_WIDTH = 64;
+    const containerWidth =
+      (document.getElementById("timeline-header")?.clientWidth || 0) - TOOLBAR_WIDTH - 24;
+    const containerHeight =
+      (document.getElementById("playhead")?.clientHeight || 0) -
+      (document.getElementById("playhead-handle")?.clientHeight || 0) -
+      40;
+
+    if (containerWidth > 0 && containerHeight > 0) {
+      canvasRef.current.resize({
+        width: containerWidth,
+        height: containerHeight
+      });
+      canvasRef.current.requestRenderAll();
+    }
+  }, [scale]);
 
   const onClickRuler = (units: number) => {
     const canvas = canvasRef.current;
@@ -235,18 +263,15 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   };
 
   const onRulerScroll = (newScrollLeft: number) => {
-    // Update the timeline canvas scroll position
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.scrollTo({ scrollLeft: newScrollLeft });
     }
 
-    // Update the horizontal scrollbar position
     if (horizontalScrollbarVpRef.current) {
       horizontalScrollbarVpRef.current.scrollLeft = newScrollLeft;
     }
 
-    // Update the local scroll state
     setScrollLeft(newScrollLeft);
   };
 
@@ -262,7 +287,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   return (
     <div className="flex h-full">
       <TimelineToolbar className="w-16 shrink-0" />
-      
+
       <div
         ref={timelineContainerRef}
         id="timeline-container"
@@ -301,12 +326,12 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
             </div>
           </div>
         </div>
-        
-        <div 
+
+        <div
           className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-card/90 to-transparent pointer-events-none"
           style={{ top: "50px" }}
         />
-        
+
         <TimelineVerticalScrollbar className="top-[50px]" />
       </div>
     </div>

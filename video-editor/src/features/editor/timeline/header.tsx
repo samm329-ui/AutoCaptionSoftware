@@ -106,6 +106,7 @@ const Header = () => {
   };
 
   const changeScale = (scale: ITimelineScaleState) => {
+    if (!scale || !scale.index) return;
     dispatch(TIMELINE_SCALE_CHANGED, {
       payload: {
         scale
@@ -344,12 +345,9 @@ const ZoomControl = ({
   onChangeTimelineScale: (scale: ITimelineScaleState) => void;
   duration: number;
 }) => {
-  const [localValue, setLocalValue] = useState(scale.index);
   const timelineOffsetX = useTimelineOffsetX();
-
-  useEffect(() => {
-    setLocalValue(scale.index);
-  }, [scale.index]);
+  const safeIndex = scale?.index ?? 7;
+  const safeZoom = scale?.zoom ?? (1 / 300);
 
   const onZoomOutClick = () => {
     const previousZoom = getPreviousZoomLevel(scale);
@@ -362,7 +360,7 @@ const ZoomControl = ({
   };
 
   const onZoomFitClick = () => {
-    const fitZoom = getFitZoomLevel(duration, scale.zoom, timelineOffsetX);
+    const fitZoom = getFitZoomLevel(duration, safeZoom, timelineOffsetX);
     onChangeTimelineScale(fitZoom);
   };
 
@@ -373,22 +371,21 @@ const ZoomControl = ({
           <ZoomOut size={14} />
         </Button>
         <div className="hidden lg:flex items-center gap-1">
-          <Slider
-            className="w-24"
-            value={[localValue]}
+          <input
+            type="range"
             min={0}
             max={12}
-            step={0.5}
-            onValueChange={(e) => {
-              setLocalValue(e[0]);
-            }}
-            onValueCommit={() => {
-              const zoom = getZoomByIndex(localValue);
+            step={1}
+            value={safeIndex}
+            onChange={(e) => {
+              const idx = parseInt(e.target.value, 10);
+              const zoom = getZoomByIndex(idx);
               onChangeTimelineScale(zoom);
             }}
+            className="w-24 h-1 accent-primary"
           />
           <span className="text-[10px] text-muted-foreground w-8 text-center tabular-nums">
-            {scale.index.toFixed(1)}x
+            {safeIndex.toFixed(1)}x
           </span>
         </div>
         <Button size={"icon"} variant={"ghost"} onClick={onZoomInClick} className="h-7 w-7" title="Zoom In">
