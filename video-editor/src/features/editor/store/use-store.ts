@@ -35,7 +35,11 @@ interface ITimelineStore {
 
   sceneMoveableRef: React.RefObject<Moveable> | null;
   setSceneMoveableRef: (ref: React.RefObject<Moveable>) => void;
-  setState: (state: any) => Promise<void>;
+  setState: (
+    state:
+      | Partial<ITimelineStore>
+      | ((state: ITimelineStore) => Partial<ITimelineStore>)
+  ) => Promise<void>;
   compositions: Partial<IComposition>[];
   setCompositions: (compositions: Partial<IComposition>[]) => void;
 
@@ -64,6 +68,45 @@ function cloneState(state: any) {
   } catch {
     return JSON.parse(JSON.stringify(state));
   }
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeTrackItem(existing: ITrackItem | undefined, patch: any): ITrackItem {
+  if (!existing) return patch as ITrackItem;
+
+  return {
+    ...existing,
+    ...patch,
+    details: {
+      ...(isPlainObject((existing as any).details) ? (existing as any).details : {}),
+      ...(isPlainObject(patch?.details) ? patch.details : {})
+    },
+    display: {
+      ...(isPlainObject((existing as any).display) ? (existing as any).display : {}),
+      ...(isPlainObject(patch?.display) ? patch.display : {})
+    },
+    trim: {
+      ...(isPlainObject((existing as any).trim) ? (existing as any).trim : {}),
+      ...(isPlainObject(patch?.trim) ? patch.trim : {})
+    }
+  };
+}
+
+function mergeTrackItemsMap(
+  current: Record<string, ITrackItem>,
+  patch: Record<string, any>
+): Record<string, ITrackItem> {
+  const next: Record<string, ITrackItem> = { ...current };
+
+  for (const [id, itemPatch] of Object.entries(patch)) {
+    if (!isPlainObject(itemPatch)) continue;
+    next[id] = mergeTrackItem(current[id], itemPatch);
+  }
+
+  return next;
 }
 
 const useStore = create<ITimelineStore>((set, get) => ({
@@ -194,8 +237,31 @@ const useStore = create<ITimelineStore>((set, get) => ({
     set(() => ({
       scroll: scroll
     })),
-  setState: async (state) => {
-    return set((currentState) => ({ ...currentState, ...state }));
+  setState: async (patch) => {
+    const resolvedPatch =
+      typeof patch === "function" ? patch(get()) : patch;
+
+    if (!resolvedPatch || typeof resolvedPatch !== "object") return;
+
+    set((state) => {
+      const next: Record<string, any> = { ...resolvedPatch };
+
+      if ("trackItemsMap" in resolvedPatch && resolvedPatch.trackItemsMap) {
+        next.trackItemsMap = mergeTrackItemsMap(
+          state.trackItemsMap,
+          resolvedPatch.trackItemsMap as Record<string, any>
+        );
+      }
+
+      if ("transitionsMap" in resolvedPatch && resolvedPatch.transitionsMap) {
+        next.transitionsMap = {
+          ...state.transitionsMap,
+          ...(resolvedPatch.transitionsMap as Record<string, ITransition>)
+        };
+      }
+
+      return next as Partial<ITimelineStore>;
+    });
   },
   setPlayerRef: (playerRef: React.RefObject<PlayerRef> | null) =>
     set({ playerRef }),
