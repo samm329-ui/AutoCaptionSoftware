@@ -160,7 +160,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         linealAudioBars: 40,
         radialAudioBars: 40,
         waveAudioBars: 40,
-        hillAudioBars: 40
+        hillAudioBars: 40,
+        transition: 32
       },
       itemTypes: [
         "text",
@@ -177,12 +178,13 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         "progressFrame",
         "progressBar",
         "waveAudioBars",
-        "hillAudioBars"
+        "hillAudioBars",
+        "transition"
       ],
       acceptsMap: {
         text: ["text", "caption"],
         image: ["image", "video"],
-        video: ["video", "image"],
+        video: ["video", "image", "transition"],
         audio: ["audio"],
         caption: ["caption", "text"],
         template: ["template"],
@@ -192,7 +194,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         linealAudioBars: ["audio", "linealAudioBars"],
         radialAudioBars: ["audio", "radialAudioBars"],
         waveAudioBars: ["audio", "waveAudioBars"],
-        hillAudioBars: ["audio", "hillAudioBars"]
+        hillAudioBars: ["audio", "hillAudioBars"],
+        transition: ["transition"]
       },
       guideLineColor: "#ffffff"
     });

@@ -1,5 +1,6 @@
 import React, { useState, cloneElement, ReactElement } from "react";
 import { createPortal } from "react-dom";
+import { setDragData } from "./drag-data";
 
 interface DraggableProps {
   children: ReactElement;
@@ -19,10 +20,28 @@ const Draggable: React.FC<DraggableProps> = ({
 
   const handleDragStart = (e: React.DragEvent<HTMLElement>) => {
     setIsDragging(true);
-    e.dataTransfer.setDragImage(new Image(), 0, 0); // Hides default preview
-    const jsonData = JSON.stringify(data);
-    e.dataTransfer.setData("application/json", jsonData);
+    
+    // Store data in module-level ref
+    setDragData(data);
+    
+    // Set effect allowed
     e.dataTransfer.effectAllowed = "move";
+    
+    // CRITICAL: @designcombo/timeline reads types[0] and tries to JSON.parse it
+    // Must ensure text/plain always contains valid JSON
+    let jsonString = "{}";
+    try {
+      if (data && typeof data === 'object') {
+        jsonString = JSON.stringify(data);
+        // Verify it's valid JSON by parsing it back
+        JSON.parse(jsonString);
+      }
+    } catch (err) {
+      console.error('Failed to serialize drag data:', err);
+      jsonString = "{}";
+    }
+    
+    e.dataTransfer.setData("text/plain", jsonString);
 
     setPosition({
       x: e.clientX,
@@ -32,6 +51,7 @@ const Draggable: React.FC<DraggableProps> = ({
 
   const handleDragEnd = () => {
     setIsDragging(false);
+    setDragData(null);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {

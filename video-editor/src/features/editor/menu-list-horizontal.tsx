@@ -8,7 +8,6 @@ import {
   DrawerTitle,
   DrawerDescription
 } from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { MenuItem } from "./menu-item/menu-item";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -106,19 +105,17 @@ export default function MenuListHorizontal() {
 
   return (
     <>
-      <div className="flex h-12 items-center border-t">
-        <ScrollArea className="w-full px-2">
-          <div className="flex items-center justify-center space-x-4 min-w-max px-4">
-            {menuItems.map((item) => (
-              <MenuButton
-                key={item.id}
-                item={item}
-                isActive={isMenuItemActive(item.id)}
-                onClick={() => handleMenuItemClick(item.id)}
-              />
-            ))}
-          </div>
-        </ScrollArea>
+      <div className="flex h-12 items-center border-t overflow-hidden">
+        <div className="flex items-center overflow-x-auto px-4 space-x-4">
+          {menuItems.map((item) => (
+            <MenuButton
+              key={item.id}
+              item={item}
+              isActive={isMenuItemActive(item.id)}
+              onClick={() => handleMenuItemClick(item.id)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Drawer only on mobile/tablet - conditionally mounted */}

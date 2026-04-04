@@ -34,6 +34,8 @@ import { LogoIcons } from "@/components/shared/logos";
 import Link from "next/link";
 import { ShortcutsModal } from "./shortcuts-modal";
 import { ModeToggle } from "@/components/ui/mode-toggle";
+import { IMenuItem } from "./interfaces/layout";
+import useLayoutStore from "./store/use-layout-store";
 
 export default function Navbar({
   user,
@@ -51,6 +53,7 @@ export default function Navbar({
   const isMediumScreen = useIsMediumScreen();
   const isSmallScreen = useIsSmallScreen();
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const { setActiveMenuItem } = useLayoutStore();
 
   const handleUndo = () => {
     dispatch(HISTORY_UNDO);
@@ -116,17 +119,19 @@ export default function Navbar({
       </div>
 
       <div className="flex h-13 items-center justify-center gap-2">
-        {!isSmallScreen && (
-          <div className=" pointer-events-auto flex h-10 items-center gap-2 rounded-md px-2.5">
-            <AutosizeInput
-              name="title"
-              value={title}
-              onChange={handleTitleChange}
-              width={200}
-              inputClassName="border-none outline-none px-1 text-sm font-medium"
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {["Text", "Video", "Captions", "Images", "Audio", "Transitions"].map((item) => (
+            <Button
+              key={item}
+              onClick={() => setActiveMenuItem((item.toLowerCase() + "s") as IMenuItem)}
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground"
+            >
+              {item}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <div className="flex h-13 items-center justify-end gap-2">

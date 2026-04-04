@@ -10,7 +10,6 @@ import {
 } from "@designcombo/types";
 import useLayoutStore from "./store/use-layout-store";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { Icons } from "@/components/shared/icons";
 import BasicText from "./control-item/basic-text";
@@ -594,7 +593,7 @@ export default function ControlItemHorizontal() {
     }
   };
   const drawerRef = useRef<HTMLDivElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const controlBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -602,10 +601,10 @@ export default function ControlItemHorizontal() {
 
       const clickedOutsideDrawer =
         drawerRef.current && !drawerRef.current.contains(target);
-      const clickedOutsideScrollArea =
-        scrollAreaRef.current && !scrollAreaRef.current.contains(target);
+      const clickedOutsideControlBar =
+        controlBarRef.current && !controlBarRef.current.contains(target);
 
-      if (clickedOutsideDrawer && clickedOutsideScrollArea) {
+      if (clickedOutsideDrawer && clickedOutsideControlBar) {
         setControItemDrawerOpen(false);
       }
     }
@@ -655,15 +654,15 @@ export default function ControlItemHorizontal() {
 
   return (
     <>
-      <div className="flex h-12 items-center border-t">
-        <ScrollArea className="w-full px-2" ref={scrollAreaRef}>
+      <div className="flex h-12 items-center border-t overflow-hidden" ref={controlBarRef}>
+        <div className="flex items-center overflow-x-auto px-4">
           {trackItem && (
             <ActiveControlItem
               trackItem={trackItem as ITrackItem & any}
               handleMenuItemClick={handleMenuItemClick}
             />
           )}
-        </ScrollArea>
+        </div>
       </div>
       {!isLargeScreen && controItemDrawerOpen && (
         <motion.div
@@ -716,7 +715,7 @@ const ItemGroup = ({
 }) => {
   const { typeControlItem } = useLayoutStore();
   return (
-    <div className="flex items-center justify-center space-x-4 min-w-max px-4">
+    <div className="flex items-center justify-center space-x-4 shrink-0 px-4">
       {items.map(({ label, id }, index) => {
         const isActive = typeControlItem === id;
         return (

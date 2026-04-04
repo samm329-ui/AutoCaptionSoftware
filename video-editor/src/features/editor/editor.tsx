@@ -47,22 +47,25 @@ const SceneContainer = ({
   isLargeScreen,
 }: any) => {
   return (
-    <div className="relative flex h-full w-full flex-col bg-background">
-      <div className="flex-1 relative overflow-hidden w-full h-full">
-        <div className="flex h-full flex-1">
-          <div className="flex-1 relative overflow-hidden w-full h-full">
-            <CropModal />
-            <Scene ref={sceneRef} stateManager={stateManager} />
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col bg-background h-full">
+      <div className="flex-1 min-h-0">
+        <ResizablePanelGroup direction="vertical" className="h-full">
+          <ResizablePanel defaultSize={65} minSize={30}>
+            <div className="flex-1 relative overflow-hidden w-full h-full">
+              <CropModal />
+              <Scene ref={sceneRef} stateManager={stateManager} />
+            </div>
+          </ResizablePanel>
 
-      <div className="w-full">
-        {playerRef && <Timeline stateManager={stateManager} />}
-      </div>
+          <ResizableHandle className="bg-border/90" withHandle />
 
-      {!isLargeScreen && !trackItem && loaded && <MenuListHorizontal />}
-      {!isLargeScreen && trackItem && <ControlItemHorizontal />}
+          <ResizablePanel defaultSize={35} minSize={25}>
+            <div className="w-full h-full">
+              {playerRef && <Timeline stateManager={stateManager} />}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
     </div>
   );
 };
@@ -114,13 +117,6 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
         url: SECONDARY_FONT_URL,
       },
     ]);
-  }, []);
-
-  useEffect(() => {
-    const screenHeight = window.innerHeight;
-    const desiredHeight = 300;
-    const percentage = (desiredHeight / screenHeight) * 100;
-    timelinePanelRef.current?.resize(percentage);
   }, []);
 
   const handleTimelineResize = () => {
@@ -182,14 +178,14 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
         setProjectName={setProjectName}
       />
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         {isLargeScreen ? (
           <ResizablePanelGroup direction="horizontal" className="h-full w-full">
             <ResizablePanel
               defaultSize={30}
               minSize={20}
               maxSize={40}
-              className="max-w-7xl relative bg-card min-w-0 overflow-visible!"
+              className="relative bg-card min-w-0"
             >
               <Sidebar />
               <FloatingControl />
@@ -199,7 +195,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 
             <ResizablePanel
               defaultSize={70}
-              minSize={60}
+              minSize={50}
               className="min-w-0 min-h-0"
             >
               <SceneContainer
@@ -213,14 +209,16 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
             </ResizablePanel>
           </ResizablePanelGroup>
         ) : (
-          <SceneContainer
-            sceneRef={sceneRef}
-            playerRef={playerRef}
-            stateManager={stateManager}
-            trackItem={trackItem}
-            loaded={loaded}
-            isLargeScreen={isLargeScreen}
-          />
+          <div className="h-full w-full">
+            <SceneContainer
+              sceneRef={sceneRef}
+              playerRef={playerRef}
+              stateManager={stateManager}
+              trackItem={trackItem}
+              loaded={loaded}
+              isLargeScreen={isLargeScreen}
+            />
+          </div>
         )}
       </div>
     </div>

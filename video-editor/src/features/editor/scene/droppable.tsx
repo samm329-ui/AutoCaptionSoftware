@@ -1,12 +1,14 @@
 import { dispatch } from "@designcombo/events";
-import { ADD_AUDIO, ADD_IMAGE, ADD_VIDEO } from "@designcombo/state";
+import { ADD_AUDIO, ADD_IMAGE, ADD_TRANSITION, ADD_VIDEO } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useRef } from "react";
+import { getDragData, clearDragData } from "@/components/shared/drag-data";
 
 enum AcceptedDropTypes {
   IMAGE = "image",
   VIDEO = "video",
-  AUDIO = "audio"
+  AUDIO = "audio",
+  TRANSITION = "transition"
 }
 
 interface DraggedData {
@@ -38,26 +40,38 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
       case AcceptedDropTypes.AUDIO:
         dispatch(ADD_AUDIO, { payload });
         break;
+      case AcceptedDropTypes.TRANSITION:
+        dispatch(ADD_TRANSITION, { payload });
+        break;
     }
   }, []);
+
+  const parseDragData = (e: React.DragEvent<HTMLDivElement>): DraggedData | null => {
+    try {
+      const refData = getDragData();
+      if (refData) {
+        return refData as DraggedData;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error parsing drag data:", error);
+      return null;
+    }
+  };
 
   const onDragEnter = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       try {
-        const hasJsonData = e.dataTransfer?.types.includes("application/json");
-        if (!hasJsonData) return;
-        const draggedDataString = e.dataTransfer?.getData("application/json");
-        if (!draggedDataString) return;
-        const draggedData: DraggedData = JSON.parse(draggedDataString);
-
+        const draggedData = parseDragData(e);
+        if (!draggedData) return;
         if (!Object.values(AcceptedDropTypes).includes(draggedData.type))
           return;
         setIsDraggingOver(true);
         setIsPointerInside(true);
         onDragStateChange?.(true);
       } catch (error) {
-        console.error("Error parsing dragged data:", error);
+        console.error("onDragEnter error:", error);
       }
     },
     [onDragStateChange]
@@ -65,10 +79,18 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 
   const onDragOver = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      if (isPointerInside) {
-        setIsDraggingOver(true);
-        onDragStateChange?.(true);
+      try {
+        const draggedData = parseDragData(e);
+        if (!draggedData) return;
+        if (!Object.values(AcceptedDropTypes).includes(draggedData.type))
+          return;
+        e.preventDefault();
+        if (isPointerInside) {
+          setIsDraggingOver(true);
+          onDragStateChange?.(true);
+        }
+      } catch (error) {
+        console.error("onDragOver error:", error);
       }
     },
     [isPointerInside, onDragStateChange]
@@ -81,14 +103,18 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
       setIsDraggingOver(false);
       onDragStateChange?.(false);
 
-      try {
-        const draggedDataString = e.dataTransfer?.getData("application/json");
-        if (!draggedDataString) return;
-        const draggedData = JSON.parse(draggedDataString);
-        handleDrop(draggedData);
-      } catch (error) {
-        console.error("Error parsing dropped data:", error);
+      const draggedData = parseDragData(e);
+      if (!draggedData) {
+        clearDragData();
+        return;
       }
+      if (!Object.values(AcceptedDropTypes).includes(draggedData.type)) {
+        clearDragData();
+        return;
+      }
+      
+      handleDrop(draggedData);
+      clearDragData();
     },
     [isDraggingOver, onDragStateChange, handleDrop]
   );
