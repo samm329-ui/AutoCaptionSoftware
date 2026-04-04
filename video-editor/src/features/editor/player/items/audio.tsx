@@ -9,16 +9,19 @@ export default function Audio({
   item: IAudio;
   options: SequenceItemOptions;
 }) {
-  const { fps } = options;
+  const { fps, mutedTrackIds, owningTrackId } = options;
   const { details } = item;
   const playbackRate = item.playbackRate || 1;
+  const isTrackMuted = owningTrackId && mutedTrackIds?.has(owningTrackId);
+  const effectiveVolume = isTrackMuted ? 0 : (details.volume ?? 100);
+
   const children = (
     <RemotionAudio
       startFrom={(item.trim?.from! / 1000) * fps}
       endAt={(item.trim?.to! / 1000) * fps || 1 / fps}
       playbackRate={playbackRate}
       src={details.src}
-      volume={details.volume! / 100}
+      volume={effectiveVolume / 100}
     />
   );
   return BaseSequence({ item, options, children });
