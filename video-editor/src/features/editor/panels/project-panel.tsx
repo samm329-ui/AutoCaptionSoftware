@@ -29,7 +29,7 @@ import {
   FileAudio,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useUploadStore, addFileToTimeline, UploadedFile } from "@/store/upload-store";
+import { useUploadStore, addFileToTimeline, UploadedFile, handleFileUpload } from "@/store/upload-store";
 
 // ─── Bin ──────────────────────────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ const AssetGridItem: React.FC<{
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 const ProjectPanel: React.FC = () => {
-  const { uploads, addUpload, removeUpload } = useUploadStore();
+  const { uploads, removeUpload } = useUploadStore();
   const [view, setView] = useState<"list" | "grid">("list");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -192,22 +192,13 @@ const ProjectPanel: React.FC = () => {
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!e.target.files) return;
-      for (const file of Array.from(e.target.files)) {
-        const id = crypto.randomUUID();
-        const objectUrl = URL.createObjectURL(file);
-        let type: "video" | "image" | "audio" = "video";
-        if (file.type.startsWith("image/")) type = "image";
-        else if (file.type.startsWith("audio/")) type = "audio";
-        addUpload({
-          id, fileName: file.name, filePath: `local/${file.name}`,
-          fileSize: file.size, contentType: file.type, type, objectUrl,
-          status: "completed", progress: 100, createdAt: Date.now(),
-        });
+      const files = e.target.files ? Array.from(e.target.files) : [];
+      if (files.length > 0) {
+        await handleFileUpload(files);
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [addUpload]
+    []
   );
 
   const handleAddToTimeline = useCallback((file: UploadedFile) => {
