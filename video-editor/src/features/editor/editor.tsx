@@ -51,6 +51,7 @@ import MediaToolbar from "./media-toolbar";
 // New panels
 import ProjectPanel from "./panels/project-panel";
 import EffectControlsPanel from "./panels/effect-controls-panel";
+import SourceControlPanel from "./panels/source-control-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Runtime hooks
@@ -107,28 +108,36 @@ const LeftSidebar = () => {
   return (
     <div className="bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]">
       <div className="flex flex-col w-full">
-        <Tabs defaultValue="project" className="flex flex-col h-full">
-          <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
-            <TabsTrigger
-              value="project"
-              className="text-[10px] h-6 px-2 rounded-sm data-[state=active]:bg-white/10"
-            >
-              Project
-            </TabsTrigger>
-            <TabsTrigger
-              value="media"
-              className="text-[10px] h-6 px-2 rounded-sm data-[state=active]:bg-white/10"
-            >
-              Media
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="project" className="flex-1 overflow-hidden mt-0">
-            <ProjectPanel />
-          </TabsContent>
-          <TabsContent value="media" className="flex-1 overflow-hidden mt-0">
-            <MenuList />
-          </TabsContent>
-        </Tabs>
+        {/* Upper half: Source Control Panel */}
+        <div className="flex-1 min-h-0 border-b border-border/40">
+          <SourceControlPanel />
+        </div>
+
+        {/* Lower half: Project / Media tabs */}
+        <div className="flex-1 min-h-0">
+          <Tabs defaultValue="project" className="flex flex-col h-full">
+            <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
+              <TabsTrigger
+                value="project"
+                className="text-[10px] h-6 px-2 rounded-sm data-[state=active]:bg-white/10"
+              >
+                Project
+              </TabsTrigger>
+              <TabsTrigger
+                value="media"
+                className="text-[10px] h-6 px-2 rounded-sm data-[state=active]:bg-white/10"
+              >
+                Media
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="project" className="flex-1 overflow-hidden mt-0">
+              <ProjectPanel />
+            </TabsContent>
+            <TabsContent value="media" className="flex-1 overflow-hidden mt-0">
+              <MenuList />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );
