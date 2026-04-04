@@ -3,16 +3,14 @@
 /**
  * Source Control Panel
  * ────────────────────
- * Premiere Pro-style Source Monitor for the left sidebar.
+ * Premiere Pro-style Source Monitor.
  *
- * Features:
- *  - Preview the currently selected timeline clip
- *  - Set In/Out points (I/O keys or buttons) for trimming
- *  - Cut at playhead position (splits the clip)
- *  - Extract Audio (creates separate audio track, mutes source)
- *  - Extract Video Only (mutes audio permanently)
- *  - Frame-by-frame stepping
- *  - Play/Pause with spacebar
+ *  - Preview selected clip
+ *  - In/Out playback (loops between { and } when set)
+ *  - Cut / Trim / Extract Audio / Extract Video (icon-only)
+ *  - Drag clips from project panel to preview to set source
+ *  - Drag from source preview to timeline to insert
+ *  - Keyboard: I = set In, O = set Out, Space = play/pause
  */
 
 import { useRef, useState, useEffect, useCallback } from "react";
@@ -35,7 +33,6 @@ import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
 import { extractAudioFromVideoToTimeline } from "@/store/upload-store";
 import { dispatch } from "@designcombo/events";
 import { ACTIVE_SPLIT, EDIT_OBJECT } from "@designcombo/state";
-import { timeToString } from "../utils/time";
 
 export default function SourceControlPanel() {
   const { playerRef, fps, activeIds, trackItemsMap } = useStore();
@@ -48,15 +45,15 @@ export default function SourceControlPanel() {
   const [outPoint, setOutPoint] = useState<number | null>(null);
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const inOutLoopRef = useRef<number | null>(null);
 
-  // Get the active track item
   const activeId = activeIds[0];
   const activeItem = activeId ? trackItemsMap[activeId] : null;
   const isVideo = activeItem?.type === "video";
   const isAudio = activeItem?.type === "audio";
   const hasSource = isVideo || isAudio;
 
-  // Update source when selection changes
   useEffect(() => {
     if (activeItem && (activeItem.type === "video" || activeItem.type === "audio")) {
       const src = (activeItem.details as any)?.src;
@@ -72,7 +69,6 @@ export default function SourceControlPanel() {
     }
   }, [activeId, activeItem]);
 
-  // Sync video element to player frame when playing
   useEffect(() => {
     if (!videoRef.current || !sourceSrc || !isVideo) return;
     const video = videoRef.current;
@@ -80,86 +76,84 @@ export default function SourceControlPanel() {
     const trimFrom = activeItem?.trim?.from ?? 0;
     const displayFrom = activeItem?.display?.from ?? 0;
     const localTime = frameTime - displayFrom + trimFrom;
-
     if (Math.abs(video.currentTime * 1000 - localTime) > 100) {
       video.currentTime = localTime / 1000;
     }
   }, [currentFrame, fps, sourceSrc, isVideo, activeItem]);
 
-  // Handle video metadata loaded
   const handleLoadedMetadata = useCallback(() => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
+    if (videoRef.current) setDuration(videoRef.current.duration);
   }, []);
 
-  // Handle time update
   const handleTimeUpdate = useCallback(() => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  }, []);
+    if (!videoRef.current) return;
+    const t = videoRef.current.currentTime;
+    setCurrentTime(t);
 
-  // Handle play/pause
+    if (inPoint !== null && outPoint !== null && t >= outPoint) {
+      videoRef.current.currentTime = inPoint;
+      setCurrentTime(inPoint);
+    }
+  }, [inPoint, outPoint]);
+
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
     if (playing) {
       videoRef.current.pause();
+      if (inOutLoopRef.current) {
+        cancelAnimationFrame(inOutLoopRef.current);
+        inOutLoopRef.current = null;
+      }
     } else {
-      // If we have in/out points, only play within range
       if (inPoint !== null && outPoint !== null) {
         videoRef.current.currentTime = inPoint;
+        setCurrentTime(inPoint);
       }
       videoRef.current.play();
+      setPlaying(true);
     }
-    setPlaying(!playing);
   }, [playing, inPoint, outPoint]);
 
-  // Handle ended
   const handleEnded = useCallback(() => {
-    setPlaying(false);
-    // Loop within in/out points if set
-    if (inPoint !== null) {
+    if (inPoint !== null && outPoint !== null) {
       if (videoRef.current) {
         videoRef.current.currentTime = inPoint;
+        setCurrentTime(inPoint);
         videoRef.current.play();
         setPlaying(true);
       }
+    } else {
+      setPlaying(false);
     }
-  }, [inPoint]);
+  }, [inPoint, outPoint]);
 
-  // Step forward/backward one frame
   const stepFrame = useCallback((direction: number) => {
     if (!videoRef.current) return;
+    videoRef.current.pause();
+    setPlaying(false);
+    if (inOutLoopRef.current) {
+      cancelAnimationFrame(inOutLoopRef.current);
+      inOutLoopRef.current = null;
+    }
     videoRef.current.currentTime += direction / (fps || 30);
     setCurrentTime(videoRef.current.currentTime);
   }, [fps]);
 
-  // Set In point
   const setIn = useCallback(() => {
     if (!videoRef.current) return;
     setInPoint(videoRef.current.currentTime);
-    if (outPoint !== null && videoRef.current.currentTime > outPoint) {
-      setOutPoint(null);
-    }
-  }, [outPoint]);
+  }, []);
 
-  // Set Out point
   const setOut = useCallback(() => {
     if (!videoRef.current) return;
     setOutPoint(videoRef.current.currentTime);
-    if (inPoint !== null && videoRef.current.currentTime < inPoint) {
-      setInPoint(null);
-    }
-  }, [inPoint]);
+  }, []);
 
-  // Clear In/Out
   const clearInOut = useCallback(() => {
     setInPoint(null);
     setOutPoint(null);
   }, []);
 
-  // Cut at playhead (splits the active clip)
   const handleCut = useCallback(() => {
     if (!activeId) return;
     dispatch(ACTIVE_SPLIT, {
@@ -168,7 +162,6 @@ export default function SourceControlPanel() {
     });
   }, [activeId, currentFrame, fps]);
 
-  // Extract audio from the source video
   const handleExtractAudio = useCallback(async () => {
     if (!activeItem || !sourceSrc || !activeId) return;
     const displayFrom = (activeItem.display as any)?.from ?? 0;
@@ -180,9 +173,11 @@ export default function SourceControlPanel() {
     );
   }, [activeItem, sourceSrc, activeId]);
 
-  // Mute the source video (extract video only)
-  const handleExtractVideoOnly = useCallback(() => {
-    if (!activeId) return;
+  const handleExtractVideo = useCallback(() => {
+    if (!activeId || !activeItem) return;
+    const src = (activeItem.details as any)?.src;
+    if (!src) return;
+
     dispatch(EDIT_OBJECT, {
       payload: {
         [activeId]: {
@@ -191,15 +186,11 @@ export default function SourceControlPanel() {
         },
       },
     });
-  }, [activeId]);
+  }, [activeId, activeItem]);
 
-  // Trim active clip to in/out points
   const handleTrimToSelection = useCallback(() => {
     if (!activeId || !activeItem || inPoint === null || outPoint === null) return;
     const trimFrom = activeItem.trim?.from ?? 0;
-    const trimTo = activeItem.trim?.to ?? 0;
-    const totalDuration = trimTo - trimFrom;
-
     const newTrimFrom = trimFrom + inPoint * 1000;
     const newTrimTo = trimFrom + outPoint * 1000;
 
@@ -216,39 +207,64 @@ export default function SourceControlPanel() {
     });
   }, [activeId, activeItem, inPoint, outPoint]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!hasSource) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
       switch (e.key.toLowerCase()) {
-        case "i":
-          e.preventDefault();
-          setIn();
-          break;
-        case "o":
-          e.preventDefault();
-          setOut();
-          break;
-        case " ":
-          e.preventDefault();
-          togglePlay();
-          break;
-        case "arrowleft":
-          e.preventDefault();
-          stepFrame(-1);
-          break;
-        case "arrowright":
-          e.preventDefault();
-          stepFrame(1);
-          break;
+        case "i": e.preventDefault(); setIn(); break;
+        case "o": e.preventDefault(); setOut(); break;
+        case " ": e.preventDefault(); togglePlay(); break;
+        case "arrowleft": e.preventDefault(); stepFrame(-1); break;
+        case "arrowright": e.preventDefault(); stepFrame(1); break;
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [hasSource, setIn, setOut, togglePlay, stepFrame]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+
+    try {
+      const data = e.dataTransfer.getData("application/json");
+      if (!data) return;
+      const item = JSON.parse(data);
+      if (item.type === "track-item" && item.src) {
+        setSourceSrc(item.src);
+        setSourceName(item.name || "Dropped clip");
+        setInPoint(null);
+        setOutPoint(null);
+      }
+    } catch {
+      // dropped files
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
+          const url = URL.createObjectURL(file);
+          setSourceSrc(url);
+          setSourceName(file.name);
+          setInPoint(null);
+          setOutPoint(null);
+        }
+      }
+    }
+  }, []);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -264,13 +280,21 @@ export default function SourceControlPanel() {
         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
           Source
         </span>
-        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+        <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
           {sourceName || "No clip selected"}
         </span>
       </div>
 
       {/* Preview area */}
-      <div className="relative flex-1 bg-black/40 flex items-center justify-center min-h-[120px]">
+      <div
+        className={cn(
+          "relative flex-1 bg-black/40 flex items-center justify-center min-h-[120px] transition-colors",
+          dragOver && "bg-blue-500/10 ring-2 ring-blue-400/50 ring-inset"
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {hasSource && sourceSrc ? (
           isVideo ? (
             <video
@@ -299,7 +323,7 @@ export default function SourceControlPanel() {
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Video className="w-10 h-10 opacity-20" />
-            <span className="text-[10px]">Select a clip to preview</span>
+            <span className="text-[10px]">Select or drop a clip</span>
           </div>
         )}
 
@@ -311,8 +335,8 @@ export default function SourceControlPanel() {
                 className="absolute top-0 bottom-0 w-[2px] bg-emerald-400"
                 style={{ left: `${(inPoint / duration) * 100}%` }}
               >
-                <span className="absolute -top-0 -translate-x-1/2 bg-emerald-400 text-[8px] text-black px-1 font-bold">
-                  IN
+                <span className="absolute -top-0 -translate-x-1/2 bg-emerald-400 text-[9px] text-black px-0.5 font-bold">
+                  {"{"}
                 </span>
               </div>
             )}
@@ -321,8 +345,8 @@ export default function SourceControlPanel() {
                 className="absolute top-0 bottom-0 w-[2px] bg-red-400"
                 style={{ left: `${(outPoint / duration) * 100}%` }}
               >
-                <span className="absolute -top-0 -translate-x-1/2 bg-red-400 text-[8px] text-black px-1 font-bold">
-                  OUT
+                <span className="absolute -top-0 -translate-x-1/2 bg-red-400 text-[9px] text-black px-0.5 font-bold">
+                  {"}"}
                 </span>
               </div>
             )}
@@ -341,7 +365,7 @@ export default function SourceControlPanel() {
       </div>
 
       {/* Scrubber */}
-      <div className="px-3 py-1">
+      <div className="relative px-3 py-1">
         <Slider
           value={[currentTime]}
           max={duration || 100}
@@ -354,49 +378,17 @@ export default function SourceControlPanel() {
           }}
           className="h-1"
         />
-        {/* In/Out range highlight */}
-        {inPoint !== null && outPoint !== null && duration > 0 && (
-          <div
-            className="absolute h-1 bg-emerald-400/30 rounded-sm"
-            style={{
-              left: `${(inPoint / duration) * 100}%`,
-              width: `${((outPoint - inPoint) / duration) * 100}%`,
-            }}
-          />
-        )}
       </div>
 
       {/* Transport controls */}
-      <div className="flex items-center justify-center gap-1 px-3 py-2 border-t border-border/40">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={() => stepFrame(-1)}
-          title="Previous Frame (←)"
-        >
+      <div className="flex items-center justify-center gap-1 px-3 py-1.5 border-t border-border/40">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => stepFrame(-1)} title="Previous Frame">
           <SkipBack className="w-3 h-3" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={togglePlay}
-          title="Play/Pause (Space)"
-        >
-          {playing ? (
-            <Pause className="w-3 h-3" />
-          ) : (
-            <Play className="w-3 h-3" />
-          )}
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={togglePlay} title="Play/Pause">
+          {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={() => stepFrame(1)}
-          title="Next Frame (→)"
-        >
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => stepFrame(1)} title="Next Frame">
           <SkipForward className="w-3 h-3" />
         </Button>
       </div>
@@ -407,83 +399,75 @@ export default function SourceControlPanel() {
           variant="ghost"
           size="sm"
           className={cn(
-            "h-5 text-[9px] px-1.5 font-mono",
+            "h-5 px-1.5 font-mono",
             inPoint !== null ? "text-emerald-400 bg-emerald-400/10" : "text-muted-foreground"
           )}
           onClick={setIn}
           title="Set In Point (I)"
         >
-          I{inPoint !== null ? ` ${formatTime(inPoint)}` : ""}
+          <span className="text-[10px]">{"{"}</span>
         </Button>
         <Button
           variant="ghost"
           size="sm"
           className={cn(
-            "h-5 text-[9px] px-1.5 font-mono",
+            "h-5 px-1.5 font-mono",
             outPoint !== null ? "text-red-400 bg-red-400/10" : "text-muted-foreground"
           )}
           onClick={setOut}
           title="Set Out Point (O)"
         >
-          O{outPoint !== null ? ` ${formatTime(outPoint)}` : ""}
+          <span className="text-[10px]">{"}"}</span>
+        </Button>
+        {(inPoint !== null || outPoint !== null) && (
+          <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={clearInOut} title="Clear In/Out">
+            <RotateCcw className="w-2.5 h-2.5" />
+          </Button>
+        )}
+      </div>
+
+      {/* Action buttons — icons only */}
+      <div className="flex items-center gap-1 px-3 py-2 border-t border-border/40 justify-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          disabled={!activeId}
+          onClick={handleCut}
+          title="Cut at playhead"
+        >
+          <Scissors className="w-3.5 h-3.5" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 ml-auto"
-          onClick={clearInOut}
-          title="Clear In/Out"
+          className="h-7 w-7"
+          disabled={!activeId || inPoint === null || outPoint === null}
+          onClick={handleTrimToSelection}
+          title="Trim to In/Out selection"
         >
-          <RotateCcw className="w-2.5 h-2.5" />
+          <SquareSplitHorizontal className="w-3.5 h-3.5" />
         </Button>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex flex-col gap-1 px-3 py-2 border-t border-border/40">
-        <div className="grid grid-cols-2 gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 text-[9px] gap-1"
-            disabled={!activeId}
-            onClick={handleCut}
-          >
-            <Scissors className="w-3 h-3" />
-            Cut
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 text-[9px] gap-1"
-            disabled={!activeId || inPoint === null || outPoint === null}
-            onClick={handleTrimToSelection}
-          >
-            <SquareSplitHorizontal className="w-3 h-3" />
-            Trim
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 text-[9px] gap-1 text-purple-400 border-purple-400/30 hover:bg-purple-400/10"
-            disabled={!isVideo || !sourceSrc || !activeId}
-            onClick={handleExtractAudio}
-          >
-            <AudioLines className="w-3 h-3" />
-            Extract Audio
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 text-[9px] gap-1 text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
-            disabled={!isVideo || !activeId}
-            onClick={handleExtractVideoOnly}
-          >
-            <Video className="w-3 h-3" />
-            Mute Audio
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-purple-400"
+          disabled={!isVideo || !sourceSrc || !activeId}
+          onClick={handleExtractAudio}
+          title="Extract audio to new track"
+        >
+          <AudioLines className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-blue-400"
+          disabled={!isVideo || !activeId}
+          onClick={handleExtractVideo}
+          title="Remove audio from video"
+        >
+          <Video className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </div>
   );

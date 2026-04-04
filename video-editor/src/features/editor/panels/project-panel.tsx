@@ -71,12 +71,30 @@ const AssetListItem: React.FC<{
 }> = ({ file, onAdd, onDelete, selected, onSelect }) => {
   const [showMenu, setShowMenu] = useState(false);
 
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({
+        type: "track-item",
+        src: file.objectUrl,
+        name: file.fileName,
+        fileType: file.type,
+        duration: file.duration,
+        width: file.width,
+        height: file.height,
+      })
+    );
+    e.dataTransfer.effectAllowed = "copy";
+  }, [file]);
+
   return (
     <div
       onClick={onSelect}
       onDoubleClick={() => onAdd(file)}
+      draggable
+      onDragStart={handleDragStart}
       className={cn(
-        "flex items-center gap-2 px-3 py-1.5 cursor-pointer text-xs group transition-colors",
+        "flex items-center gap-2 px-3 py-1.5 cursor-grab text-xs group transition-colors active:cursor-grabbing",
         selected ? "bg-white/10" : "hover:bg-white/5"
       )}
     >
@@ -122,12 +140,30 @@ const AssetGridItem: React.FC<{
   selected: boolean;
   onSelect: () => void;
 }> = ({ file, onAdd, selected, onSelect }) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({
+        type: "track-item",
+        src: file.objectUrl,
+        name: file.fileName,
+        fileType: file.type,
+        duration: file.duration,
+        width: file.width,
+        height: file.height,
+      })
+    );
+    e.dataTransfer.effectAllowed = "copy";
+  }, [file]);
+
   return (
     <div
       onClick={onSelect}
       onDoubleClick={() => onAdd(file)}
+      draggable
+      onDragStart={handleDragStart}
       className={cn(
-        "rounded-md overflow-hidden cursor-pointer group relative border transition-all",
+        "rounded-md overflow-hidden cursor-grab group relative border transition-all active:cursor-grabbing",
         selected ? "border-primary ring-1 ring-primary" : "border-border/40 hover:border-border"
       )}
     >
