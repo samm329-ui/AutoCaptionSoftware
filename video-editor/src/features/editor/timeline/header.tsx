@@ -9,7 +9,8 @@ import {
 import { PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
 import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import useStore from "../store/use-store";
-import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AudioLines } from "lucide-react";
+import { extractAudioFromVideoToTimeline } from "@/store/upload-store";
 import {
   getFitZoomLevel,
   getNextZoomLevel,
@@ -103,6 +104,23 @@ const Header = () => {
         time: getCurrentTime()
       }
     });
+  };
+
+  const doExtractAudio = async () => {
+    if (activeIds.length === 0) return;
+
+    const { trackItemsMap } = useStore.getState();
+    const firstActiveId = activeIds[0];
+    const trackItem = trackItemsMap[firstActiveId];
+    if (!trackItem) return;
+
+    const src = (trackItem.details as any)?.src;
+    if (!src) return;
+
+    const displayFrom = (trackItem.display as any)?.from ?? 0;
+    const fileName = (trackItem.details as any)?.name ?? firstActiveId;
+
+    await extractAudioFromVideoToTimeline(src, firstActiveId, fileName, displayFrom);
   };
 
   const changeScale = (scale: ITimelineScaleState) => {
@@ -233,6 +251,16 @@ const Header = () => {
             >
               <SquareSplitHorizontal size={15} />{" "}
               <span className="hidden lg:block">Split</span>
+            </Button>
+            <Button
+              disabled={!activeIds.length}
+              onClick={doExtractAudio}
+              variant={"ghost"}
+              size={isLargeScreen ? "sm" : "icon"}
+              className="flex items-center gap-1 px-2"
+            >
+              <AudioLines size={15} />{" "}
+              <span className="hidden lg:block">Extract Audio</span>
             </Button>
             <Button
               disabled={!activeIds.length}
