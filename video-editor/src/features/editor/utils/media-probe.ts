@@ -24,10 +24,21 @@ async function probeVideo(url: string) {
     video.onloadedmetadata = () => resolve();
     video.onerror = () => reject(new Error("Unable to load video metadata."));
   });
+
+  let fps = 30;
+  if (video.getVideoPlaybackQuality) {
+    const quality = video.getVideoPlaybackQuality();
+    if (quality.totalVideoFrames && video.duration) {
+      fps = Math.round(quality.totalVideoFrames / video.duration);
+    }
+  }
+  if (!Number.isFinite(fps) || fps < 1) fps = 30;
+
   return {
     duration: Number.isFinite(video.duration) ? video.duration : 10,
     width: video.videoWidth || 1920,
     height: video.videoHeight || 1080,
+    fps,
   };
 }
 
@@ -83,7 +94,7 @@ export async function probeMediaFile(file: File): Promise<MediaAsset> {
     duration: stats.duration,
     width: stats.width,
     height: stats.height,
-    fps: 30,
+    fps: (stats as any).fps ?? 30,
   };
 }
 
