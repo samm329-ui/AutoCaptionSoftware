@@ -39,7 +39,6 @@ import { FONTS } from "./data/fonts";
 import FloatingControl from "./control-item/floating-controls/floating-control";
 import { useSceneStore } from "@/store/use-scene-store";
 import { dispatch } from "@designcombo/events";
-import MenuListHorizontal from "./menu-list-horizontal";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { ITrackItem } from "@designcombo/types";
 import useLayoutStore from "./store/use-layout-store";
