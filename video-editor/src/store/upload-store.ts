@@ -11,9 +11,8 @@ export interface UploadedFile {
   filePath: string;
   fileSize: number;
   contentType: string;
-  type: "video" | "image" | "audio";
+  type: "video" | "image" | "audio" | "adjustment" | "colormatte";
   objectUrl: string;
-  /** Original File object — needed for audio extraction */
   file?: File;
   status: "completed" | "uploading" | "failed";
   progress: number;
@@ -21,12 +20,25 @@ export interface UploadedFile {
   duration?: number;
   width?: number;
   height?: number;
+  color?: string;
+  folderId?: string | null;
+}
+
+export interface ProjectFolder {
+  id: string;
+  name: string;
+  createdAt: number;
 }
 
 interface IUploadStore {
   uploads: UploadedFile[];
+  folders: ProjectFolder[];
   mediaAssets: MediaAsset[];
   addUpload: (upload: UploadedFile) => void;
+  addFolder: (folder: ProjectFolder) => void;
+  removeFolder: (id: string) => void;
+  renameFolder: (id: string, name: string) => void;
+  moveFileToFolder: (fileId: string, folderId: string | null) => void;
   addMediaAsset: (asset: MediaAsset) => void;
   removeUpload: (id: string) => void;
   clearUploads: () => void;
@@ -36,11 +48,39 @@ interface IUploadStore {
 
 export const useUploadStore = create<IUploadStore>((set) => ({
   uploads: [],
+  folders: [],
   mediaAssets: [],
 
   addUpload: (upload) =>
     set((state) => ({
       uploads: [upload, ...state.uploads]
+    })),
+
+  addFolder: (folder) =>
+    set((state) => ({
+      folders: [...state.folders, folder]
+    })),
+
+  removeFolder: (id) =>
+    set((state) => ({
+      folders: state.folders.filter((f) => f.id !== id),
+      uploads: state.uploads.map((u) =>
+        u.folderId === id ? { ...u, folderId: undefined } : u
+      ),
+    })),
+
+  renameFolder: (id, name) =>
+    set((state) => ({
+      folders: state.folders.map((f) =>
+        f.id === id ? { ...f, name } : f
+      ),
+    })),
+
+  moveFileToFolder: (fileId, folderId) =>
+    set((state) => ({
+      uploads: state.uploads.map((u) =>
+        u.id === fileId ? { ...u, folderId } : u
+      ),
     })),
 
   addMediaAsset: (asset) =>
@@ -53,7 +93,7 @@ export const useUploadStore = create<IUploadStore>((set) => ({
       uploads: state.uploads.filter((u) => u.id !== id)
     })),
 
-  clearUploads: () => set({ uploads: [], mediaAssets: [] }),
+  clearUploads: () => set({ uploads: [], folders: [], mediaAssets: [] }),
 
   showUploadModal: false,
   setShowUploadModal: (show) => set({ showUploadModal: show })
@@ -317,7 +357,8 @@ export async function extractAudioFromVideoToTimeline(
   videoSrc: string,
   videoId: string,
   fileName?: string,
-  displayFrom?: number
+  displayFrom?: number,
+  displayTo?: number
 ): Promise<string | null> {
   try {
     // ── 1. Find original File ──────────────────────────────────────
@@ -381,6 +422,10 @@ export async function extractAudioFromVideoToTimeline(
 
     // ── 6. Register extracted audio in upload store ────────────────
     const uploadId = generateId();
+    const audioDurationMs = displayTo !== undefined && displayFrom !== undefined
+      ? (displayTo - displayFrom)
+      : videoDurationMs;
+
     const upload: UploadedFile = {
       id: uploadId,
       fileName: `${uploadRecord.fileName?.replace(/\.[^.]+$/, "") || "extracted"}.wav`,
@@ -392,7 +437,7 @@ export async function extractAudioFromVideoToTimeline(
       status: "completed",
       progress: 100,
       createdAt: Date.now(),
-      duration: videoDurationMs / 1000,
+      duration: audioDurationMs / 1000,
     };
     useUploadStore.getState().addUpload(upload);
 
@@ -431,21 +476,24 @@ export async function extractAudioFromVideoToTimeline(
           ? videoTrackIndex + 1
           : tracks.length;
 
-    // ── 8. Add audio to timeline ───────────────────────────────────
+    // ── 8. Add audio to timeline (respect In/Out if provided) ─────────
+    const fromMs = displayFrom ?? 0;
+    const toMs = displayTo !== undefined ? displayTo : (fromMs + audioDurationMs);
+
     dispatch(ADD_AUDIO, {
       payload: {
         id: generateId(),
         details: { src: audioUrl, volume: 100 },
         metadata: {
           previewUrl: audioUrl,
-          duration: videoDurationMs,
+          duration: audioDurationMs,
           isExtractedAudio: true,
           sourceVideoId: videoId,
         },
         type: "audio",
         display: {
-          from: displayFrom ?? 0,
-          to: (displayFrom ?? 0) + videoDurationMs,
+          from: fromMs,
+          to: toMs,
         },
       },
       options: {
