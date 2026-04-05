@@ -1,17 +1,21 @@
 export const getTargetControls = (targetType: string): string[] => {
   switch (targetType) {
     case "text":
-      return ["e", "se", "s"];
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
     case "caption":
-      return ["e", "se", "s"];
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
     case "image":
-      return ["nw", "ne", "sw", "se"];
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
     case "svg":
       return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
+    case "video":
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
+    case "shape":
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
     case "group":
-      return ["nw", "ne", "sw", "se"];
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
     default:
-      return ["nw", "ne", "sw", "se"];
+      return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
   }
 };
 
@@ -47,37 +51,54 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
     case "image":
       return {
         rotatable: true,
-        resizable: false,
-        scalable: true,
-        keepRatio: true,
+        resizable: true,
+        scalable: false,
+        keepRatio: false,
+        draggable: true,
+        snappable: true
+      };
+    case "video":
+      return {
+        rotatable: true,
+        resizable: true,
+        scalable: false,
+        keepRatio: false,
+        draggable: true,
+        snappable: true
+      };
+    case "shape":
+      return {
+        rotatable: true,
+        resizable: true,
+        scalable: false,
+        keepRatio: false,
         draggable: true,
         snappable: true
       };
     case "group":
       return {
-        rotatable: false,
-        resizable: false,
-        scalable: true,
-        keepRatio: true,
+        rotatable: true,
+        resizable: true,
+        scalable: false,
+        keepRatio: false,
         draggable: true,
         snappable: true
       };
     case "svg":
       return {
         rotatable: true,
-        resizable: false,
-        scalable: true,
-        keepRatio: true,
-
+        resizable: true,
+        scalable: false,
+        keepRatio: false,
         draggable: true,
         snappable: true
       };
     default:
       return {
         rotatable: true,
-        resizable: false,
-        scalable: true,
-        keepRatio: true,
+        resizable: true,
+        scalable: false,
+        keepRatio: false,
         draggable: true,
         snappable: true
       };
@@ -140,7 +161,7 @@ export const getSelectionByIds = (ids: string[]): SelectionInfo => {
       targets,
       layerType: "group",
       ables: getTargetAbles("group"),
-      controls: []
+      controls: getTargetControls("group")
     };
   }
 };

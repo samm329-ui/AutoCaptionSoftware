@@ -21,13 +21,6 @@ import {
 let holdGroupPosition: Record<string, any> | null = null;
 let dragStartEnd = false;
 
-interface SceneInteractionsProps {
-  stateManager: StateManager;
-  containerRef: React.RefObject<HTMLDivElement>;
-  zoom: number;
-  size: { width: number; height: number };
-}
-
 const snapDirections = {
   top: true,
   left: true,
@@ -37,19 +30,11 @@ const snapDirections = {
   middle: true
 };
 
-function scaleDiv(
-  selector: string,
-  scale: number,
-  currentWidth: number,
-  currentHeight: number
-) {
-  const div = document.querySelector(selector) as HTMLDivElement | null;
-  if (div) {
-    const fontSize = parseFloat(getComputedStyle(div).fontSize);
-    div.style.fontSize = `${fontSize * scale}px`;
-    div.style.width = `${currentWidth * scale}px`;
-    div.style.height = `${currentHeight * scale}px`;
-  }
+interface SceneInteractionsProps {
+  stateManager: StateManager;
+  containerRef: React.RefObject<HTMLDivElement>;
+  zoom: number;
+  size: { width: number; height: number };
 }
 
 export function SceneInteractions({
@@ -369,243 +354,77 @@ export function SceneInteractions({
         direction
       }) => {
         const id = getIdFromClassName(target.className);
-        if (direction[1] === 1 || direction[1] === -1) {
-          if (trackItemsMap[id].type === "progressSquare") {
-            const diffWidth = nextHeight - parseFloat(target.style.height);
-            const updateData: any = {
-              width: nextWidth,
-              height: nextHeight,
-              left: parseFloat(target.style.left)
-            };
-            if (direction[1] === -1) {
-              const newTop = `${parseFloat(target.style.top) - diffWidth}px`;
-              target.style.top = newTop;
-              updateData.top = newTop;
+        if (!id || !trackItemsMap[id]) return;
+        const type = trackItemsMap[id].type;
+
+        if (type === "progressSquare") {
+          const diffWidth = nextHeight - parseFloat(target.style.height);
+          const updateData: any = {
+            width: nextWidth,
+            height: nextHeight,
+            left: parseFloat(target.style.left)
+          };
+          if (direction[1] === -1) {
+            const newTop = `${parseFloat(target.style.top) - diffWidth}px`;
+            target.style.top = newTop;
+            updateData.top = newTop;
+          }
+          target.style.width = `${nextWidth}px`;
+          target.style.height = `${nextHeight}px`;
+          setState({
+            trackItemsMap: {
+              ...trackItemsMap,
+              [id]: {
+                ...trackItemsMap[id],
+                details: {
+                  ...trackItemsMap[id].details,
+                  ...updateData
+                }
+              }
             }
+          });
+          return;
+        }
+
+        if (type === "text" || type === "caption") {
+          const selector =
+            type === "text" ? `[data-text-id="${id}"]` : `#caption-${id}`;
+          const textEl = document.querySelector(selector) as HTMLDivElement;
+
+          if (textEl) {
+            const minContentHeight = calculateTextHeight({
+              family: textEl.style.fontFamily,
+              fontSize: textEl.style.fontSize,
+              fontWeight: textEl.style.fontWeight,
+              letterSpacing: textEl.style.letterSpacing,
+              lineHeight: textEl.style.lineHeight,
+              text: (textEl as HTMLDivElement).innerHTML,
+              textShadow: textEl.style.textShadow,
+              webkitTextStroke: textEl.style.webkitTextStroke,
+              width: nextWidth + "px",
+              textTransform: textEl.style.textTransform
+            });
+
+            const finalHeight = Math.max(nextHeight, minContentHeight);
+
             target.style.width = `${nextWidth}px`;
-            target.style.height = `${nextHeight}px`;
-            setState({
-              trackItemsMap: {
-                ...trackItemsMap,
-                [id]: {
-                  ...trackItemsMap[id],
-                  details: {
-                    ...trackItemsMap[id].details,
-                    ...updateData
-                  }
-                }
-              }
-            });
-            return;
-          }
-          // Check if this is pure "s" direction (only vertical, no horizontal change)
-          const isPureSouthDirection =
-            (direction[1] === 1 || direction[1] === -1) && direction[0] === 0;
+            target.style.height = `${finalHeight}px`;
 
-          // Handle "s" target type with content-aware height constraints (only for pure south direction)
-          if (
-            isPureSouthDirection &&
-            (trackItemsMap[id].type === "text" ||
-              trackItemsMap[id].type === "caption")
-          ) {
-            const type = trackItemsMap[id].type;
-
-            const selector =
-              type === "text" ? `[data-text-id="${id}"]` : `#caption-${id}`;
-
-            const textEl = document.querySelector(selector) as HTMLDivElement;
-
-            if (textEl) {
-              // Calculate minimum content height for current width
-              const minContentHeight = calculateTextHeight({
-                family: textEl.style.fontFamily,
-                fontSize: textEl.style.fontSize,
-                fontWeight: textEl.style.fontWeight,
-                letterSpacing: textEl.style.letterSpacing,
-                lineHeight: textEl.style.lineHeight,
-                text: (textEl as HTMLDivElement).innerHTML,
-                textShadow: textEl.style.textShadow,
-                webkitTextStroke: textEl.style.webkitTextStroke,
-                width: nextWidth + "px",
-                textTransform: textEl.style.textTransform
-              });
-
-              // Use the larger of the requested height or minimum content height
-              const finalHeight = Math.max(nextHeight, minContentHeight);
-
-              // Update target dimensions
-              target.style.width = `${nextWidth}px`;
-              target.style.height = `${finalHeight}px`;
-
-              // Safely access nested elements
-              const animationDiv = target.firstElementChild
-                ?.firstElementChild as HTMLDivElement | null;
-              if (animationDiv) {
-                animationDiv.style.width = `${nextWidth}px`;
-                animationDiv.style.height = `${finalHeight}px`;
-
-                const textDiv = document.querySelector(
-                  `[data-text-id="${id}"]`
-                ) as HTMLDivElement;
-                if (textDiv) {
-                  textDiv.style.width = `${nextWidth}px`;
-                  textDiv.style.height = `${finalHeight}px`;
-                }
-              }
-
-              // Update state with final dimensions
-              setState({
-                trackItemsMap: {
-                  ...trackItemsMap,
-                  [id]: {
-                    ...trackItemsMap[id],
-                    details: {
-                      ...trackItemsMap[id].details,
-                      width: nextWidth,
-                      height: finalHeight
-                    }
-                  }
-                }
-              });
-              return;
-            }
-          }
-
-          // Default behavior for other element types (proportional scaling)
-          const currentWidth = target.clientWidth;
-          const currentHeight = target.clientHeight;
-
-          // Get new width and height
-          const scaleY = nextHeight / currentHeight;
-          const scale = scaleY;
-
-          // Update target dimensions
-          target.style.width = `${currentWidth * scale}px`;
-          target.style.height = `${currentHeight * scale}px`;
-
-          // Safely access nested elements
-          const animationDiv = target.firstElementChild
-            ?.firstElementChild as HTMLDivElement | null;
-          if (animationDiv) {
-            animationDiv.style.width = `${currentWidth * scale}px`;
-            animationDiv.style.height = `${currentHeight * scale}px`;
-
-            if (trackItemsMap[id].type === "text") {
-              scaleDiv(
-                `[data-text-id="${id}"]`,
-                scale,
-                currentWidth,
-                currentHeight
-              );
-            } else if (trackItemsMap[id].type === "caption") {
-              scaleDiv(`#caption-${id}`, scale, currentWidth, currentHeight);
-            }
-          }
-        } else {
-          const id = getIdFromClassName(target.className);
-          if (
-            trackItemsMap[id].type === "text" ||
-            trackItemsMap[id].type === "caption"
-          ) {
-            const type = trackItemsMap[id].type;
-
-            const selector =
-              type === "text" ? `[data-text-id="${id}"]` : `#caption-${id}`;
-
-            const textEl = document.querySelector(selector) as HTMLDivElement;
-
-            const newHeight = calculateTextHeight({
-              family: textEl!.style.fontFamily,
-              fontSize: textEl!.style.fontSize,
-              fontWeight: textEl!.style.fontWeight,
-              letterSpacing: textEl!.style.letterSpacing,
-              lineHeight: textEl!.style.lineHeight,
-              text: (textEl! as HTMLDivElement).innerHTML,
-              textShadow: textEl!.style.textShadow,
-              webkitTextStroke: textEl!.style.webkitTextStroke,
-              width: nextWidth + "px",
-              textTransform: textEl!.style.textTransform
-            });
-
-            const validHeight = calculateTextHeight({
-              family: textEl!.style.fontFamily,
-              fontSize: textEl!.style.fontSize,
-              fontWeight: textEl!.style.fontWeight,
-              letterSpacing: textEl!.style.letterSpacing,
-              lineHeight: textEl!.style.lineHeight,
-              text: htmlToPlainText((textEl! as HTMLDivElement).innerHTML),
-              textShadow: textEl!.style.textShadow,
-              webkitTextStroke: textEl!.style.webkitTextStroke,
-              width: nextWidth + "px",
-              textTransform: textEl!.style.textTransform
-            });
-
-            const minWidth = calculateMinWidth({
-              family: textEl!.style.fontFamily,
-              fontSize: textEl!.style.fontSize,
-              fontWeight: textEl!.style.fontWeight,
-              letterSpacing: textEl!.style.letterSpacing,
-              lineHeight: textEl!.style.lineHeight,
-              text: (textEl! as HTMLDivElement).innerText,
-              textShadow: textEl!.style.textShadow,
-              webkitTextStroke: textEl!.style.webkitTextStroke,
-              textTransform: textEl!.style.textTransform
-            });
-            target.style.width = nextWidth + "px";
-            target.style.minWidth = minWidth + "px";
-            target.style.height = newHeight + "px";
-
-            // Safely access nested elements
             const animationDiv = target.firstElementChild
               ?.firstElementChild as HTMLDivElement | null;
             if (animationDiv) {
               animationDiv.style.width = `${nextWidth}px`;
-              animationDiv.style.height = `${validHeight}px`;
-
-              const type = trackItemsMap[id].type;
-              const selector =
-                type === "text" ? `[data-text-id="${id}"]` : `#caption-${id}`;
+              animationDiv.style.height = `${finalHeight}px`;
 
               const textDiv = document.querySelector(
-                selector
-              ) as HTMLDivElement | null;
-
+                `[data-text-id="${id}"]`
+              ) as HTMLDivElement;
               if (textDiv) {
                 textDiv.style.width = `${nextWidth}px`;
-                textDiv.style.height = `${validHeight}px`;
+                textDiv.style.height = `${finalHeight}px`;
               }
             }
-            if (Math.floor(newHeight) !== Math.floor(validHeight)) {
-              dispatch(EDIT_OBJECT, {
-                payload: {
-                  [id]: {
-                    details: {
-                      width: nextWidth,
-                      height: newHeight
-                    }
-                  }
-                }
-              });
-            }
-          }
-          if (trackItemsMap[id].type === "progressSquare") {
-            const currentWidth = parseFloat(target.style.width);
-            target.style.width = `${nextWidth}px`;
-            target.style.height = `${nextHeight}px`;
-            const updateData: any = {
-              width: nextWidth,
-              height: nextHeight,
-              left: parseFloat(target.style.left)
-            };
-            if (direction[0] === -1) {
-              const diffWidth = nextWidth - currentWidth;
-              target.style.left = `${
-                parseFloat(target.style.left) - diffWidth
-              }px`;
-              updateData.left = `${
-                parseFloat(target.style.left) - diffWidth
-              }px`;
-            }
+
             setState({
               trackItemsMap: {
                 ...trackItemsMap,
@@ -614,27 +433,67 @@ export function SceneInteractions({
                   details: {
                     ...trackItemsMap[id].details,
                     width: nextWidth,
-                    height: nextHeight
+                    height: finalHeight
+                  }
+                }
+              }
+            });
+            return;
+          }
+        }
+
+        // Free resize for image, video, shape, and all other types
+        target.style.width = `${nextWidth}px`;
+        target.style.height = `${nextHeight}px`;
+
+        const animationDiv = target.firstElementChild
+          ?.firstElementChild as HTMLDivElement | null;
+        if (animationDiv) {
+          animationDiv.style.width = `${nextWidth}px`;
+          animationDiv.style.height = `${nextHeight}px`;
+        }
+
+        setState({
+          trackItemsMap: {
+            ...trackItemsMap,
+            [id]: {
+              ...trackItemsMap[id],
+              details: {
+                ...trackItemsMap[id].details,
+                width: nextWidth,
+                height: nextHeight
+              }
+            }
+          }
+        });
+      }}
+      onResizeEnd={({ target }) => {
+        const targetId = getIdFromClassName(target.className) as string;
+        if (!targetId || !trackItemsMap[targetId]) return;
+        const type = trackItemsMap[targetId].type;
+
+        if (type === "text" || type === "caption") {
+          const selector =
+            type === "text"
+              ? `[data-text-id="${targetId}"]`
+              : `#caption-${targetId}`;
+          const textDiv = document.querySelector(selector) as HTMLDivElement;
+
+          if (textDiv) {
+            dispatch(EDIT_OBJECT, {
+              payload: {
+                [targetId]: {
+                  details: {
+                    ...trackItemsMap[targetId].details,
+                    width: parseFloat(target.style.width),
+                    height: parseFloat(target.style.height),
+                    fontSize: parseFloat(textDiv.style.fontSize)
                   }
                 }
               }
             });
           }
-        }
-      }}
-      onResizeEnd={({ target }) => {
-        const targetId = getIdFromClassName(target.className) as string;
-
-        const type = trackItemsMap[targetId].type;
-
-        const selector =
-          type === "text"
-            ? `[data-text-id="${targetId}"]`
-            : `#caption-${targetId}`;
-
-        const textDiv = document.querySelector(selector) as HTMLDivElement;
-
-        if (textDiv) {
+        } else if (type === "progressSquare") {
           dispatch(EDIT_OBJECT, {
             payload: {
               [targetId]: {
@@ -642,7 +501,19 @@ export function SceneInteractions({
                   ...trackItemsMap[targetId].details,
                   width: parseFloat(target.style.width),
                   height: parseFloat(target.style.height),
-                  fontSize: parseFloat(textDiv.style.fontSize)
+                  left: parseFloat(target.style.left)
+                }
+              }
+            }
+          });
+        } else {
+          dispatch(EDIT_OBJECT, {
+            payload: {
+              [targetId]: {
+                details: {
+                  ...trackItemsMap[targetId].details,
+                  width: parseFloat(target.style.width),
+                  height: parseFloat(target.style.height)
                 }
               }
             }
