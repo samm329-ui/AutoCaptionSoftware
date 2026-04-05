@@ -20,6 +20,7 @@ export interface UploadedFile {
   duration?: number;
   width?: number;
   height?: number;
+  fps?: number;
   color?: string;
   folderId?: string | null;
 }
@@ -100,16 +101,38 @@ export const useUploadStore = create<IUploadStore>((set) => ({
 }));
 
 export function addFileToTimeline(upload: UploadedFile): void {
+  const { size, fps: currentFps, setState } = useStore.getState();
+
+  const videoWidth = upload.width ?? 0;
+  const videoHeight = upload.height ?? 0;
+  const videoFps = upload.fps ?? 0;
+
+  if (videoWidth && videoHeight && (size.width !== videoWidth || size.height !== videoHeight)) {
+    dispatch("design:resize", {
+      payload: { width: videoWidth, height: videoHeight },
+    });
+    setState({
+      size: { width: videoWidth, height: videoHeight },
+    });
+  }
+
+  if (videoFps > 0 && currentFps !== videoFps) {
+    setState({ fps: videoFps });
+  }
+
   const payload = {
     id: generateId(),
     details: {
-      src: upload.objectUrl
+      src: upload.objectUrl,
+      width: videoWidth || 1920,
+      height: videoHeight || 1080,
     },
     metadata: {
       previewUrl: upload.type === "video" ? upload.objectUrl : undefined,
       duration: upload.duration,
       width: upload.width,
       height: upload.height,
+      fps: upload.fps,
     }
   };
 
@@ -171,6 +194,7 @@ export async function handleFileUpload(files: File[]): Promise<UploadedFile[]> {
         duration: asset.duration,
         width: asset.width,
         height: asset.height,
+        fps: asset.fps,
       };
 
       addUpload(upload);
