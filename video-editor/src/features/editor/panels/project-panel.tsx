@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useUploadStore, addFileToTimeline, UploadedFile, handleFileUpload, ProjectFolder } from "@/store/upload-store";
+import { setDragData } from "@/components/shared/drag-data";
 import { dispatch } from "@designcombo/events";
 import { ADD_VIDEO, ADD_IMAGE, ADD_AUDIO } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
@@ -294,9 +295,14 @@ const AssetListItem: React.FC<{
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     const jsonStr = buildDragPayload(file);
+    setDragData(JSON.parse(jsonStr));
     e.dataTransfer.setData("text/plain", jsonStr);
     e.dataTransfer.effectAllowed = "copy";
   }, [file]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragData(null);
+  }, []);
 
   const handleDoubleClick = useCallback(() => {
     onAdd(file);
@@ -310,6 +316,7 @@ const AssetListItem: React.FC<{
         onContextMenu={handleContextMenu}
         draggable
         onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         className={cn(
           "flex items-center gap-2 px-3 py-1.5 cursor-grab text-xs group transition-colors active:cursor-grabbing",
           selected ? "bg-white/10" : "hover:bg-white/5"
@@ -380,9 +387,14 @@ const AssetGridItem: React.FC<{
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     const jsonStr = buildDragPayload(file);
+    setDragData(JSON.parse(jsonStr));
     e.dataTransfer.setData("text/plain", jsonStr);
     e.dataTransfer.effectAllowed = "copy";
   }, [file]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragData(null);
+  }, []);
 
   const handleDoubleClick = useCallback(() => {
     onAdd(file);
@@ -396,6 +408,7 @@ const AssetGridItem: React.FC<{
         onContextMenu={handleContextMenu}
         draggable
         onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         className={cn(
           "rounded-md overflow-hidden cursor-grab group relative border transition-all active:cursor-grabbing",
           selected ? "border-primary ring-1 ring-primary" : "border-border/40 hover:border-border"
