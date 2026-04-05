@@ -333,12 +333,11 @@ export function SceneInteractions({
           const event = events[i];
           const id = getIdFromClassName(event.target.className);
           const trackItem = trackItemsMap[id];
-          const left =
-            Number.parseFloat(trackItem?.details.left as string) +
-            event.beforeTranslate[0];
-          const top =
-            Number.parseFloat(trackItem?.details.top as string) +
-            event.beforeTranslate[1];
+          if (!trackItem?.details) continue;
+          const currentLeft = Number.parseFloat(trackItem.details.left as string) || 0;
+          const currentTop = Number.parseFloat(trackItem.details.top as string) || 0;
+          const left = currentLeft + event.beforeTranslate[0];
+          const top = currentTop + event.beforeTranslate[1];
           event.target.style.left = `${left}px`;
           event.target.style.top = `${top}px`;
           holdGroupPosition[id] = {
@@ -524,8 +523,10 @@ export function SceneInteractions({
         if (holdGroupPosition) {
           const payload: Record<string, Partial<any>> = {};
           for (const id of Object.keys(holdGroupPosition)) {
-            const left = holdGroupPosition[id].left;
-            const top = holdGroupPosition[id].top;
+            const pos = holdGroupPosition[id];
+            if (!pos) continue;
+            const left = pos.left ?? 0;
+            const top = pos.top ?? 0;
             payload[id] = {
               details: {
                 top: `${top}px`,
