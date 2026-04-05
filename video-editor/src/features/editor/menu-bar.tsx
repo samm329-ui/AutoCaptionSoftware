@@ -58,7 +58,7 @@ const MenuDropdown: React.FC<MenuDropdownProps> = ({ label, items, isOpen, onTog
           if (!isOpen) onToggle();
         }}
         className={cn(
-          "px-2.5 py-1 text-[11px] rounded-sm transition-colors select-none",
+          "px-2.5 py-1 text-[11px] rounded-sm transition-colors select-none pointer-events-auto",
           isOpen ? "bg-white/15 text-white" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
         )}
       >
