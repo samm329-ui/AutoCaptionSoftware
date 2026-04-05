@@ -43,14 +43,17 @@ const MenuDropdown: React.FC<MenuDropdownProps> = ({ label, items, isOpen, onTog
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen, onClose]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onRightClick?.(e);
+  }, [onRightClick]);
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={onToggle}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          onRightClick?.(e);
-        }}
+        onContextMenu={handleContextMenu}
         onMouseEnter={() => {
           if (!isOpen) onToggle();
         }}
@@ -349,10 +352,17 @@ export default function MenuBar({
   const menuItems = getMenuItems(onImport, onUndo, onRedo);
   const menuNames = Object.keys(menuItems);
 
-  const handleFileRightClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setOpenMenu(openMenu === "File" ? null : "File");
-  }, [openMenu]);
+  const openMenuByName = useCallback((name: string) => {
+    setOpenMenu(name);
+  }, []);
+
+  const toggleMenu = useCallback((name: string) => {
+    setOpenMenu((prev) => (prev === name ? null : name));
+  }, []);
+
+  const closeAllMenus = useCallback(() => {
+    setOpenMenu(null);
+  }, []);
 
   return (
     <div className="flex items-center gap-0.5 px-2 select-none">
@@ -362,9 +372,9 @@ export default function MenuBar({
           label={name}
           items={menuItems[name]}
           isOpen={openMenu === name}
-          onToggle={() => setOpenMenu(openMenu === name ? null : name)}
-          onClose={() => setOpenMenu(null)}
-          onRightClick={name === "File" ? handleFileRightClick : undefined}
+          onToggle={() => toggleMenu(name)}
+          onClose={closeAllMenus}
+          onRightClick={() => openMenuByName(name)}
         />
       ))}
     </div>

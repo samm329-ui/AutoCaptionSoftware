@@ -143,7 +143,7 @@ export default function Navbar({
         </div>
       </div>
 
-      <div className="flex h-13 items-center gap-0">
+      <div className="flex h-13 items-center gap-0 pointer-events-auto">
         <MenuBar
           onImport={handleImport}
           onUndo={handleUndo}
