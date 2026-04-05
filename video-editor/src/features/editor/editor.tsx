@@ -44,7 +44,6 @@ import { ITrackItem } from "@designcombo/types";
 import useLayoutStore from "./store/use-layout-store";
 import ControlItemHorizontal from "./control-item-horizontal";
 import { design } from "./mock";
-import { Separator } from "@/components/ui/separator";
 import MediaToolbar from "./media-toolbar";
 
 // New panels
@@ -106,14 +105,16 @@ const SceneContainer = ({
 const LeftSidebar = () => {
   return (
     <div className="bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]">
-      <div className="flex flex-col w-full">
+      <ResizablePanelGroup direction="vertical" className="w-full">
         {/* Upper half: Source Control Panel */}
-        <div className="flex-1 min-h-0 border-b border-border/40">
+        <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
           <SourceControlPanel />
-        </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
 
         {/* Lower half: Project / Media tabs */}
-        <div className="flex-1 min-h-0">
+        <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
           <Tabs defaultValue="project" className="flex flex-col h-full">
             <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
               <TabsTrigger
@@ -136,8 +137,8 @@ const LeftSidebar = () => {
               <MenuList />
             </TabsContent>
           </Tabs>
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 };
@@ -147,28 +148,16 @@ const LeftSidebar = () => {
 const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
   return (
     <div className="bg-card flex flex-col border-l border-border/80 h-[calc(100vh-52px)] w-full">
-      <Tabs defaultValue="effects" className="flex flex-col h-full">
-        <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
-          <TabsTrigger
-            value="effects"
-            className="text-[10px] h-6 px-2 rounded-sm data-[state=active]:bg-white/10"
-          >
-            Effect Controls
-          </TabsTrigger>
-          <TabsTrigger
-            value="properties"
-            className="text-[10px] h-6 px-2 rounded-sm data-[state=active]:bg-white/10"
-          >
-            Properties
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="effects" className="flex-1 overflow-hidden mt-0">
+      <ResizablePanelGroup direction="vertical" className="w-full">
+        {/* Upper half: Effect Controls */}
+        <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
           <EffectControlsPanel />
-        </TabsContent>
+        </ResizablePanel>
 
-        <TabsContent value="properties" className="flex-1 overflow-hidden mt-0">
-          {/* Original ControlItem remains in properties tab */}
+        <ResizableHandle withHandle />
+
+        {/* Lower half: Properties */}
+        <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
           {trackItem ? (
             <ControlItem />
           ) : (
@@ -176,8 +165,8 @@ const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
               Select a clip to see properties
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 };
