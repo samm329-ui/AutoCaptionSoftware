@@ -17,16 +17,31 @@ const Player = () => {
   const safeDurationInFrames = Math.max(1, Math.round((safeDuration / 1000) * safeFps));
 
   return (
-    <RemotionPlayer
-      ref={playerRef}
-      component={Composition}
-      durationInFrames={safeDurationInFrames}
-      compositionWidth={safeSize.width}
-      compositionHeight={safeSize.height}
-      className={`h-full w-full bg-[${background.value}]`}
-      fps={safeFps}
-      overflowVisible
-    />
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: safeSize.width,
+        height: safeSize.height,
+      }}
+    >
+      <RemotionPlayer
+        key={`${safeSize.width}x${safeSize.height}@${safeFps}`}
+        ref={playerRef}
+        component={Composition}
+        durationInFrames={safeDurationInFrames}
+        compositionWidth={safeSize.width}
+        compositionHeight={safeSize.height}
+        className="bg-transparent"
+        style={{
+          width: safeSize.width,
+          height: safeSize.height,
+        }}
+        fps={safeFps}
+        overflowVisible
+      />
+    </div>
   );
 };
 export default Player;
