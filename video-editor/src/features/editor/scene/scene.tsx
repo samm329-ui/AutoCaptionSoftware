@@ -48,7 +48,9 @@ const Scene = forwardRef<
           height: size.height,
           background: "#000000",
           transform: `scale(${zoom})`,
-          position: "absolute"
+          transformOrigin: "center center",
+          position: "relative",
+          flexShrink: 0,
         }}
         className="player-container bg-sidebar"
       >
