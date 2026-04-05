@@ -5,6 +5,7 @@
  * ───────────────────────────
  * File · Edit · Clip · Sequence · Markers · Graphics & Titles · View · Window · Help
  * Each menu shows all features; unavailable ones are greyed out with tooltip.
+ * Right-click on any menu header opens its dropdown.
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -27,9 +28,10 @@ interface MenuDropdownProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
+  onRightClick?: (e: React.MouseEvent) => void;
 }
 
-const MenuDropdown: React.FC<MenuDropdownProps> = ({ label, items, isOpen, onToggle, onClose }) => {
+const MenuDropdown: React.FC<MenuDropdownProps> = ({ label, items, isOpen, onToggle, onClose, onRightClick }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,7 +47,13 @@ const MenuDropdown: React.FC<MenuDropdownProps> = ({ label, items, isOpen, onTog
     <div ref={ref} className="relative">
       <button
         onClick={onToggle}
-        onMouseEnter={() => isOpen || onToggle()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onRightClick?.(e);
+        }}
+        onMouseEnter={() => {
+          if (!isOpen) onToggle();
+        }}
         className={cn(
           "px-2.5 py-1 text-[11px] rounded-sm transition-colors select-none",
           isOpen ? "bg-white/15 text-white" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
@@ -54,7 +62,7 @@ const MenuDropdown: React.FC<MenuDropdownProps> = ({ label, items, isOpen, onTog
         {label}
       </button>
       {isOpen && (
-        <div className="absolute left-0 top-full z-[9999] mt-0.5 min-w-[240px] bg-card border border-border rounded-md shadow-2xl py-1 animate-in fade-in duration-100">
+        <div className="absolute left-0 top-full z-[9999] mt-0.5 min-w-[260px] bg-card border border-border rounded-md shadow-2xl py-1 animate-in fade-in duration-100">
           {items.map((item, i) => (
             <div key={i}>
               {item.separator && <div className="my-1 border-t border-border/40" />}
@@ -79,11 +87,16 @@ const MenuItemRow: React.FC<{ item: MenuItem }> = ({ item }) => {
   if (item.disabled) {
     return (
       <div
-        className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground/40 cursor-not-allowed select-none"
+        className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground/40 cursor-not-allowed select-none group relative"
         title={item.tooltip || "Currently not available"}
       >
-        <span>{item.label}</span>
+        <div className="flex items-center gap-2">
+          <span>{item.label}</span>
+        </div>
         {item.shortcut && <span className="text-[10px] ml-8 font-mono">{item.shortcut}</span>}
+        <div className="absolute left-full top-0 ml-1 hidden group-hover:block z-[10001] bg-popover border border-border rounded px-2 py-1 text-[10px] text-muted-foreground whitespace-nowrap shadow-lg">
+          {item.tooltip || "Currently not available"}
+        </div>
       </div>
     );
   }
@@ -92,7 +105,7 @@ const MenuItemRow: React.FC<{ item: MenuItem }> = ({ item }) => {
     <div
       ref={ref}
       className={cn(
-        "flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer select-none transition-colors",
+        "flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer select-none transition-colors relative",
         subOpen ? "bg-primary text-primary-foreground" : "hover:bg-white/5"
       )}
       onClick={handleClick}
@@ -126,11 +139,11 @@ const MenuItemRow: React.FC<{ item: MenuItem }> = ({ item }) => {
 
 const na = "Currently not available";
 
-function useMenuActions() {
-  return {};
-}
-
-export function getMenuItems(): Record<string, MenuItem[]> {
+export function getMenuItems(
+  onImport?: () => void,
+  onUndo?: () => void,
+  onRedo?: () => void
+): Record<string, MenuItem[]> {
   return {
     File: [
       { label: "New", submenu: [
@@ -158,7 +171,10 @@ export function getMenuItems(): Record<string, MenuItem[]> {
       { label: "Save All", disabled: true, tooltip: na },
       { label: "Revert", disabled: true, tooltip: na },
       { separator: true },
-      { label: "Import…", shortcut: "Ctrl+I", disabled: true, tooltip: na },
+      { label: "Link Media", disabled: true, tooltip: na },
+      { label: "Make Offline", disabled: true, tooltip: na },
+      { separator: true },
+      { label: "Import…", shortcut: "Ctrl+I", onClick: onImport },
       { label: "Import Recent File", disabled: true, tooltip: na },
       { label: "Search Adobe Stock", disabled: true, tooltip: na },
       { separator: true },
@@ -180,8 +196,8 @@ export function getMenuItems(): Record<string, MenuItem[]> {
       { label: "Exit", disabled: true, tooltip: na },
     ],
     Edit: [
-      { label: "Undo", shortcut: "Ctrl+Z", disabled: true, tooltip: na },
-      { label: "Redo", shortcut: "Ctrl+Shift+Z", disabled: true, tooltip: na },
+      { label: "Undo", shortcut: "Ctrl+Z", onClick: onUndo },
+      { label: "Redo", shortcut: "Ctrl+Shift+Z", onClick: onRedo },
       { separator: true },
       { label: "Cut", shortcut: "Ctrl+X", disabled: true, tooltip: na },
       { label: "Copy", shortcut: "Ctrl+C", disabled: true, tooltip: na },
@@ -318,10 +334,25 @@ export function getMenuItems(): Record<string, MenuItem[]> {
   };
 }
 
-export default function MenuBar() {
+export default function MenuBar({
+  onImport,
+  onUndo,
+  onRedo,
+  fileInputRef
+}: {
+  onImport?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  fileInputRef?: React.RefObject<HTMLInputElement | null>;
+}) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const menuItems = getMenuItems();
+  const menuItems = getMenuItems(onImport, onUndo, onRedo);
   const menuNames = Object.keys(menuItems);
+
+  const handleFileRightClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setOpenMenu(openMenu === "File" ? null : "File");
+  }, [openMenu]);
 
   return (
     <div className="flex items-center gap-0.5 px-2 select-none">
@@ -333,6 +364,7 @@ export default function MenuBar() {
           isOpen={openMenu === name}
           onToggle={() => setOpenMenu(openMenu === name ? null : name)}
           onClose={() => setOpenMenu(null)}
+          onRightClick={name === "File" ? handleFileRightClick : undefined}
         />
       ))}
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { dispatch } from "@designcombo/events";
 import { HISTORY_UNDO, HISTORY_REDO, DESIGN_RESIZE } from "@designcombo/state";
@@ -35,6 +35,7 @@ import Link from "next/link";
 import { ShortcutsModal } from "./shortcuts-modal";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import MenuBar from "./menu-bar";
+import { handleFileUpload } from "@/store/upload-store";
 
 export default function Navbar({
   user,
@@ -52,6 +53,7 @@ export default function Navbar({
   const isMediumScreen = useIsMediumScreen();
   const isSmallScreen = useIsSmallScreen();
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const handleUndo = () => {
     dispatch(HISTORY_UNDO);
@@ -60,6 +62,21 @@ export default function Navbar({
   const handleRedo = () => {
     dispatch(HISTORY_REDO);
   };
+
+  const handleImport = useCallback(() => {
+    importFileRef.current?.click();
+  }, []);
+
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files ? Array.from(e.target.files) : [];
+      if (files.length > 0) {
+        await handleFileUpload(files);
+      }
+      if (importFileRef.current) importFileRef.current.value = "";
+    },
+    []
+  );
 
   const handleCreateProject = async () => {};
 
@@ -91,6 +108,16 @@ export default function Navbar({
     >
       <DownloadProgressModal />
 
+      {/* Hidden file input for Import */}
+      <input
+        type="file"
+        ref={importFileRef}
+        multiple
+        accept="video/*,image/*,audio/*"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
       <div className="flex items-center gap-2">
         <div className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-md invert dark:invert-0">
           <LogoIcons.editor />
@@ -117,7 +144,12 @@ export default function Navbar({
       </div>
 
       <div className="flex h-13 items-center gap-0">
-        <MenuBar />
+        <MenuBar
+          onImport={handleImport}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          fileInputRef={importFileRef}
+        />
       </div>
 
       <div className="flex h-13 items-center justify-end gap-2">
@@ -131,15 +163,6 @@ export default function Navbar({
             <Keyboard className="size-5" />
           </Button>
           <ModeToggle />
-
-          {/* <Button
-            className="flex h-8 gap-1 border border-border"
-            variant="outline"
-            size={isMediumScreen ? "sm" : "icon"}
-          >
-            <ShareIcon width={18} />{" "}
-            <span className="hidden md:block">Share</span>
-          </Button> */}
 
           <DownloadPopover stateManager={stateManager} />
         </div>
@@ -177,7 +200,6 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
           className="flex h-8 gap-1 border border-border rounded-full"
           size={isMediumScreen ? "sm" : "icon"}
         >
-          {/* <Download width={18} />{" "} */}
           <span className="hidden md:block">Download</span>
         </Button>
       </PopoverTrigger>
