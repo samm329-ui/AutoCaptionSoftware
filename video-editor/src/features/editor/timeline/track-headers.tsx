@@ -119,7 +119,7 @@ export default function TrackHeaders({ canvasRef }: TrackHeadersProps) {
         top: obj.top,
         height: obj.height,
       }))
-      .filter((p) => !isNaN(p.top) && !isNaN(p.height) && p.height > 0);
+      .filter((p: { id: string; top: number; height: number }) => !isNaN(p.top) && !isNaN(p.height) && p.height > 0);
 
     setTrackPositions(positions);
     animFrameRef.current = requestAnimationFrame(syncTrackPositions);
@@ -177,16 +177,18 @@ export default function TrackHeaders({ canvasRef }: TrackHeadersProps) {
       if (!track) return;
       const isHidden = (track as any).hidden ?? false;
       const canvas = canvasRef.current;
-      if (canvas) {
-        const trackObj = canvas.getObjects("Track").find((o: any) => o.id === trackId);
-        if (trackObj) {
-          trackObj.visible = isHidden;
-          const items = canvas.getObjects().filter((o: any) => o.trackId === trackId || o.parentId === trackId);
-          items.forEach((item: any) => {
+      if (!canvas) return;
+      const allObjects = canvas.getObjects();
+      const trackObj = allObjects.find((o: any) => o.id === trackId && o.type === "Track");
+      if (trackObj && typeof trackObj.visible !== "undefined") {
+        trackObj.visible = isHidden;
+        const items = allObjects.filter((o: any) => o.trackId === trackId || o.parentId === trackId);
+        items.forEach((item: any) => {
+          if (typeof item.visible !== "undefined") {
             item.visible = isHidden;
-          });
-          canvas.requestRenderAll();
-        }
+          }
+        });
+        canvas.requestRenderAll();
       }
       setState({
         tracks: tracks.map((t) =>
