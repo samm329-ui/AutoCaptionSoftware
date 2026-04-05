@@ -3,10 +3,10 @@
 /**
  * Source Control Panel
  * ────────────────────
- * Independent source monitor — not tied to timeline selection.
- * Media stays loaded even if timeline clips are deleted.
+ * Independent source monitor with frame-based timeline.
  *
  *  - Drag media from project panel to preview
+ *  - Frame-based timeline with In/Out markers on same track
  *  - In/Out playback (loops between { and } when set)
  *  - Insert to timeline (full, audio-only, video-only)
  *  - Keyboard: I = set In, O = set Out, Space = play/pause
@@ -14,7 +14,6 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
   Play,
   Pause,
@@ -26,25 +25,30 @@ import {
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import useStore from "../store/use-store";
 import { dispatch } from "@designcombo/events";
 import { ADD_VIDEO, ADD_AUDIO, ADD_IMAGE } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
 
+const DEFAULT_FPS = 30;
+
 export default function SourceControlPanel() {
-  const { playerRef, fps } = useStore();
-  const currentFrame = useCurrentPlayerFrame(playerRef);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const scrubberRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [inPoint, setInPoint] = useState<number | null>(null);
-  const [outPoint, setOutPoint] = useState<number | null>(null);
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [inFrame, setInFrame] = useState<number | null>(null);
+  const [outFrame, setOutFrame] = useState<number | null>(null);
   const [sourceSrc, setSourceSrc] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState("");
   const [sourceType, setSourceType] = useState<"video" | "audio" | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const animFrameRef = useRef<number | null>(null);
+
+  const totalFrames = Math.floor(duration * DEFAULT_FPS);
+  const inFrameClamped = inFrame !== null ? Math.min(inFrame, totalFrames) : null;
+  const outFrameClamped = outFrame !== null ? Math.min(outFrame, totalFrames) : null;
 
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
@@ -52,83 +56,137 @@ export default function SourceControlPanel() {
     }
   }, []);
 
-  const handleTimeUpdate = useCallback(() => {
+  const syncFrameFromVideo = useCallback(() => {
     if (!videoRef.current) return;
     const t = videoRef.current.currentTime;
-    setCurrentTime(t);
+    const frame = Math.floor(t * DEFAULT_FPS);
+    setCurrentFrame(frame);
 
-    if (inPoint !== null && outPoint !== null && t >= outPoint) {
-      videoRef.current.currentTime = inPoint;
-      setCurrentTime(inPoint);
+    if (inFrameClamped !== null && outFrameClamped !== null && frame >= outFrameClamped) {
+      videoRef.current.currentTime = inFrameClamped / DEFAULT_FPS;
+      setCurrentFrame(inFrameClamped);
     }
-  }, [inPoint, outPoint]);
+  }, [inFrameClamped, outFrameClamped]);
+
+  const startPlaybackLoop = useCallback(() => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    const loop = () => {
+      syncFrameFromVideo();
+      if (videoRef.current && !videoRef.current.paused) {
+        animFrameRef.current = requestAnimationFrame(loop);
+      }
+    };
+    animFrameRef.current = requestAnimationFrame(loop);
+  }, [syncFrameFromVideo]);
+
+  const stopPlaybackLoop = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => stopPlaybackLoop();
+  }, [stopPlaybackLoop]);
 
   const handleEnded = useCallback(() => {
-    if (inPoint !== null && outPoint !== null) {
+    if (inFrameClamped !== null && outFrameClamped !== null) {
       if (videoRef.current) {
-        videoRef.current.currentTime = inPoint;
-        setCurrentTime(inPoint);
+        videoRef.current.currentTime = inFrameClamped / DEFAULT_FPS;
+        setCurrentFrame(inFrameClamped);
         videoRef.current.play();
         setPlaying(true);
+        startPlaybackLoop();
       }
     } else {
       setPlaying(false);
+      stopPlaybackLoop();
     }
-  }, [inPoint, outPoint]);
+  }, [inFrameClamped, outFrameClamped, startPlaybackLoop, stopPlaybackLoop]);
 
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
     if (playing) {
       videoRef.current.pause();
       setPlaying(false);
+      stopPlaybackLoop();
     } else {
-      if (inPoint !== null && outPoint !== null) {
-        videoRef.current.currentTime = inPoint;
-        setCurrentTime(inPoint);
+      if (inFrameClamped !== null && outFrameClamped !== null) {
+        videoRef.current.currentTime = inFrameClamped / DEFAULT_FPS;
+        setCurrentFrame(inFrameClamped);
       }
       videoRef.current.play();
       setPlaying(true);
+      startPlaybackLoop();
     }
-  }, [playing, inPoint, outPoint]);
+  }, [playing, inFrameClamped, outFrameClamped, startPlaybackLoop, stopPlaybackLoop]);
 
   const stepFrame = useCallback((direction: number) => {
     if (!videoRef.current) return;
     videoRef.current.pause();
     setPlaying(false);
-    videoRef.current.currentTime += direction / (fps || 30);
-    setCurrentTime(videoRef.current.currentTime);
-  }, [fps]);
+    stopPlaybackLoop();
+    const newTime = videoRef.current.currentTime + direction / DEFAULT_FPS;
+    videoRef.current.currentTime = Math.max(0, Math.min(newTime, duration));
+    setCurrentFrame(Math.floor(videoRef.current.currentTime * DEFAULT_FPS));
+  }, [duration, stopPlaybackLoop]);
 
   const setIn = useCallback(() => {
     if (!videoRef.current) return;
-    setInPoint(videoRef.current.currentTime);
+    setInFrame(Math.floor(videoRef.current.currentTime * DEFAULT_FPS));
   }, []);
 
   const setOut = useCallback(() => {
     if (!videoRef.current) return;
-    setOutPoint(videoRef.current.currentTime);
+    setOutFrame(Math.floor(videoRef.current.currentTime * DEFAULT_FPS));
   }, []);
 
   const clearInOut = useCallback(() => {
-    setInPoint(null);
-    setOutPoint(null);
+    setInFrame(null);
+    setOutFrame(null);
   }, []);
+
+  const goToFrame = useCallback((frame: number) => {
+    if (!videoRef.current) return;
+    const clamped = Math.max(0, Math.min(frame, totalFrames));
+    videoRef.current.currentTime = clamped / DEFAULT_FPS;
+    setCurrentFrame(clamped);
+  }, [totalFrames]);
+
+  const handleScrubberClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!scrubberRef.current || !videoRef.current) return;
+    const rect = scrubberRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, x / rect.width));
+    const frame = Math.floor(pct * totalFrames);
+    goToFrame(frame);
+  }, [totalFrames, goToFrame]);
+
+  const handleScrubberDrag = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isScrubbing) return;
+    if (!scrubberRef.current || !videoRef.current) return;
+    const rect = scrubberRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, x / rect.width));
+    const frame = Math.floor(pct * totalFrames);
+    goToFrame(frame);
+  }, [isScrubbing, totalFrames, goToFrame]);
 
   const insertToTimeline = useCallback((fileType?: string) => {
     if (!sourceSrc || !sourceType) return;
 
     const ft = fileType || sourceType;
     const id = generateId();
-    const dur = duration;
-    const inSec = inPoint ?? 0;
-    const outSec = outPoint ?? dur;
+    const inSec = inFrameClamped !== null ? inFrameClamped / DEFAULT_FPS : 0;
+    const outSec = outFrameClamped !== null ? outFrameClamped / DEFAULT_FPS : duration;
     const clipDur = (outSec - inSec) * 1000;
 
     const payload = {
       id,
       details: { src: sourceSrc },
-      metadata: { previewUrl: sourceSrc, duration: dur * 1000 },
-      display: { from: 0, to: clipDur > 0 ? clipDur : dur * 1000 },
+      metadata: { previewUrl: sourceSrc, duration: duration * 1000 },
+      display: { from: 0, to: clipDur > 0 ? clipDur : duration * 1000 },
       trim: { from: inSec * 1000, to: outSec * 1000 },
     };
 
@@ -143,26 +201,25 @@ export default function SourceControlPanel() {
         dispatch(ADD_IMAGE, { payload: { ...payload, type: "image" }, options: {} });
         break;
     }
-  }, [sourceSrc, sourceType, duration, inPoint, outPoint]);
+  }, [sourceSrc, sourceType, duration, inFrameClamped, outFrameClamped]);
 
   const buildDragPayload = useCallback((fileType?: string) => {
     if (!sourceSrc || !sourceType) return null;
     const ft = fileType || sourceType;
-    const dur = duration;
-    const inSec = inPoint ?? 0;
-    const outSec = outPoint ?? dur;
+    const inSec = inFrameClamped !== null ? inFrameClamped / DEFAULT_FPS : 0;
+    const outSec = outFrameClamped !== null ? outFrameClamped / DEFAULT_FPS : duration;
 
     return {
       type: "track-item",
       src: sourceSrc,
       name: sourceName,
       fileType: ft,
-      duration: dur,
+      duration,
       trimFrom: inSec,
       trimTo: outSec,
-      hasInOut: inPoint !== null && outPoint !== null,
+      hasInOut: inFrameClamped !== null && outFrameClamped !== null,
     };
-  }, [sourceSrc, sourceType, sourceName, duration, inPoint, outPoint]);
+  }, [sourceSrc, sourceType, sourceName, duration, inFrameClamped, outFrameClamped]);
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     const payload = buildDragPayload();
@@ -170,22 +227,6 @@ export default function SourceControlPanel() {
     e.dataTransfer.setData("text/plain", JSON.stringify(payload));
     e.dataTransfer.effectAllowed = "copy";
   }, [buildDragPayload]);
-
-  const handleDragStartAudioOnly = useCallback((e: React.DragEvent) => {
-    if (sourceType !== "video") return;
-    const payload = buildDragPayload("audio");
-    if (!payload) return;
-    e.dataTransfer.setData("text/plain", JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "copy";
-  }, [sourceType, buildDragPayload]);
-
-  const handleDragStartVideoOnly = useCallback((e: React.DragEvent) => {
-    if (sourceType !== "video") return;
-    const payload = buildDragPayload("video");
-    if (!payload) return;
-    e.dataTransfer.setData("text/plain", JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "copy";
-  }, [sourceType, buildDragPayload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -212,10 +253,11 @@ export default function SourceControlPanel() {
         setSourceSrc(item.src);
         setSourceName(item.name || "Dropped clip");
         setSourceType(item.fileType || "video");
-        setInPoint(null);
-        setOutPoint(null);
-        setCurrentTime(0);
+        setInFrame(null);
+        setOutFrame(null);
+        setCurrentFrame(0);
         setPlaying(false);
+        stopPlaybackLoop();
         if (videoRef.current) videoRef.current.currentTime = 0;
       }
     } catch {
@@ -227,15 +269,16 @@ export default function SourceControlPanel() {
           setSourceSrc(url);
           setSourceName(file.name);
           setSourceType(file.type.startsWith("video/") ? "video" : "audio");
-          setInPoint(null);
-          setOutPoint(null);
-          setCurrentTime(0);
+          setInFrame(null);
+          setOutFrame(null);
+          setCurrentFrame(0);
           setPlaying(false);
+          stopPlaybackLoop();
           if (videoRef.current) videoRef.current.currentTime = 0;
         }
       }
     }
-  }, []);
+  }, [stopPlaybackLoop]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -253,14 +296,24 @@ export default function SourceControlPanel() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [sourceSrc, setIn, setOut, togglePlay, stepFrame]);
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    const ms = Math.floor((s % 1) * 100);
-    return `${m}:${sec.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
+  const formatTimecode = (frame: number) => {
+    const totalSec = frame / DEFAULT_FPS;
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = Math.floor(totalSec % 60);
+    const f = frame % DEFAULT_FPS;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}:${f.toString().padStart(2, "0")}`;
   };
 
-  const displayDuration = duration > 0 ? duration : 0;
+  const playheadPct = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
+  const inPct = totalFrames > 0 && inFrameClamped !== null ? (inFrameClamped / totalFrames) * 100 : null;
+  const outPct = totalFrames > 0 && outFrameClamped !== null ? (outFrameClamped / totalFrames) * 100 : null;
+
+  const frameMarkers = [];
+  const markerInterval = Math.max(1, Math.floor(totalFrames / 20));
+  for (let f = 0; f <= totalFrames; f += markerInterval) {
+    frameMarkers.push(f);
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-card">
@@ -294,7 +347,6 @@ export default function SourceControlPanel() {
               className="w-full h-full object-contain pointer-events-none"
               muted
               onLoadedMetadata={handleLoadedMetadata}
-              onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
               onClick={togglePlay}
             />
@@ -311,7 +363,6 @@ export default function SourceControlPanel() {
               ref={videoRef as any}
               src={sourceSrc}
               onLoadedMetadata={handleLoadedMetadata}
-              onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
             />
           </div>
@@ -322,24 +373,24 @@ export default function SourceControlPanel() {
           </div>
         )}
 
-        {sourceSrc && displayDuration > 0 && (inPoint !== null || outPoint !== null) && (
+        {sourceSrc && totalFrames > 0 && (inPct !== null || outPct !== null) && (
           <div className="absolute inset-0 pointer-events-none">
-            {inPoint !== null && (
+            {inPct !== null && (
               <div
                 className="absolute top-0 bottom-0 w-[2px] bg-emerald-400"
-                style={{ left: `${(inPoint / displayDuration) * 100}%` }}
+                style={{ left: `${inPct}%` }}
               >
-                <span className="absolute -top-0 -translate-x-1/2 bg-emerald-400 text-[9px] text-black px-0.5 font-bold">
+                <span className="absolute top-1 -translate-x-1/2 bg-emerald-400 text-[9px] text-black px-0.5 font-bold">
                   {"{"}
                 </span>
               </div>
             )}
-            {outPoint !== null && (
+            {outPct !== null && (
               <div
                 className="absolute top-0 bottom-0 w-[2px] bg-red-400"
-                style={{ left: `${(outPoint / displayDuration) * 100}%` }}
+                style={{ left: `${outPct}%` }}
               >
-                <span className="absolute -top-0 -translate-x-1/2 bg-red-400 text-[9px] text-black px-0.5 font-bold">
+                <span className="absolute top-1 -translate-x-1/2 bg-red-400 text-[9px] text-black px-0.5 font-bold">
                   {"}"}
                 </span>
               </div>
@@ -348,37 +399,90 @@ export default function SourceControlPanel() {
         )}
       </div>
 
-      <div className="flex items-center gap-2 px-3 py-1 bg-black/20">
-        <span className="text-[10px] font-mono text-muted-foreground tabular-nums shrink-0">
-          {formatTime(currentTime)}
-        </span>
-        <div className="flex-1">
-          <Slider
-            value={[currentTime]}
-            max={displayDuration || 100}
-            step={0.01}
-            onValueChange={([v]) => {
-              if (videoRef.current) {
-                videoRef.current.currentTime = v;
-                setCurrentTime(v);
-              }
-            }}
-            className="h-1"
-          />
+      {/* Frame-based timeline */}
+      <div className="px-2 py-1.5 border-t border-border/40">
+        {/* Timecode display */}
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
+            {inFrameClamped !== null ? formatTimecode(inFrameClamped) : "--:--:--:--"}
+          </span>
+          <span className="text-[11px] font-mono text-foreground tabular-nums font-bold">
+            {formatTimecode(currentFrame)}
+          </span>
+          <span className="text-[10px] font-mono text-red-400 tabular-nums">
+            {outFrameClamped !== null ? formatTimecode(outFrameClamped) : "--:--:--:--"}
+          </span>
         </div>
-        <span className="text-[10px] font-mono text-muted-foreground tabular-nums shrink-0">
-          {formatTime(displayDuration)}
-        </span>
+
+        {/* Frame ruler with tick marks */}
+        <div
+          ref={scrubberRef}
+          className="relative h-6 bg-black/30 rounded cursor-pointer select-none"
+          onClick={handleScrubberClick}
+          onMouseDown={(e) => {
+            setIsScrubbing(true);
+            handleScrubberClick(e);
+          }}
+          onMouseMove={handleScrubberDrag}
+          onMouseUp={() => setIsScrubbing(false)}
+          onMouseLeave={() => setIsScrubbing(false)}
+        >
+          {/* In/Out range highlight */}
+          {inPct !== null && outPct !== null && (
+            <div
+              className="absolute top-0 bottom-0 bg-emerald-400/10"
+              style={{
+                left: `${inPct}%`,
+                width: `${outPct - inPct}%`,
+              }}
+            />
+          )}
+
+          {/* Frame tick marks */}
+          {frameMarkers.map((f) => {
+            const pct = (f / totalFrames) * 100;
+            const isSecond = f % DEFAULT_FPS === 0;
+            return (
+              <div
+                key={f}
+                className="absolute bottom-0 bg-muted-foreground/40"
+                style={{
+                  left: `${pct}%`,
+                  width: "1px",
+                  height: isSecond ? "8px" : "4px",
+                }}
+              />
+            );
+          })}
+
+          {/* Playhead */}
+          <div
+            className="absolute top-0 bottom-0 w-[2px] bg-white transition-none"
+            style={{ left: `${playheadPct}%`, transform: "translateX(-1px)" }}
+          >
+            <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2.5 h-1.5 bg-white rounded-sm" />
+          </div>
+        </div>
+
+        {/* Frame number */}
+        <div className="flex items-center justify-between mt-0.5">
+          <span className="text-[9px] text-muted-foreground">0</span>
+          <span className="text-[9px] text-muted-foreground">
+            Frame {currentFrame} / {totalFrames}
+          </span>
+          <span className="text-[9px] text-muted-foreground">{totalFrames}</span>
+        </div>
       </div>
 
+      {/* Transport controls */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-t border-border/40">
-        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => stepFrame(-1)} title="Previous Frame">
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => stepFrame(-1)} title="Previous Frame (Left)">
           <SkipBack className="w-3 h-3" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={togglePlay} title="Play/Pause">
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={togglePlay} title="Play/Pause (Space)">
           {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
         </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => stepFrame(1)} title="Next Frame">
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => stepFrame(1)} title="Next Frame (Right)">
           <SkipForward className="w-3 h-3" />
         </Button>
 
@@ -389,7 +493,7 @@ export default function SourceControlPanel() {
           size="sm"
           className={cn(
             "h-6 w-6 shrink-0 p-0 font-mono",
-            inPoint !== null ? "text-emerald-400 bg-emerald-400/10" : "text-muted-foreground"
+            inFrameClamped !== null ? "text-emerald-400 bg-emerald-400/10" : "text-muted-foreground"
           )}
           onClick={setIn}
           title="Set In Point (I)"
@@ -401,14 +505,14 @@ export default function SourceControlPanel() {
           size="sm"
           className={cn(
             "h-6 w-6 shrink-0 p-0 font-mono",
-            outPoint !== null ? "text-red-400 bg-red-400/10" : "text-muted-foreground"
+            outFrameClamped !== null ? "text-red-400 bg-red-400/10" : "text-muted-foreground"
           )}
           onClick={setOut}
           title="Set Out Point (O)"
         >
           <span className="text-[10px]">{"}"}</span>
         </Button>
-        {(inPoint !== null || outPoint !== null) && (
+        {(inFrameClamped !== null || outFrameClamped !== null) && (
           <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={clearInOut} title="Clear In/Out">
             <RotateCcw className="w-2.5 h-2.5" />
           </Button>
