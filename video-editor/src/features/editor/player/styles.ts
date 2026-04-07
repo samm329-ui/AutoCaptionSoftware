@@ -1,4 +1,5 @@
 import { IImage, IText, ITrackItem } from "@designcombo/types";
+import { buildEffectStyle } from "../utils/video-effects-utils";
 
 export const calculateCropStyles = (
   details: IImage["details"],
@@ -62,6 +63,12 @@ export const calculateContainerStyles = (
   overrides: React.CSSProperties = {},
   type?: string
 ): React.CSSProperties => {
+  const appliedEffects = (details as any).appliedEffects ?? [];
+  const effectStyle = buildEffectStyle(appliedEffects);
+
+  const baseFilter = `brightness(${details.brightness ?? 100}%) blur(${details.blur ?? 0}px)`;
+  const combinedFilters = [baseFilter, effectStyle.filter].filter(Boolean).join(" ");
+
   return {
     pointerEvents: "auto",
     top: details.top || 0,
@@ -74,8 +81,9 @@ export const calculateContainerStyles = (
     transform: details.transform || "none",
     opacity: details.opacity !== undefined ? details.opacity / 100 : 1,
     transformOrigin: details.transformOrigin || "center center",
-    filter: `brightness(${details.brightness}%) blur(${details.blur}px)`,
+    filter: combinedFilters,
     rotate: details.rotate || "0deg",
-    ...overrides // Merge overrides into the calculated styles
+    ...effectStyle.style,
+    ...overrides
   };
 };
