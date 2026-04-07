@@ -9,7 +9,9 @@ export const useResizbleTimeline = () => {
 
   const onMouseDown = (ev: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     if (!timelineContainerRef.current) return;
-    const { y } = timelineContainerRef.current.getBoundingClientRect();
+    const rect = timelineContainerRef.current.getBoundingClientRect();
+    if (!rect) return;
+    const { y } = rect;
     const cursorPosition = ev.clientY - y;
     if (cursorPosition > 15 || cursorPosition < -15) return;
     setIsResizing(true);
@@ -48,7 +50,9 @@ export const useResizbleTimeline = () => {
 
   const onMouseMove = (ev: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     if (isResizing || !timelineContainerRef.current) return;
-    const { y } = timelineContainerRef.current.getBoundingClientRect();
+    const rect = timelineContainerRef.current.getBoundingClientRect();
+    if (!rect) return;
+    const { y } = rect;
     const cursorPosition = ev.clientY - y;
 
     if (cursorPosition <= 15 && cursorPosition >= -15) {
