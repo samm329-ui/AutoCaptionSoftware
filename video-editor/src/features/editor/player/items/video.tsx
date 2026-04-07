@@ -36,10 +36,10 @@ export const Video = ({
   const effectiveVolume = isTrackMuted ? 0 : baseVolume;
 
   const children = (
-    <BoxAnim
-      style={calculateContainerStyles(details, crop, {
-        overflow: "hidden"
-      })}
+      <BoxAnim
+        style={calculateContainerStyles(details, crop, {
+          overflow: "hidden"
+        })}
       animationIn={animationIn}
       animationOut={animationOut}
       frame={currentFrame}
