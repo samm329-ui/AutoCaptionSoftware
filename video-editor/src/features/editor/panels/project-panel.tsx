@@ -36,6 +36,7 @@ import { setDragData } from "@/components/shared/drag-data";
 import { dispatch } from "@designcombo/events";
 import { ADD_VIDEO, ADD_IMAGE, ADD_AUDIO } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
+import EffectsTab from "./effects-tab";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
@@ -80,6 +81,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, items }) => {
     const menu = menuRef.current;
     if (!menu) return;
     const rect = menu.getBoundingClientRect();
+    if (!rect) return;
     const maxX = window.innerWidth - rect.width - 8;
     const maxY = window.innerHeight - rect.height - 8;
     menu.style.left = `${Math.min(x, maxX)}px`;
@@ -595,6 +597,7 @@ const ProjectPanel: React.FC = () => {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [folderPicker, setFolderPicker] = useState<{ x: number; y: number; fileId: string } | null>(null);
   const [createMenu, setCreateMenu] = useState<{ x: number; y: number } | null>(null);
+  const [panelTab, setPanelTab] = useState<"media" | "effects">("media");
 
   const filtered = uploads.filter((f) =>
     f.fileName.toLowerCase().includes(search.toLowerCase())
@@ -777,132 +780,165 @@ const ProjectPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <input type="file" ref={fileInputRef} multiple accept="video/*,image/*,audio/*" onChange={handleFileSelect} className="hidden" />
-
-      {/* Toolbar */}
-      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-border/40">
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search assets..."
-            className="h-6 pl-6 text-xs bg-transparent border-border/40"
-          />
-        </div>
+      {/* Top tab bar */}
+      <div className="flex border-b border-border/40 shrink-0">
         <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-primary/20 hover:bg-primary/30 text-primary transition-colors"
-          title="Import media"
+          onClick={() => setPanelTab("media")}
+          className={cn(
+            "flex-1 py-1.5 text-[11px] font-medium border-b-2 transition-colors",
+            panelTab === "media"
+              ? "text-foreground border-primary"
+              : "text-muted-foreground border-transparent hover:text-foreground/80"
+          )}
         >
-          <Upload className="w-3 h-3" />
-          Import
+          Media
         </button>
-        <div className="flex rounded overflow-hidden border border-border/40">
-          <button onClick={() => setView("list")} className={cn("p-1 transition-colors", view === "list" ? "bg-white/10" : "hover:bg-white/5")} title="List view">
-            <List className="w-3 h-3" />
-          </button>
-          <button onClick={() => setView("grid")} className={cn("p-1 transition-colors", view === "grid" ? "bg-white/10" : "hover:bg-white/5")} title="Grid view">
-            <Grid3X3 className="w-3 h-3" />
-          </button>
-        </div>
+        <button
+          onClick={() => setPanelTab("effects")}
+          className={cn(
+            "flex-1 py-1.5 text-[11px] font-medium border-b-2 transition-colors",
+            panelTab === "effects"
+              ? "text-foreground border-primary"
+              : "text-muted-foreground border-transparent hover:text-foreground/80"
+          )}
+        >
+          Effects
+        </button>
       </div>
 
-      {/* Asset list */}
-      <div className="flex-1 overflow-y-auto">
-        {uploads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground px-4">
-            <Upload className="w-8 h-8 opacity-30" />
-            <p className="text-xs text-center">
-              Import videos, images, and audio to get started.
-              <br />
-              <button onClick={() => fileInputRef.current?.click()} className="text-primary hover:underline mt-1">
-                Click to import
+      {/* Tab content */}
+      {panelTab === "media" ? (
+        <>
+          <input type="file" ref={fileInputRef} multiple accept="video/*,image/*,audio/*" onChange={handleFileSelect} className="hidden" />
+
+          {/* Toolbar */}
+          <div className="flex items-center gap-1.5 px-2 py-2 border-b border-border/40">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search assets..."
+                className="h-6 pl-6 text-xs bg-transparent border-border/40"
+              />
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-primary/20 hover:bg-primary/30 text-primary transition-colors"
+              title="Import media"
+            >
+              <Upload className="w-3 h-3" />
+              Import
+            </button>
+            <div className="flex rounded overflow-hidden border border-border/40">
+              <button onClick={() => setView("list")} className={cn("p-1 transition-colors", view === "list" ? "bg-white/10" : "hover:bg-white/5")} title="List view">
+                <List className="w-3 h-3" />
               </button>
-            </p>
+              <button onClick={() => setView("grid")} className={cn("p-1 transition-colors", view === "grid" ? "bg-white/10" : "hover:bg-white/5")} title="Grid view">
+                <Grid3X3 className="w-3 h-3" />
+              </button>
+            </div>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
-            No assets match &quot;{search}&quot;
+
+          {/* Asset list */}
+          <div className="flex-1 overflow-y-auto">
+            {uploads.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground px-4">
+                <Upload className="w-8 h-8 opacity-30" />
+                <p className="text-xs text-center">
+                  Import videos, images, and audio to get started.
+                  <br />
+                  <button onClick={() => fileInputRef.current?.click()} className="text-primary hover:underline mt-1">
+                    Click to import
+                  </button>
+                </p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
+                No assets match "{search}"
+              </div>
+            ) : (
+              <div className="py-1">
+                {folders.map((folder) => {
+                  const folderFiles = filtered.filter((f) => f.folderId === folder.id);
+                  return (
+                    <FolderItem
+                      key={folder.id}
+                      folder={folder}
+                      files={folderFiles}
+                      onAdd={handleAddToTimeline}
+                      onDelete={removeUpload}
+                      onMoveToFolder={handleMoveToFolder}
+                      onRename={renameFolder}
+                      onDeleteFolder={removeFolder}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      view={view}
+                      folders={folders}
+                      onShowFolderPicker={handleShowFolderPicker}
+                    />
+                  );
+                })}
+                {renderGroup("Videos", videos, <Video className="w-3 h-3" />)}
+                {renderGroup("Images", images, <Image className="w-3 h-3" />)}
+                {renderGroup("Audio", audios, <FileAudio className="w-3 h-3" />)}
+                {renderGroup("Adjustment Layers", adjustments, <Layers className="w-3 h-3" />)}
+                {renderGroup("Color Mattes", colorMattes, <Palette className="w-3 h-3" />)}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="py-1">
-            {folders.map((folder) => {
-              const folderFiles = filtered.filter((f) => f.folderId === folder.id);
-              return (
-                <FolderItem
-                  key={folder.id}
-                  folder={folder}
-                  files={folderFiles}
-                  onAdd={handleAddToTimeline}
-                  onDelete={removeUpload}
-                  onMoveToFolder={handleMoveToFolder}
-                  onRename={renameFolder}
-                  onDeleteFolder={removeFolder}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  view={view}
-                  folders={folders}
-                  onShowFolderPicker={handleShowFolderPicker}
-                />
-              );
-            })}
-            {renderGroup("Videos", videos, <Video className="w-3 h-3" />)}
-            {renderGroup("Images", images, <Image className="w-3 h-3" />)}
-            {renderGroup("Audio", audios, <FileAudio className="w-3 h-3" />)}
-            {renderGroup("Adjustment Layers", adjustments, <Layers className="w-3 h-3" />)}
-            {renderGroup("Color Mattes", colorMattes, <Palette className="w-3 h-3" />)}
+
+          {/* Footer: single create button */}
+          <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border/40">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCreateMenu({ x: e.clientX, y: e.clientY - 140 });
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] bg-primary/20 hover:bg-primary/30 text-primary transition-colors w-full justify-center"
+              title="Create new item"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Create New
+            </button>
           </div>
-        )}
-      </div>
 
-      {/* Footer: single create button */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border/40">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setCreateMenu({ x: e.clientX, y: e.clientY - 140 });
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] bg-primary/20 hover:bg-primary/30 text-primary transition-colors w-full justify-center"
-          title="Create new item"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Create New
-        </button>
-      </div>
+          {/* Create context menu */}
+          {createMenu && (
+            <ContextMenu
+              x={createMenu.x}
+              y={createMenu.y}
+              onClose={() => setCreateMenu(null)}
+              items={[
+                { label: "Folder", icon: <FolderPlus className="w-3.5 h-3.5" />, onClick: handleCreateFolder },
+                { label: "Adjustment Layer", icon: <Layers className="w-3.5 h-3.5 text-yellow-400" />, onClick: handleCreateAdjustment },
+                { label: "Color Matte", icon: <Palette className="w-3.5 h-3.5" />, onClick: () => { setCreateMenu(null); setShowColorPicker(true); } },
+              ]}
+            />
+          )}
 
-      {/* Create context menu */}
-      {createMenu && (
-        <ContextMenu
-          x={createMenu.x}
-          y={createMenu.y}
-          onClose={() => setCreateMenu(null)}
-          items={[
-            { label: "Folder", icon: <FolderPlus className="w-3.5 h-3.5" />, onClick: handleCreateFolder },
-            { label: "Adjustment Layer", icon: <Layers className="w-3.5 h-3.5 text-yellow-400" />, onClick: handleCreateAdjustment },
-            { label: "Color Matte", icon: <Palette className="w-3.5 h-3.5" />, onClick: () => { setCreateMenu(null); setShowColorPicker(true); } },
-          ]}
-        />
-      )}
+          {/* Color picker modal */}
+          {showColorPicker && <ColorPickerModal onSelect={handleCreateColorMatte} onClose={() => setShowColorPicker(false)} />}
 
-      {/* Color picker modal */}
-      {showColorPicker && <ColorPickerModal onSelect={handleCreateColorMatte} onClose={() => setShowColorPicker(false)} />}
-
-      {/* Folder picker context menu */}
-      {folderPicker && (
-        <ContextMenu
-          x={folderPicker.x}
-          y={folderPicker.y}
-          onClose={() => setFolderPicker(null)}
-          items={[
-            { label: "None (root)", icon: <Folder className="w-3 h-3" />, onClick: () => { moveFileToFolder(folderPicker.fileId, null); setFolderPicker(null); } },
-            ...folders.map((f) => ({
-              label: f.name,
-              icon: <FolderOpen className="w-3 h-3" />,
-              onClick: () => { moveFileToFolder(folderPicker.fileId, f.id); setFolderPicker(null); },
-            })),
-          ]}
-        />
+          {/* Folder picker context menu */}
+          {folderPicker && (
+            <ContextMenu
+              x={folderPicker.x}
+              y={folderPicker.y}
+              onClose={() => setFolderPicker(null)}
+              items={[
+                { label: "None (root)", icon: <Folder className="w-3 h-3" />, onClick: () => { moveFileToFolder(folderPicker.fileId, null); setFolderPicker(null); } },
+                ...folders.map((f) => ({
+                  label: f.name,
+                  icon: <FolderOpen className="w-3 h-3" />,
+                  onClick: () => { moveFileToFolder(folderPicker.fileId, f.id); setFolderPicker(null); },
+                })),
+              ]}
+            />
+          )}
+        </>
+      ) : (
+        <EffectsTab />
       )}
     </div>
   );
