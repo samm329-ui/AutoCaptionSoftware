@@ -433,7 +433,7 @@ export function SceneInteractions({
                     ...trackItemsMap[id].details,
                     width: nextWidth,
                     height: finalHeight
-                  }
+                  } as any
                 }
               }
             });
