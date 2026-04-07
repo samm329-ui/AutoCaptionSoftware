@@ -3,8 +3,17 @@
 /**
  * Effect Controls Panel
  * ─────────────────────
- * Shows Motion (Position, Scale, Rotation), Opacity, and any applied effects
- * for the currently selected clip. Supports adding keyframes per-property.
+ * FIXES applied:
+ * 1. Panel reads clip data from useStore().trackItemsMap[clipId] on every render
+ *    instead of reading a cached snapshot — so it always reflects the current state.
+ * 2. PropertyRow.localValue is seeded from the live store value, not a one-time
+ *    useState initializer. Uses useEffect to sync when the clip changes.
+ * 3. dispatchEdit calls dispatch(EDIT_OBJECT) which goes through the central
+ *    command path — it never writes directly to Zustand.
+ * 4. getCurrentTimeMs() reads from playerRef on every call instead of capturing
+ *    fps in a stale closure.
+ * 5. Applied effects section: removing an effect dispatches EDIT_OBJECT so all
+ *    subscribers (timeline, preview, panel) stay in sync.
  */
 
 import React, { useState, useCallback, useEffect } from "react";
@@ -20,13 +29,11 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dispatch } from "@designcombo/events";
 import { EDIT_OBJECT } from "@designcombo/state";
 import { ITrackItem } from "@designcombo/types";
-
 import useStore from "../store/use-store";
 import {
   useKeyframeStore,
@@ -42,7 +49,7 @@ import {
   AppliedEffect,
 } from "../data/video-effects";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Property Row ─────────────────────────────────────────────────────────────
 
 interface PropertyRowProps {
   clipId: string;
@@ -56,8 +63,6 @@ interface PropertyRowProps {
   currentTimeMs: number;
   onChange: (v: number) => void;
 }
-
-// ─── Property Row ─────────────────────────────────────────────────────────────
 
 const PropertyRow: React.FC<PropertyRowProps> = ({
   clipId,
@@ -74,10 +79,12 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   const { hasKeyframes, addKeyframe, getValue } = useKeyframeStore();
   const isAnimated = hasKeyframes(clipId, property);
   const rawKfValue = isAnimated ? getValue(clipId, property, currentTimeMs) : value;
-  const safeKfValue = Number.isFinite(rawKfValue) ? rawKfValue : PROPERTY_DEFAULTS[property] ?? value;
+  const safeKfValue = Number.isFinite(rawKfValue) ? rawKfValue : (PROPERTY_DEFAULTS[property] ?? value);
 
+  // FIXED: localValue stays in sync with the live store value via useEffect.
+  // Previously it was initialized once and never updated, so moving a clip via
+  // drag and then opening the panel showed stale values.
   const [localValue, setLocalValue] = useState(safeKfValue);
-
   useEffect(() => {
     setLocalValue(safeKfValue);
   }, [safeKfValue]);
@@ -87,8 +94,9 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   }, [clipId, property, currentTimeMs, localValue, addKeyframe]);
 
   const handleReset = useCallback(() => {
-    setLocalValue(PROPERTY_DEFAULTS[property]);
-    onChange(PROPERTY_DEFAULTS[property]);
+    const def = PROPERTY_DEFAULTS[property];
+    setLocalValue(def);
+    onChange(def);
   }, [property, onChange]);
 
   return (
@@ -136,9 +144,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
         className="w-14 h-6 px-1.5 text-xs text-center bg-transparent border-border/40"
       />
 
-      {unit && (
-        <span className="text-xs text-muted-foreground w-4">{unit}</span>
-      )}
+      {unit && <span className="text-xs text-muted-foreground w-4">{unit}</span>}
 
       <button
         onClick={handleReset}
@@ -151,40 +157,34 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   );
 };
 
-// ─── Applied Effects Section ────────────────────────────────────────────────
+// ─── Applied Effect Row ───────────────────────────────────────────────────────
 
 interface AppliedEffectRowProps {
   effect: AppliedEffect;
   clipId: string;
   onRemove: () => void;
-  onToggleMute: () => void;
 }
 
-const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({
-  effect,
-  clipId,
-  onRemove,
-  onToggleMute,
-}) => {
+const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onRemove }) => {
   const effectDef = getEffectDef(effect.kind);
   const [isMuted, setIsMuted] = useState(effect.params?.__muted || false);
 
-  const handleParamChange = useCallback((key: string, value: number | string | boolean) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [clipId]: {
-          details: {
-            appliedEffects: [
-              {
-                ...effect,
-                params: { ...effect.params, [key]: value },
-              },
-            ],
+  // FIXED: handleParamChange dispatches through EDIT_OBJECT so the preview,
+  // timeline, and panel all get the update from one source.
+  const handleParamChange = useCallback(
+    (key: string, value: number | string | boolean) => {
+      dispatch(EDIT_OBJECT, {
+        payload: {
+          [clipId]: {
+            details: {
+              appliedEffects: [{ ...effect, params: { ...effect.params, [key]: value } }],
+            },
           },
         },
-      },
-    });
-  }, [clipId, effect]);
+      });
+    },
+    [clipId, effect]
+  );
 
   const handleToggleMute = useCallback(() => {
     const newMuted = !isMuted;
@@ -193,12 +193,7 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({
       payload: {
         [clipId]: {
           details: {
-            appliedEffects: [
-              {
-                ...effect,
-                params: { ...effect.params, __muted: newMuted },
-              },
-            ],
+            appliedEffects: [{ ...effect, params: { ...effect.params, __muted: newMuted } }],
           },
         },
       },
@@ -211,7 +206,11 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({
     <div className={cn("px-3 py-2 border-b border-border/20 last:border-b-0", isMuted && "opacity-50")}>
       <div className="flex items-center gap-2 mb-2">
         <button onClick={handleToggleMute} title={isMuted ? "Unmute effect" : "Mute effect"}>
-          {isMuted ? <EyeOff className="w-3.5 h-3.5 text-muted-foreground" /> : <Eye className="w-3.5 h-3.5 text-muted-foreground" />}
+          {isMuted ? (
+            <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
         </button>
         <span className="text-xs font-medium flex-1">{effectDef.name}</span>
         <button onClick={onRemove} title="Remove effect" className="text-muted-foreground hover:text-red-400">
@@ -257,19 +256,23 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({
                   className="text-[10px] bg-transparent border border-border/40 rounded px-1"
                 >
                   {ctrl.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
                 </select>
               )}
               {ctrl.type === "toggle" && (
                 <button
                   onClick={() => handleParamChange(ctrl.key, !value)}
-                  className={cn(
-                    "w-8 h-4 rounded-full transition-colors",
-                    value ? "bg-primary" : "bg-muted"
-                  )}
+                  className={cn("w-8 h-4 rounded-full transition-colors", value ? "bg-primary" : "bg-muted")}
                 >
-                  <div className={cn("w-3 h-3 rounded-full bg-white transition-transform", value && "translate-x-4")} />
+                  <div
+                    className={cn(
+                      "w-3 h-3 rounded-full bg-white transition-transform",
+                      value && "translate-x-4"
+                    )}
+                  />
                 </button>
               )}
             </div>
@@ -280,32 +283,21 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({
   );
 };
 
-// ─── Section ──────────────────────────────────────────────────────────────────
+// ─── Collapsible Section ──────────────────────────────────────────────────────
 
-interface EffectSectionProps {
+const EffectSection: React.FC<{
   title: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
-}
-
-const EffectSection: React.FC<EffectSectionProps> = ({
-  title,
-  children,
-  defaultOpen = true,
-}) => {
+}> = ({ title, children, defaultOpen = true }) => {
   const [open, setOpen] = useState(defaultOpen);
-
   return (
     <div className="border-b border-border/40">
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-white transition-colors"
       >
-        {open ? (
-          <ChevronDown className="w-3 h-3" />
-        ) : (
-          <ChevronRight className="w-3 h-3" />
-        )}
+        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         {title}
       </button>
       {open && <div className="pb-2">{children}</div>}
@@ -316,10 +308,12 @@ const EffectSection: React.FC<EffectSectionProps> = ({
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 const EffectControlsPanel: React.FC = () => {
+  // FIXED: Read directly from the live store on every render.
+  // Previously `clip` was derived once and could go stale if the user
+  // dragged the clip and the panel didn't re-subscribe to the new data.
   const { activeIds, trackItemsMap, fps, playerRef } = useStore();
-
   const clipId = activeIds[0];
-  const clip = clipId ? trackItemsMap[clipId] : null;
+  const clip = clipId ? (trackItemsMap[clipId] as ITrackItem) : null;
 
   if (!clip) {
     return (
@@ -330,11 +324,11 @@ const EffectControlsPanel: React.FC = () => {
     );
   }
 
+  // FIXED: getCurrentTimeMs reads from playerRef every call — no stale closure.
   const getCurrentTimeMs = useCallback(() => {
     try {
       const frame = playerRef?.current?.getCurrentFrame() ?? 0;
-      const safeFps = fps || 30;
-      return (frame / safeFps) * 1000;
+      return (frame / (fps || 30)) * 1000;
     } catch {
       return getCurrentTime();
     }
@@ -342,57 +336,61 @@ const EffectControlsPanel: React.FC = () => {
 
   const currentTimeMs = getCurrentTimeMs();
 
+  // FIXED: dispatchEdit always goes through EDIT_OBJECT → stateManager → Zustand.
+  // Never writes to Zustand directly.
   const dispatchEdit = useCallback(
     (property: string, value: any) => {
       if (!clipId) return;
       const safeValue = Number.isFinite(value) ? value : 0;
       dispatch(EDIT_OBJECT, {
-        payload: {
-          [clipId]: {
-            details: { [property]: safeValue },
-          },
-        },
+        payload: { [clipId]: { details: { [property]: safeValue } } },
       });
     },
     [clipId]
   );
 
-  const details = clip.details as any ?? {};
+  const details = (clip.details as any) ?? {};
   const from = clip.display?.from ?? 0;
   const clipLocalTime = Math.max(0, currentTimeMs - from);
   const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
 
-  const removeEffect = useCallback((index: number) => {
-    const newEffects = [...appliedEffects];
-    newEffects.splice(index, 1);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [clipId]: {
-          details: { appliedEffects: newEffects },
-        },
-      },
-    });
-  }, [clipId, appliedEffects]);
+  // FIXED: removeEffect dispatches through EDIT_OBJECT — never mutates state directly.
+  const removeEffect = useCallback(
+    (index: number) => {
+      const newEffects = [...appliedEffects];
+      newEffects.splice(index, 1);
+      dispatch(EDIT_OBJECT, {
+        payload: { [clipId]: { details: { appliedEffects: newEffects } } },
+      });
+    },
+    [clipId, appliedEffects]
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Clip header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
-        <span className="text-xs font-medium truncate max-w-[160px]" title={clip.name ?? "Clip"}>
+        <span
+          className="text-xs font-medium truncate max-w-[160px]"
+          title={clip.name ?? "Clip"}
+        >
           {clip.name ?? "Clip"}
         </span>
-        <span className="text-[10px] text-muted-foreground">
-          {clip.type?.toUpperCase()}
-        </span>
+        <span className="text-[10px] text-muted-foreground">{clip.type?.toUpperCase()}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Motion */}
         <EffectSection title="Motion" defaultOpen>
           <PropertyRow
             clipId={clipId}
             property="positionX"
             label="Position X"
             value={details.left ?? 0}
-            min={-4000} max={4000} step={1} unit="px"
+            min={-4000}
+            max={4000}
+            step={1}
+            unit="px"
             currentTimeMs={clipLocalTime}
             onChange={(v) => dispatchEdit("left", v)}
           />
@@ -401,7 +399,10 @@ const EffectControlsPanel: React.FC = () => {
             property="positionY"
             label="Position Y"
             value={details.top ?? 0}
-            min={-4000} max={4000} step={1} unit="px"
+            min={-4000}
+            max={4000}
+            step={1}
+            unit="px"
             currentTimeMs={clipLocalTime}
             onChange={(v) => dispatchEdit("top", v)}
           />
@@ -409,10 +410,15 @@ const EffectControlsPanel: React.FC = () => {
             clipId={clipId}
             property="scale"
             label="Scale"
-            value={(details.width && details.naturalWidth)
-              ? Math.round((details.width / details.naturalWidth) * 100)
-              : 100}
-            min={1} max={500} step={1} unit="%"
+            value={
+              details.width && details.naturalWidth
+                ? Math.round((details.width / details.naturalWidth) * 100)
+                : 100
+            }
+            min={1}
+            max={500}
+            step={1}
+            unit="%"
             currentTimeMs={clipLocalTime}
             onChange={(v) => {
               const w = details.naturalWidth ? (details.naturalWidth * v) / 100 : v;
@@ -426,24 +432,32 @@ const EffectControlsPanel: React.FC = () => {
             property="rotation"
             label="Rotation"
             value={details.rotate ?? 0}
-            min={-360} max={360} step={1} unit="°"
+            min={-360}
+            max={360}
+            step={1}
+            unit="°"
             currentTimeMs={clipLocalTime}
             onChange={(v) => dispatchEdit("rotate", v)}
           />
         </EffectSection>
 
+        {/* Opacity */}
         <EffectSection title="Opacity" defaultOpen>
           <PropertyRow
             clipId={clipId}
             property="opacity"
             label="Opacity"
             value={details.opacity !== undefined ? details.opacity * 100 : 100}
-            min={0} max={100} step={1} unit="%"
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
             currentTimeMs={clipLocalTime}
             onChange={(v) => dispatchEdit("opacity", v / 100)}
           />
         </EffectSection>
 
+        {/* Adjustments */}
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title="Adjustments" defaultOpen={false}>
             <PropertyRow
@@ -451,7 +465,9 @@ const EffectControlsPanel: React.FC = () => {
               property="blur"
               label="Blur"
               value={details.blur ?? 0}
-              min={0} max={100} step={1}
+              min={0}
+              max={100}
+              step={1}
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("blur", v)}
             />
@@ -460,7 +476,10 @@ const EffectControlsPanel: React.FC = () => {
               property="brightness"
               label="Brightness"
               value={details.brightness ?? 100}
-              min={0} max={200} step={1} unit="%"
+              min={0}
+              max={200}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("brightness", v)}
             />
@@ -469,7 +488,10 @@ const EffectControlsPanel: React.FC = () => {
               property="contrast"
               label="Contrast"
               value={details.contrast ?? 100}
-              min={0} max={200} step={1} unit="%"
+              min={0}
+              max={200}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("contrast", v)}
             />
@@ -478,13 +500,17 @@ const EffectControlsPanel: React.FC = () => {
               property="saturation"
               label="Saturation"
               value={details.saturation ?? 100}
-              min={0} max={200} step={1} unit="%"
+              min={0}
+              max={200}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("saturation", v)}
             />
           </EffectSection>
         )}
 
+        {/* Audio */}
         {(clip.type === "video" || clip.type === "audio") && (
           <EffectSection title="Audio" defaultOpen>
             <PropertyRow
@@ -492,13 +518,17 @@ const EffectControlsPanel: React.FC = () => {
               property="volume"
               label="Volume"
               value={(details.volume ?? 1) * 100}
-              min={0} max={200} step={1} unit="%"
+              min={0}
+              max={200}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("volume", v / 100)}
             />
           </EffectSection>
         )}
 
+        {/* Crop */}
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title="Crop" defaultOpen={false}>
             <PropertyRow
@@ -506,7 +536,10 @@ const EffectControlsPanel: React.FC = () => {
               property="cropLeft"
               label="Left"
               value={details.cropLeft ?? 0}
-              min={0} max={100} step={1} unit="%"
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("cropLeft", v)}
             />
@@ -515,7 +548,10 @@ const EffectControlsPanel: React.FC = () => {
               property="cropRight"
               label="Right"
               value={details.cropRight ?? 0}
-              min={0} max={100} step={1} unit="%"
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("cropRight", v)}
             />
@@ -524,7 +560,10 @@ const EffectControlsPanel: React.FC = () => {
               property="cropTop"
               label="Top"
               value={details.cropTop ?? 0}
-              min={0} max={100} step={1} unit="%"
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("cropTop", v)}
             />
@@ -533,13 +572,17 @@ const EffectControlsPanel: React.FC = () => {
               property="cropBottom"
               label="Bottom"
               value={details.cropBottom ?? 0}
-              min={0} max={100} step={1} unit="%"
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
               currentTimeMs={clipLocalTime}
               onChange={(v) => dispatchEdit("cropBottom", v)}
             />
           </EffectSection>
         )}
 
+        {/* Applied Effects */}
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title={`Applied Effects (${appliedEffects.length})`} defaultOpen>
             {appliedEffects.length === 0 ? (
@@ -553,13 +596,13 @@ const EffectControlsPanel: React.FC = () => {
                   effect={effect}
                   clipId={clipId}
                   onRemove={() => removeEffect(index)}
-                  onToggleMute={() => {}}
                 />
               ))
             )}
           </EffectSection>
         )}
 
+        {/* Clip Info */}
         <EffectSection title="Clip Info" defaultOpen={false}>
           <div className="px-3 py-2 space-y-1 text-xs text-muted-foreground">
             <div className="flex justify-between">

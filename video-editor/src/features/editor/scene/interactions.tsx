@@ -7,18 +7,18 @@ import {
   SelectionInfo,
   emptySelection,
   getSelectionByIds,
-  getTargetById
+  getTargetById,
 } from "../utils/target";
 import useStore from "../store/use-store";
 import StateManager from "@designcombo/state";
 import { getCurrentTime } from "../utils/time";
 import {
-  calculateMinWidth,
   calculateTextHeight,
-  htmlToPlainText
 } from "../utils/text";
 
-let holdGroupPosition: Record<string, any> | null = null;
+// ─── Module-level drag state ──────────────────────────────────────────────────
+// These live outside React to avoid closure stale issues during fast drag events.
+let holdGroupPosition: Record<string, { left: number; top: number }> | null = null;
 let dragStartEnd = false;
 
 const snapDirections = {
@@ -27,7 +27,7 @@ const snapDirections = {
   bottom: true,
   right: true,
   center: true,
-  middle: true
+  middle: true,
 };
 
 interface SceneInteractionsProps {
@@ -40,7 +40,7 @@ interface SceneInteractionsProps {
 export function SceneInteractions({
   stateManager,
   containerRef,
-  zoom
+  zoom,
 }: SceneInteractionsProps) {
   const [targets, setTargets] = useState<HTMLDivElement[]>([]);
   const [selection, setSelection] = useState<Selection>();
@@ -50,12 +50,12 @@ export function SceneInteractions({
     trackItemsMap,
     playerRef,
     setSceneMoveableRef,
-    trackItemIds
+    trackItemIds,
   } = useStore();
   const moveableRef = useRef<Moveable>(null);
-  const [selectionInfo, setSelectionInfo] =
-    useState<SelectionInfo>(emptySelection);
+  const [selectionInfo, setSelectionInfo] = useState<SelectionInfo>(emptySelection);
 
+  // ─── Snap guidelines ────────────────────────────────────────────────────────
   const elementGuidelines = useMemo(
     () =>
       ["artboard", ...trackItemIds.filter((id) => !activeIds.includes(id))].map(
@@ -69,27 +69,25 @@ export function SceneInteractions({
     [trackItemIds, activeIds]
   );
 
+  // ─── Keep targets in sync with activeIds + playhead position ────────────────
   useEffect(() => {
     const updateTargets = (time?: number) => {
-      const currentTime = time || getCurrentTime();
+      const currentTime = time ?? getCurrentTime();
       const { trackItemsMap } = useStore.getState();
       const targetIds = activeIds.filter((id) => {
-        return (
-          trackItemsMap[id]?.display.from <= currentTime &&
-          trackItemsMap[id]?.display.to >= currentTime
-        );
+        const item = trackItemsMap[id];
+        return item?.display.from <= currentTime && item?.display.to >= currentTime;
       });
-      const targets = targetIds.map(
-        (id) => getTargetById(id) as HTMLDivElement
-      );
-      selection?.setSelectedTargets(targets);
+      const domTargets = targetIds
+        .map((id) => getTargetById(id) as HTMLDivElement)
+        .filter(Boolean);
+      selection?.setSelectedTargets(domTargets);
       const selInfo = getSelectionByIds(targetIds);
       setSelectionInfo(selInfo);
       setTargets(selInfo.targets as HTMLDivElement[]);
     };
-    const timer = setTimeout(() => {
-      updateTargets();
-    });
+
+    const timer = setTimeout(updateTargets);
 
     const onSeeked = (v: any) => {
       setTimeout(() => {
@@ -106,51 +104,34 @@ export function SceneInteractions({
     };
   }, [activeIds, playerRef, trackItemsMap]);
 
+  // ─── Selection box setup ─────────────────────────────────────────────────────
   useEffect(() => {
-    const selection = new Selection({
+    const sel = new Selection({
       container: containerRef.current,
       boundContainer: true,
       hitRate: 0,
       selectableTargets: [".designcombo-scene-item"],
       selectFromInside: false,
       selectByClick: true,
-      toggleContinueSelect: "shift"
+      toggleContinueSelect: "shift",
     })
       .on("select", (e) => {
-        // Filter out audio items from selection
-        const filteredSelected = e.selected.filter(
+        const filtered = e.selected.filter(
           (el) => !el.className.includes("designcombo-scene-item-type-audio")
         );
-
-        const ids = filteredSelected.map((el) =>
-          getIdFromClassName(el.className)
-        );
-
-        setTargets(filteredSelected as HTMLDivElement[]);
-
+        const ids = filtered.map((el) => getIdFromClassName(el.className));
+        setTargets(filtered as HTMLDivElement[]);
+        // Always route selection through stateManager (single source of truth).
         stateManager.updateState(
-          {
-            activeIds: ids
-          },
-          {
-            updateHistory: false,
-            kind: "layer:selection"
-          }
+          { activeIds: ids },
+          { updateHistory: false, kind: "layer:selection" }
         );
       })
       .on("dragStart", (e) => {
         const target = e.inputEvent.target as HTMLDivElement;
         dragStartEnd = false;
-
-        if (targets.includes(target)) {
-          e.stop();
-        }
-        if (
-          target &&
-          moveableRef?.current?.moveable.isMoveableElement(target)
-        ) {
-          e.stop();
-        }
+        if (targets.includes(target)) e.stop();
+        if (target && moveableRef?.current?.moveable.isMoveableElement(target)) e.stop();
       })
       .on("dragEnd", () => {
         dragStartEnd = true;
@@ -160,58 +141,302 @@ export function SceneInteractions({
         if (e.isDragStart) {
           e.inputEvent.preventDefault();
           setTimeout(() => {
-            if (!dragStartEnd) {
-              moveable?.moveable.dragStart(e.inputEvent);
-            }
+            if (!dragStartEnd) moveable?.moveable.dragStart(e.inputEvent);
           });
         } else {
-          // Filter out audio items from selection
-          const filteredSelected = e.selected.filter(
+          const filtered = e.selected.filter(
             (el) => !el.className.includes("designcombo-scene-item-type-audio")
           ) as HTMLDivElement[];
-
-          const ids = filteredSelected.map((el) =>
-            getIdFromClassName(el.className)
-          );
-
+          const ids = filtered.map((el) => getIdFromClassName(el.className));
           stateManager.updateState(
-            {
-              activeIds: ids
-            },
-            {
-              updateHistory: false,
-              kind: "layer:selection"
-            }
+            { activeIds: ids },
+            { updateHistory: false, kind: "layer:selection" }
           );
-
-          setTargets(filteredSelected);
+          setTargets(filtered);
         }
       });
-    setSelection(selection);
-    return () => {
-      selection.destroy();
-    };
+
+    setSelection(sel);
+    return () => sel.destroy();
   }, []);
 
+  // ─── Subscribe to stateManager active ID changes ─────────────────────────────
   useEffect(() => {
-    const activeSelectionSubscription = stateManager.subscribeToActiveIds(
-      (newState) => {
-        setState(newState);
-      }
-    );
-
-    return () => {
-      activeSelectionSubscription.unsubscribe();
-    };
+    const sub = stateManager.subscribeToActiveIds((newState) => {
+      setState(newState);
+    });
+    return () => sub.unsubscribe();
   }, []);
 
+  // ─── Keep moveable rect fresh when clip data changes ────────────────────────
   useEffect(() => {
     moveableRef.current?.moveable.updateRect();
   }, [trackItemsMap]);
 
+  // ─── Register moveable ref ────────────────────────────────────────────────────
   useEffect(() => {
     setSceneMoveableRef(moveableRef as React.RefObject<Moveable>);
-  }, [moveableRef]);
+  }, []);
+
+  // ─── DRAG ────────────────────────────────────────────────────────────────────
+  const handleDrag = (e: any) => {
+    const target = e.target as HTMLElement;
+    target.style.top = `${e.top}px`;
+    target.style.left = `${e.left}px`;
+  };
+
+  const handleDragEnd = (e: any) => {
+    if (!e.isDrag) return;
+    const target = e.target as HTMLElement;
+    const targetId = getIdFromClassName(target.className) as string;
+    dispatch(EDIT_OBJECT, {
+      payload: {
+        [targetId]: {
+          details: {
+            left: parseFloat(target.style.left),
+            top: parseFloat(target.style.top),
+          },
+        },
+      },
+    });
+  };
+
+  // ─── SCALE ───────────────────────────────────────────────────────────────────
+  const handleScale = (e: any) => {
+    const target = e.target as HTMLElement;
+    const transform = e.transform;
+    const direction = e.direction;
+    const [xControl, yControl] = direction;
+    const scaleRegex = /scale\(([^)]+)\)/;
+    const match = target.style.transform.match(scaleRegex);
+    if (!match) return;
+    const [scaleX, scaleY] = match[1].split(",").map((v) => parseFloat(v.trim()));
+    const match2 = transform.match(scaleRegex);
+    if (!match2) return;
+    const [newScaleX, newScaleY] = match2[1].split(",").map((v: string) => parseFloat(v.trim()));
+
+    const currentW = target.clientWidth * scaleX;
+    const currentH = target.clientHeight * scaleY;
+    const newW = target.clientWidth * newScaleX;
+    const newH = target.clientHeight * newScaleY;
+
+    target.style.transform = transform;
+
+    const diffX = currentW - newW;
+    const diffY = currentH - newH;
+    let newLeft = parseFloat(target.style.left) - diffX / 2;
+    let newTop = parseFloat(target.style.top) - diffY / 2;
+    if (xControl === -1) newLeft += diffX;
+    if (yControl === -1) newTop += diffY;
+    target.style.left = `${newLeft}px`;
+    target.style.top = `${newTop}px`;
+  };
+
+  const handleScaleEnd = (e: any) => {
+    const target = e.target as HTMLElement;
+    if (!target.style.transform) return;
+    const targetId = getIdFromClassName(target.className) as string;
+    dispatch(EDIT_OBJECT, {
+      payload: {
+        [targetId]: {
+          details: {
+            transform: target.style.transform,
+            left: parseFloat(target.style.left),
+            top: parseFloat(target.style.top),
+          },
+        },
+      },
+    });
+  };
+
+  // ─── ROTATE ──────────────────────────────────────────────────────────────────
+  const handleRotate = (e: any) => {
+    const target = e.target as HTMLElement;
+    target.style.transform = e.transform;
+  };
+
+  const handleRotateEnd = (e: any) => {
+    const target = e.target as HTMLElement;
+    if (!target.style.transform) return;
+    const targetId = getIdFromClassName(target.className) as string;
+    dispatch(EDIT_OBJECT, {
+      payload: {
+        [targetId]: {
+          details: { transform: target.style.transform },
+        },
+      },
+    });
+  };
+
+  // ─── RESIZE ──────────────────────────────────────────────────────────────────
+  const handleResize = (e: any) => {
+    const target = e.target as HTMLElement;
+    const { width: nextWidth, height: nextHeight, direction } = e;
+    const id = getIdFromClassName(target.className);
+    if (!id || !trackItemsMap[id]) return;
+    const type = trackItemsMap[id].type;
+
+    if (type === "progressSquare") {
+      const diffH = nextHeight - parseFloat(target.style.height);
+      const updateData: any = { width: nextWidth, height: nextHeight, left: parseFloat(target.style.left) };
+      if (direction[1] === -1) {
+        const newTop = `${parseFloat(target.style.top) - diffH}px`;
+        target.style.top = newTop;
+        updateData.top = newTop;
+      }
+      target.style.width = `${nextWidth}px`;
+      target.style.height = `${nextHeight}px`;
+      setState({
+        trackItemsMap: {
+          [id]: { ...trackItemsMap[id], details: { ...trackItemsMap[id].details, ...updateData } as any },
+        },
+      });
+      return;
+    }
+
+    if (type === "text" || type === "caption") {
+      const selector = type === "text" ? `[data-text-id="${id}"]` : `#caption-${id}`;
+      const textEl = document.querySelector(selector) as HTMLDivElement;
+      if (textEl) {
+        const minH = calculateTextHeight({
+          family: textEl.style.fontFamily,
+          fontSize: textEl.style.fontSize,
+          fontWeight: textEl.style.fontWeight,
+          letterSpacing: textEl.style.letterSpacing,
+          lineHeight: textEl.style.lineHeight,
+          text: textEl.innerHTML,
+          textShadow: textEl.style.textShadow,
+          webkitTextStroke: (textEl.style as any).webkitTextStroke,
+          width: nextWidth + "px",
+          textTransform: textEl.style.textTransform,
+        });
+        const finalH = Math.max(nextHeight, minH);
+        target.style.width = `${nextWidth}px`;
+        target.style.height = `${finalH}px`;
+
+        const animDiv = target.firstElementChild?.firstElementChild as HTMLDivElement | null;
+        if (animDiv) {
+          animDiv.style.width = `${nextWidth}px`;
+          animDiv.style.height = `${finalH}px`;
+          const textDiv = document.querySelector(`[data-text-id="${id}"]`) as HTMLDivElement;
+          if (textDiv) {
+            textDiv.style.width = `${nextWidth}px`;
+            textDiv.style.height = `${finalH}px`;
+          }
+        }
+        // Sync Zustand in real-time so Effect Controls panel shows live values.
+        setState({
+          trackItemsMap: {
+            [id]: {
+              ...trackItemsMap[id],
+              details: { ...trackItemsMap[id].details, width: nextWidth, height: finalH } as any,
+            },
+          },
+        });
+        return;
+      }
+    }
+
+    // Default free resize (image, video, shape, etc.)
+    target.style.width = `${nextWidth}px`;
+    target.style.height = `${nextHeight}px`;
+    const animDiv = target.firstElementChild?.firstElementChild as HTMLDivElement | null;
+    if (animDiv) {
+      animDiv.style.width = `${nextWidth}px`;
+      animDiv.style.height = `${nextHeight}px`;
+    }
+    // Sync Zustand live so property panel is always up to date.
+    setState({
+      trackItemsMap: {
+        [id]: {
+          ...trackItemsMap[id],
+          details: { ...trackItemsMap[id].details, width: nextWidth, height: nextHeight },
+        },
+      },
+    });
+  };
+
+  const handleResizeEnd = (e: any) => {
+    const target = e.target as HTMLElement;
+    const targetId = getIdFromClassName(target.className) as string;
+    if (!targetId || !trackItemsMap[targetId]) return;
+    const type = trackItemsMap[targetId].type;
+
+    if (type === "text" || type === "caption") {
+      const selector = type === "text" ? `[data-text-id="${targetId}"]` : `#caption-${targetId}`;
+      const textDiv = document.querySelector(selector) as HTMLDivElement;
+      if (textDiv) {
+        dispatch(EDIT_OBJECT, {
+          payload: {
+            [targetId]: {
+              details: {
+                ...trackItemsMap[targetId].details,
+                width: parseFloat(target.style.width),
+                height: parseFloat(target.style.height),
+                fontSize: parseFloat(textDiv.style.fontSize),
+              },
+            },
+          },
+        });
+      }
+    } else if (type === "progressSquare") {
+      dispatch(EDIT_OBJECT, {
+        payload: {
+          [targetId]: {
+            details: {
+              ...trackItemsMap[targetId].details,
+              width: parseFloat(target.style.width),
+              height: parseFloat(target.style.height),
+              left: parseFloat(target.style.left),
+            },
+          },
+        },
+      });
+    } else {
+      dispatch(EDIT_OBJECT, {
+        payload: {
+          [targetId]: {
+            details: {
+              ...trackItemsMap[targetId].details,
+              width: parseFloat(target.style.width),
+              height: parseFloat(target.style.height),
+            },
+          },
+        },
+      });
+    }
+  };
+
+  // ─── GROUP DRAG ───────────────────────────────────────────────────────────────
+  const handleDragGroup = ({ events }: { events: any[] }) => {
+    holdGroupPosition = {};
+    for (const event of events) {
+      const id = getIdFromClassName(event.target.className);
+      const item = trackItemsMap[id];
+      if (!item?.details) continue;
+      const currentLeft = parseFloat(item.details.left as string) || 0;
+      const currentTop = parseFloat(item.details.top as string) || 0;
+      const left = currentLeft + event.beforeTranslate[0];
+      const top = currentTop + event.beforeTranslate[1];
+      event.target.style.left = `${left}px`;
+      event.target.style.top = `${top}px`;
+      holdGroupPosition[id] = { left, top };
+    }
+  };
+
+  const handleDragGroupEnd = () => {
+    if (!holdGroupPosition) return;
+    const payload: Record<string, any> = {};
+    for (const id of Object.keys(holdGroupPosition)) {
+      const pos = holdGroupPosition[id];
+      payload[id] = {
+        details: { top: `${pos.top}px`, left: `${pos.left}px` },
+      };
+    }
+    dispatch(EDIT_OBJECT, { payload });
+    holdGroupPosition = null;
+  };
+
   return (
     <Moveable
       ref={moveableRef}
@@ -230,316 +455,16 @@ export function SceneInteractions({
       snapGap={true}
       isDisplaySnapDigit={false}
       isDisplayInnerSnapDigit={false}
-      onDrag={({ target, top, left }) => {
-        target.style.top = `${top}px`;
-        target.style.left = `${left}px`;
-      }}
-      onDragEnd={({ target, isDrag }) => {
-        if (!isDrag) return;
-        const targetId = getIdFromClassName(target.className) as string;
-
-        dispatch(EDIT_OBJECT, {
-          payload: {
-            [targetId]: {
-              details: {
-                left: target.style.left,
-                top: target.style.top
-              }
-            }
-          }
-        });
-      }}
-      onScale={({ target, transform, direction }) => {
-        const [xControl, yControl] = direction;
-
-        const moveX = xControl === -1;
-        const moveY = yControl === -1;
-
-        const scaleRegex = /scale\(([^)]+)\)/;
-        const match = target.style.transform.match(scaleRegex);
-        if (!match) return;
-
-        //get current scale
-        const [scaleX, scaleY] = match[1]
-          .split(",")
-          .map((value) => Number.parseFloat(value.trim()));
-
-        //get new Scale
-        const match2 = transform.match(scaleRegex);
-        if (!match2) return;
-        const [newScaleX, newScaleY] = match2[1]
-          .split(",")
-          .map((value) => Number.parseFloat(value.trim()));
-
-        const currentWidth = target.clientWidth * scaleX;
-        const currentHeight = target.clientHeight * scaleY;
-
-        const newWidth = target.clientWidth * newScaleX;
-        const newHeight = target.clientHeight * newScaleY;
-
-        target.style.transform = transform;
-
-        //Move element to initial Left position
-        const diffX = currentWidth - newWidth;
-        let newLeft = Number.parseFloat(target.style.left) - diffX / 2;
-
-        const diffY = currentHeight - newHeight;
-        let newTop = Number.parseFloat(target.style.top) - diffY / 2;
-
-        if (moveX) {
-          newLeft += diffX;
-        }
-        if (moveY) {
-          newTop += diffY;
-        }
-        target.style.left = `${newLeft}px`;
-        target.style.top = `${newTop}px`;
-      }}
-      onScaleEnd={({ target }) => {
-        if (!target.style.transform) return;
-        const targetId = getIdFromClassName(target.className) as string;
-
-        dispatch(EDIT_OBJECT, {
-          payload: {
-            [targetId]: {
-              details: {
-                transform: target.style.transform,
-                left: Number.parseFloat(target.style.left),
-                top: Number.parseFloat(target.style.top)
-              }
-            }
-          }
-        });
-      }}
-      onRotate={({ target, transform }) => {
-        target.style.transform = transform;
-      }}
-      onRotateEnd={({ target }) => {
-        if (!target.style.transform) return;
-        const targetId = getIdFromClassName(target.className) as string;
-        dispatch(EDIT_OBJECT, {
-          payload: {
-            [targetId]: {
-              details: {
-                transform: target.style.transform
-              }
-            }
-          }
-        });
-      }}
-      onDragGroup={({ events }) => {
-        holdGroupPosition = {};
-        for (let i = 0; i < events.length; i++) {
-          const event = events[i];
-          const id = getIdFromClassName(event.target.className);
-          const trackItem = trackItemsMap[id];
-          if (!trackItem?.details) continue;
-          const currentLeft = Number.parseFloat(trackItem.details.left as string) || 0;
-          const currentTop = Number.parseFloat(trackItem.details.top as string) || 0;
-          const left = currentLeft + event.beforeTranslate[0];
-          const top = currentTop + event.beforeTranslate[1];
-          event.target.style.left = `${left}px`;
-          event.target.style.top = `${top}px`;
-          holdGroupPosition[id] = {
-            left: left,
-            top: top
-          };
-        }
-      }}
-      onResize={({
-        target,
-        width: nextWidth,
-        height: nextHeight,
-        direction
-      }) => {
-        const id = getIdFromClassName(target.className);
-        if (!id || !trackItemsMap[id]) return;
-        const type = trackItemsMap[id].type;
-
-        if (type === "progressSquare") {
-          const diffWidth = nextHeight - parseFloat(target.style.height);
-          const updateData: any = {
-            width: nextWidth,
-            height: nextHeight,
-            left: parseFloat(target.style.left)
-          };
-          if (direction[1] === -1) {
-            const newTop = `${parseFloat(target.style.top) - diffWidth}px`;
-            target.style.top = newTop;
-            updateData.top = newTop;
-          }
-          target.style.width = `${nextWidth}px`;
-          target.style.height = `${nextHeight}px`;
-          setState({
-            trackItemsMap: {
-              ...trackItemsMap,
-              [id]: {
-                ...trackItemsMap[id],
-                details: {
-                  ...trackItemsMap[id].details,
-                  ...updateData
-                }
-              }
-            }
-          });
-          return;
-        }
-
-        if (type === "text" || type === "caption") {
-          const selector =
-            type === "text" ? `[data-text-id="${id}"]` : `#caption-${id}`;
-          const textEl = document.querySelector(selector) as HTMLDivElement;
-
-          if (textEl) {
-            const minContentHeight = calculateTextHeight({
-              family: textEl.style.fontFamily,
-              fontSize: textEl.style.fontSize,
-              fontWeight: textEl.style.fontWeight,
-              letterSpacing: textEl.style.letterSpacing,
-              lineHeight: textEl.style.lineHeight,
-              text: (textEl as HTMLDivElement).innerHTML,
-              textShadow: textEl.style.textShadow,
-              webkitTextStroke: textEl.style.webkitTextStroke,
-              width: nextWidth + "px",
-              textTransform: textEl.style.textTransform
-            });
-
-            const finalHeight = Math.max(nextHeight, minContentHeight);
-
-            target.style.width = `${nextWidth}px`;
-            target.style.height = `${finalHeight}px`;
-
-            const animationDiv = target.firstElementChild
-              ?.firstElementChild as HTMLDivElement | null;
-            if (animationDiv) {
-              animationDiv.style.width = `${nextWidth}px`;
-              animationDiv.style.height = `${finalHeight}px`;
-
-              const textDiv = document.querySelector(
-                `[data-text-id="${id}"]`
-              ) as HTMLDivElement;
-              if (textDiv) {
-                textDiv.style.width = `${nextWidth}px`;
-                textDiv.style.height = `${finalHeight}px`;
-              }
-            }
-
-            setState({
-              trackItemsMap: {
-                ...trackItemsMap,
-                [id]: {
-                  ...trackItemsMap[id],
-                  details: {
-                    ...trackItemsMap[id].details,
-                    width: nextWidth,
-                    height: finalHeight
-                  } as any
-                }
-              }
-            });
-            return;
-          }
-        }
-
-        // Free resize for image, video, shape, and all other types
-        target.style.width = `${nextWidth}px`;
-        target.style.height = `${nextHeight}px`;
-
-        const animationDiv = target.firstElementChild
-          ?.firstElementChild as HTMLDivElement | null;
-        if (animationDiv) {
-          animationDiv.style.width = `${nextWidth}px`;
-          animationDiv.style.height = `${nextHeight}px`;
-        }
-
-        setState({
-          trackItemsMap: {
-            ...trackItemsMap,
-            [id]: {
-              ...trackItemsMap[id],
-              details: {
-                ...trackItemsMap[id].details,
-                width: nextWidth,
-                height: nextHeight
-              }
-            }
-          }
-        });
-      }}
-      onResizeEnd={({ target }) => {
-        const targetId = getIdFromClassName(target.className) as string;
-        if (!targetId || !trackItemsMap[targetId]) return;
-        const type = trackItemsMap[targetId].type;
-
-        if (type === "text" || type === "caption") {
-          const selector =
-            type === "text"
-              ? `[data-text-id="${targetId}"]`
-              : `#caption-${targetId}`;
-          const textDiv = document.querySelector(selector) as HTMLDivElement;
-
-          if (textDiv) {
-            dispatch(EDIT_OBJECT, {
-              payload: {
-                [targetId]: {
-                  details: {
-                    ...trackItemsMap[targetId].details,
-                    width: parseFloat(target.style.width),
-                    height: parseFloat(target.style.height),
-                    fontSize: parseFloat(textDiv.style.fontSize)
-                  }
-                }
-              }
-            });
-          }
-        } else if (type === "progressSquare") {
-          dispatch(EDIT_OBJECT, {
-            payload: {
-              [targetId]: {
-                details: {
-                  ...trackItemsMap[targetId].details,
-                  width: parseFloat(target.style.width),
-                  height: parseFloat(target.style.height),
-                  left: parseFloat(target.style.left)
-                }
-              }
-            }
-          });
-        } else {
-          dispatch(EDIT_OBJECT, {
-            payload: {
-              [targetId]: {
-                details: {
-                  ...trackItemsMap[targetId].details,
-                  width: parseFloat(target.style.width),
-                  height: parseFloat(target.style.height)
-                }
-              }
-            }
-          });
-        }
-      }}
-      onDragGroupEnd={() => {
-        if (holdGroupPosition) {
-          const payload: Record<string, Partial<any>> = {};
-          for (const id of Object.keys(holdGroupPosition)) {
-            const pos = holdGroupPosition[id];
-            if (!pos) continue;
-            const left = pos.left ?? 0;
-            const top = pos.top ?? 0;
-            payload[id] = {
-              details: {
-                top: `${top}px`,
-                left: `${left}px`
-              }
-            };
-          }
-          dispatch(EDIT_OBJECT, {
-            payload: payload
-          });
-          holdGroupPosition = null;
-        }
-      }}
+      onDrag={handleDrag}
+      onDragEnd={handleDragEnd}
+      onScale={handleScale}
+      onScaleEnd={handleScaleEnd}
+      onRotate={handleRotate}
+      onRotateEnd={handleRotateEnd}
+      onDragGroup={handleDragGroup}
+      onDragGroupEnd={handleDragGroupEnd}
+      onResize={handleResize}
+      onResizeEnd={handleResizeEnd}
     />
   );
 }
