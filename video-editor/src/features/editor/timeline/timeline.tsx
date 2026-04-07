@@ -99,8 +99,9 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 
     if (!canvasEl || !horizontalScrollbar) return;
 
-    const canvasBoudingX =
-      canvasEl.getBoundingClientRect().x + canvasEl.clientWidth;
+    const canvasRect = canvasEl.getBoundingClientRect();
+    if (!canvasRect) return;
+    const canvasBoudingX = canvasRect.x + canvasEl.clientWidth;
     const playHeadPos = position - scrollLeft + 40;
     if (playHeadPos >= canvasBoudingX) {
       const scrollDivWidth = horizontalScrollbar.clientWidth;
