@@ -80,11 +80,13 @@ const EffectCard: React.FC<{
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       e.dataTransfer.effectAllowed = "copy";
-      setDragData({
+      const payload = {
         type: "video-effect",
         effectKind: effect.kind,
         effectName: effect.name,
-      } as any);
+      };
+      setDragData(payload);
+      e.dataTransfer.setData("text/plain", JSON.stringify(payload));
     },
     [effect]
   );
@@ -124,13 +126,15 @@ const TransitionCard: React.FC<{
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       e.dataTransfer.effectAllowed = "copy";
-      setDragData({
+      const payload = {
         type: "transition",
         id: transition.id,
         kind: transition.kind,
         duration: transition.defaultDuration,
         name: transition.name,
-      } as any);
+      };
+      setDragData(payload);
+      e.dataTransfer.setData("text/plain", JSON.stringify(payload));
     },
     [transition]
   );
@@ -212,11 +216,16 @@ const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
         params[ctrl.key] = ctrl.default;
       });
 
+      const current = useStore.getState();
+      const existingItem = current.trackItemsMap[clipId];
+      const existingEffects = ((existingItem as any)?.details?.appliedEffects) || [];
+      const newEffects = [...existingEffects, { kind: effect.kind, params }];
+
       dispatch(EDIT_OBJECT, {
         payload: {
           [clipId]: {
             details: {
-              appliedEffects: [{ kind: effect.kind, params }],
+              appliedEffects: newEffects,
             },
           },
         },
