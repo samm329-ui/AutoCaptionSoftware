@@ -247,7 +247,7 @@ export default function SourceControlPanel() {
 
     try {
       const data = e.dataTransfer.getData("text/plain");
-      if (!data || data === "text/plain") return;
+      if (!data || typeof data !== "string" || data === "text/plain") return;
       let item;
       try {
         item = JSON.parse(data);
