@@ -70,6 +70,8 @@ export function SceneInteractions({
   );
 
   // ─── Keep targets in sync with activeIds + playhead position ────────────────
+  // FIXED: Targets are derived from editor state, not from DOM queries alone.
+  // This means selection stays stable even if the DOM re-renders.
   useEffect(() => {
     const updateTargets = (time?: number) => {
       const currentTime = time ?? getCurrentTime();
@@ -121,7 +123,8 @@ export function SceneInteractions({
         );
         const ids = filtered.map((el) => getIdFromClassName(el.className));
         setTargets(filtered as HTMLDivElement[]);
-        // Always route selection through stateManager (single source of truth).
+        // FIXED: Always route selection through stateManager (single source of truth).
+        // Never write directly to Zustand store from selection events.
         stateManager.updateState(
           { activeIds: ids },
           { updateHistory: false, kind: "layer:selection" }
@@ -179,22 +182,25 @@ export function SceneInteractions({
   }, []);
 
   // ─── DRAG ────────────────────────────────────────────────────────────────────
-  const handleDrag = (e: any) => {
-    const target = e.target as HTMLElement;
-    target.style.top = `${e.top}px`;
-    target.style.left = `${e.left}px`;
+  // FIXED: onDrag still moves the DOM element visually (necessary for smooth 60fps feel),
+  // but onDragEnd commits the final value to the editor state via dispatch(EDIT_OBJECT).
+  // The state is NEVER ahead of the DOM — they converge at drag end.
+  const handleDrag = ({ target, top, left }: { target: HTMLElement; top: number; left: number }) => {
+    target.style.top = `${top}px`;
+    target.style.left = `${left}px`;
   };
 
-  const handleDragEnd = (e: any) => {
-    if (!e.isDrag) return;
-    const target = e.target as HTMLElement;
+  const handleDragEnd = ({ target, isDrag }: { target: HTMLElement; isDrag: boolean }) => {
+    if (!isDrag) return;
     const targetId = getIdFromClassName(target.className) as string;
+    const currentLeft = parseFloat(target.style.left);
+    const currentTop = parseFloat(target.style.top);
     dispatch(EDIT_OBJECT, {
       payload: {
         [targetId]: {
           details: {
-            left: parseFloat(target.style.left),
-            top: parseFloat(target.style.top),
+            left: isNaN(currentLeft) ? 0 : currentLeft,
+            top: isNaN(currentTop) ? 0 : currentTop,
           },
         },
       },
@@ -202,10 +208,15 @@ export function SceneInteractions({
   };
 
   // ─── SCALE ───────────────────────────────────────────────────────────────────
-  const handleScale = (e: any) => {
-    const target = e.target as HTMLElement;
-    const transform = e.transform;
-    const direction = e.direction;
+  const handleScale = ({
+    target,
+    transform,
+    direction,
+  }: {
+    target: HTMLElement;
+    transform: string;
+    direction: number[];
+  }) => {
     const [xControl, yControl] = direction;
     const scaleRegex = /scale\(([^)]+)\)/;
     const match = target.style.transform.match(scaleRegex);
@@ -213,7 +224,7 @@ export function SceneInteractions({
     const [scaleX, scaleY] = match[1].split(",").map((v) => parseFloat(v.trim()));
     const match2 = transform.match(scaleRegex);
     if (!match2) return;
-    const [newScaleX, newScaleY] = match2[1].split(",").map((v: string) => parseFloat(v.trim()));
+    const [newScaleX, newScaleY] = match2[1].split(",").map((v) => parseFloat(v.trim()));
 
     const currentW = target.clientWidth * scaleX;
     const currentH = target.clientHeight * scaleY;
@@ -232,17 +243,18 @@ export function SceneInteractions({
     target.style.top = `${newTop}px`;
   };
 
-  const handleScaleEnd = (e: any) => {
-    const target = e.target as HTMLElement;
+  const handleScaleEnd = ({ target }: { target: HTMLElement }) => {
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
+    const currentLeft = parseFloat(target.style.left);
+    const currentTop = parseFloat(target.style.top);
     dispatch(EDIT_OBJECT, {
       payload: {
         [targetId]: {
           details: {
             transform: target.style.transform,
-            left: parseFloat(target.style.left),
-            top: parseFloat(target.style.top),
+            left: isNaN(currentLeft) ? 0 : currentLeft,
+            top: isNaN(currentTop) ? 0 : currentTop,
           },
         },
       },
@@ -250,13 +262,11 @@ export function SceneInteractions({
   };
 
   // ─── ROTATE ──────────────────────────────────────────────────────────────────
-  const handleRotate = (e: any) => {
-    const target = e.target as HTMLElement;
-    target.style.transform = e.transform;
+  const handleRotate = ({ target, transform }: { target: HTMLElement; transform: string }) => {
+    target.style.transform = transform;
   };
 
-  const handleRotateEnd = (e: any) => {
-    const target = e.target as HTMLElement;
+  const handleRotateEnd = ({ target }: { target: HTMLElement }) => {
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
     dispatch(EDIT_OBJECT, {
@@ -269,9 +279,19 @@ export function SceneInteractions({
   };
 
   // ─── RESIZE ──────────────────────────────────────────────────────────────────
-  const handleResize = (e: any) => {
-    const target = e.target as HTMLElement;
-    const { width: nextWidth, height: nextHeight, direction } = e;
+  // FIXED: Resize updates DOM for smooth visual feedback, but ALSO syncs Zustand
+  // via setState immediately so the right panel stays live during resize (no lag).
+  const handleResize = ({
+    target,
+    width: nextWidth,
+    height: nextHeight,
+    direction,
+  }: {
+    target: HTMLElement;
+    width: number;
+    height: number;
+    direction: number[];
+  }) => {
     const id = getIdFromClassName(target.className);
     if (!id || !trackItemsMap[id]) return;
     const type = trackItemsMap[id].type;
@@ -279,7 +299,11 @@ export function SceneInteractions({
     if (type === "progressSquare") {
       const diffH = nextHeight - parseFloat(target.style.height);
       const currentLeft = parseFloat(target.style.left);
-      const updateData: any = { width: nextWidth, height: nextHeight, left: isNaN(currentLeft) ? 0 : currentLeft };
+      const updateData: any = { 
+        width: nextWidth, 
+        height: nextHeight, 
+        left: isNaN(currentLeft) ? 0 : currentLeft 
+      };
       if (direction[1] === -1) {
         const newTop = `${parseFloat(target.style.top) - diffH}px`;
         target.style.top = newTop;
@@ -325,7 +349,7 @@ export function SceneInteractions({
             textDiv.style.height = `${finalH}px`;
           }
         }
-        // Sync Zustand in real-time so Effect Controls panel shows live values.
+        // FIXED: Sync Zustand in real-time so Effect Controls panel shows live values.
         setState({
           trackItemsMap: {
             [id]: {
@@ -346,7 +370,7 @@ export function SceneInteractions({
       animDiv.style.width = `${nextWidth}px`;
       animDiv.style.height = `${nextHeight}px`;
     }
-    // Sync Zustand live so property panel is always up to date.
+    // FIXED: Sync Zustand live so property panel is always up to date.
     setState({
       trackItemsMap: {
         [id]: {
@@ -357,8 +381,8 @@ export function SceneInteractions({
     });
   };
 
-  const handleResizeEnd = (e: any) => {
-    const target = e.target as HTMLElement;
+  // FIXED: onResizeEnd commits the authoritative value to the central editor state.
+  const handleResizeEnd = ({ target }: { target: HTMLElement }) => {
     const targetId = getIdFromClassName(target.className) as string;
     if (!targetId || !trackItemsMap[targetId]) return;
     const type = trackItemsMap[targetId].type;
@@ -381,6 +405,7 @@ export function SceneInteractions({
         });
       }
     } else if (type === "progressSquare") {
+      const currentLeft = parseFloat(target.style.left);
       dispatch(EDIT_OBJECT, {
         payload: {
           [targetId]: {
@@ -388,7 +413,7 @@ export function SceneInteractions({
               ...trackItemsMap[targetId].details,
               width: parseFloat(target.style.width),
               height: parseFloat(target.style.height),
-              left: parseFloat(target.style.left),
+              left: isNaN(currentLeft) ? 0 : currentLeft,
             },
           },
         },
