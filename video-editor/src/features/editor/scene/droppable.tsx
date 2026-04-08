@@ -49,8 +49,19 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
   const parseDragData = (e: React.DragEvent<HTMLDivElement>): DraggedData | null => {
     try {
       const refData = getDragData();
-      if (refData) {
+      if (refData && typeof refData === "object" && refData.type) {
         return refData as DraggedData;
+      }
+      const transferData = e.dataTransfer?.getData("text/plain");
+      if (transferData && typeof transferData === "string" && transferData !== "text/plain") {
+        try {
+          const parsed = JSON.parse(transferData);
+          if (parsed && typeof parsed === "object" && parsed.type) {
+            return parsed as DraggedData;
+          }
+        } catch {
+          console.warn("Failed to parse transfer data");
+        }
       }
       return null;
     } catch (error) {
