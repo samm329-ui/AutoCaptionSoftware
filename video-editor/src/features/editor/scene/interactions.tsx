@@ -278,7 +278,8 @@ export function SceneInteractions({
 
     if (type === "progressSquare") {
       const diffH = nextHeight - parseFloat(target.style.height);
-      const updateData: any = { width: nextWidth, height: nextHeight, left: parseFloat(target.style.left) };
+      const currentLeft = parseFloat(target.style.left);
+      const updateData: any = { width: nextWidth, height: nextHeight, left: isNaN(currentLeft) ? 0 : currentLeft };
       if (direction[1] === -1) {
         const newTop = `${parseFloat(target.style.top) - diffH}px`;
         target.style.top = newTop;
