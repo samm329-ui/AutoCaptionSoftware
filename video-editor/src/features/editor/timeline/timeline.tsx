@@ -92,6 +92,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     }
   }, [playerRef?.current?.isPlaying()]);
 
+  const lastScrollFrameRef = useRef(0);
+
   useEffect(() => {
     const position = timeMsToUnits((currentFrame / fps) * 1000, scale.zoom);
     const canvasEl = canvasElRef.current;
@@ -100,7 +102,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     if (!canvasEl || !horizontalScrollbar) return;
 
     const canvasRect = canvasEl.getBoundingClientRect();
-    if (!canvasRect) return;
+    if (!canvasRect || canvasRect.width === 0) return;
     const canvasBoudingX = canvasRect.x + canvasEl.clientWidth;
     const playHeadPos = position - scrollLeft + 40;
     if (playHeadPos >= canvasBoudingX) {
@@ -121,7 +123,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
           });
       }
     }
-  }, [currentFrame]);
+    lastScrollFrameRef.current = currentFrame;
+  }, [currentFrame, fps, scale.zoom, scrollLeft]);
 
   // Keep canvasSizeRef in sync
   useEffect(() => {
