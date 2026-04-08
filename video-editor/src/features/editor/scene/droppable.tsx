@@ -48,19 +48,23 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 
   const parseDragData = (e: React.DragEvent<HTMLDivElement>): DraggedData | null => {
     try {
+      // First try the module-level ref (set by Draggable component)
       const refData = getDragData();
       if (refData && typeof refData === "object" && refData.type) {
         return refData as DraggedData;
       }
+      
+      // Fall back to dataTransfer
       const transferData = e.dataTransfer?.getData("text/plain");
-      if (transferData && typeof transferData === "string" && transferData !== "text/plain") {
+      // Guard: must be non-empty string
+      if (typeof transferData === "string" && transferData.length > 0) {
         try {
           const parsed = JSON.parse(transferData);
           if (parsed && typeof parsed === "object" && parsed.type) {
             return parsed as DraggedData;
           }
-        } catch {
-          console.warn("Failed to parse transfer data");
+        } catch (parseErr) {
+          console.warn("JSON parse failed in droppable:", parseErr);
         }
       }
       return null;
