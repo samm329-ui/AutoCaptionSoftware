@@ -180,11 +180,11 @@ export default function TrackHeaders({ canvasRef }: TrackHeadersProps) {
       if (!canvas) return;
       const allObjects = canvas.getObjects();
       const trackObj = allObjects.find((o: any) => o.id === trackId && o.type === "Track");
-      if (trackObj && typeof trackObj.visible !== "undefined") {
+      if (trackObj && typeof trackObj?.visible !== "undefined") {
         trackObj.visible = isHidden;
         const items = allObjects.filter((o: any) => o.trackId === trackId || o.parentId === trackId);
         items.forEach((item: any) => {
-          if (typeof item.visible !== "undefined") {
+          if (typeof item?.visible !== "undefined") {
             item.visible = isHidden;
           }
         });
