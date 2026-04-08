@@ -315,6 +315,16 @@ const EffectControlsPanel: React.FC = () => {
   const clipId = activeIds[0];
   const clip = clipId ? (trackItemsMap[clipId] as ITrackItem) : null;
 
+  if (!clip) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs gap-2 px-4 text-center">
+        <Clock className="w-6 h-6 opacity-40" />
+        <p>Select a clip in the timeline to see its properties</p>
+      </div>
+    );
+  }
+
+  // FIXED: getCurrentTimeMs reads from playerRef every call — no stale closure.
   const getCurrentTimeMs = useCallback(() => {
     try {
       const frame = playerRef?.current?.getCurrentFrame() ?? 0;
@@ -324,6 +334,10 @@ const EffectControlsPanel: React.FC = () => {
     }
   }, [playerRef, fps]);
 
+  const currentTimeMs = getCurrentTimeMs();
+
+  // FIXED: dispatchEdit always goes through EDIT_OBJECT → stateManager → Zustand.
+  // Never writes to Zustand directly.
   const dispatchEdit = useCallback(
     (property: string, value: any) => {
       if (!clipId) return;
@@ -335,47 +349,34 @@ const EffectControlsPanel: React.FC = () => {
     [clipId]
   );
 
+  const details = (clip.details as any) ?? {};
+  const from = clip.display?.from ?? 0;
+  const clipLocalTime = Math.max(0, currentTimeMs - from);
+  const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
+
+  // FIXED: removeEffect dispatches through EDIT_OBJECT — never mutates state directly.
   const removeEffect = useCallback(
     (index: number) => {
-      if (!clipId) return;
-      const current = useStore.getState();
-      const currentClip = current.trackItemsMap[clipId];
-      const currentDetails = (currentClip as any)?.details ?? {};
-      const currentEffects: AppliedEffect[] = currentDetails.appliedEffects || [];
-      const newEffects = [...currentEffects];
+      const newEffects = [...appliedEffects];
       newEffects.splice(index, 1);
       dispatch(EDIT_OBJECT, {
         payload: { [clipId]: { details: { appliedEffects: newEffects } } },
       });
     },
-    [clipId]
+    [clipId, appliedEffects]
   );
-
-  if (!clip) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs gap-2 px-4 text-center">
-        <Clock className="w-6 h-6 opacity-40" />
-        <p>Select a clip in the timeline to see its properties</p>
-      </div>
-    );
-  }
-
-  const currentTimeMs = getCurrentTimeMs();
-  const details = (clip?.details as any) ?? {};
-  const from = clip?.display?.from ?? 0;
-  const clipLocalTime = Math.max(0, currentTimeMs - from);
-  const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Clip header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
-        <div className="flex flex-col">
-          <span className="text-xs font-medium truncate max-w-[160px]" title={clip?.name ?? "Clip"}>
-            {clip?.name ?? "Clip"}
-          </span>
-          <span className="text-[10px] text-muted-foreground">{clip?.type?.toUpperCase() ?? "VIDEO"}</span>
-        </div>
+        <span
+          className="text-xs font-medium truncate max-w-[160px]"
+          title={clip.name ?? "Clip"}
+        >
+          {clip.name ?? "Clip"}
+        </span>
+        <span className="text-[10px] text-muted-foreground">{clip.type?.toUpperCase()}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -457,7 +458,7 @@ const EffectControlsPanel: React.FC = () => {
         </EffectSection>
 
         {/* Adjustments */}
-        {(clip?.type === "video" || clip?.type === "image") && (
+        {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title="Adjustments" defaultOpen={false}>
             <PropertyRow
               clipId={clipId}
@@ -510,7 +511,7 @@ const EffectControlsPanel: React.FC = () => {
         )}
 
         {/* Audio */}
-        {(clip?.type === "video" || clip?.type === "audio") && (
+        {(clip.type === "video" || clip.type === "audio") && (
           <EffectSection title="Audio" defaultOpen>
             <PropertyRow
               clipId={clipId}
@@ -528,7 +529,7 @@ const EffectControlsPanel: React.FC = () => {
         )}
 
         {/* Crop */}
-        {(clip?.type === "video" || clip?.type === "image") && (
+        {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title="Crop" defaultOpen={false}>
             <PropertyRow
               clipId={clipId}
@@ -582,7 +583,7 @@ const EffectControlsPanel: React.FC = () => {
         )}
 
         {/* Applied Effects */}
-        {(clip?.type === "video" || clip?.type === "image") && (
+        {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title={`Applied Effects (${appliedEffects.length})`} defaultOpen>
             {appliedEffects.length === 0 ? (
               <div className="px-3 py-2 text-[10px] text-muted-foreground">
@@ -606,12 +607,12 @@ const EffectControlsPanel: React.FC = () => {
           <div className="px-3 py-2 space-y-1 text-xs text-muted-foreground">
             <div className="flex justify-between">
               <span>Type</span>
-              <span className="text-foreground">{clip?.type}</span>
+              <span className="text-foreground">{clip.type}</span>
             </div>
             <div className="flex justify-between">
               <span>Duration</span>
               <span className="text-foreground">
-                {clip?.display
+                {clip.display
                   ? `${((clip.display.to - clip.display.from) / 1000).toFixed(2)}s`
                   : "—"}
               </span>
@@ -619,13 +620,13 @@ const EffectControlsPanel: React.FC = () => {
             <div className="flex justify-between">
               <span>Timeline In</span>
               <span className="text-foreground">
-                {clip?.display ? `${(clip.display.from / 1000).toFixed(2)}s` : "—"}
+                {clip.display ? `${(clip.display.from / 1000).toFixed(2)}s` : "—"}
               </span>
             </div>
             <div className="flex justify-between">
               <span>Timeline Out</span>
               <span className="text-foreground">
-                {clip?.display ? `${(clip.display.to / 1000).toFixed(2)}s` : "—"}
+                {clip.display ? `${(clip.display.to / 1000).toFixed(2)}s` : "—"}
               </span>
             </div>
           </div>
