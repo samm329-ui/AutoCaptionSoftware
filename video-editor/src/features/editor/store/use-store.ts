@@ -16,6 +16,8 @@ import { create } from "zustand";
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ITimelineStore {
   // ── Editor content (source of truth for actual video edit) ──────────────────
+  // RULE: Everything below belongs to the editor, NOT to UI.
+  // Never duplicate these values in any other store.
   duration: number;
   fps: number;
   scale: ITimelineScaleState;
@@ -81,8 +83,9 @@ function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-// Deep-merge a single ITrackItem so that nested `details`, `display`,
+// FIXED: Deep-merge a single ITrackItem so that nested `details`, `display`,
 // and `trim` fields are merged rather than replaced.
+// Previously a shallow spread would nuke sibling keys inside `details`.
 function mergeTrackItem(existing: ITrackItem | undefined, patch: any): ITrackItem {
   if (!existing) return patch as ITrackItem;
   return {
@@ -170,7 +173,6 @@ const useStore = create<ITimelineStore>((set, get) => ({
   undo: () => {
     const state = get();
     if (state.historyPast.length === 0) return;
-    
     const currentSnapshot = cloneState({
       tracks: state.tracks,
       trackItemIds: state.trackItemIds,
@@ -181,7 +183,6 @@ const useStore = create<ITimelineStore>((set, get) => ({
       activeIds: state.activeIds,
       duration: state.duration,
     });
-    
     const previous = state.historyPast[state.historyPast.length - 1];
     set({
       ...previous,
@@ -195,7 +196,6 @@ const useStore = create<ITimelineStore>((set, get) => ({
   redo: () => {
     const state = get();
     if (state.historyFuture.length === 0) return;
-    
     const currentSnapshot = cloneState({
       tracks: state.tracks,
       trackItemIds: state.trackItemIds,
@@ -206,7 +206,6 @@ const useStore = create<ITimelineStore>((set, get) => ({
       activeIds: state.activeIds,
       duration: state.duration,
     });
-    
     const next = state.historyFuture[0];
     set({
       ...next,
@@ -223,7 +222,7 @@ const useStore = create<ITimelineStore>((set, get) => ({
   setPlayerRef: (playerRef) => set({ playerRef }),
   setSceneMoveableRef: (ref) => set({ sceneMoveableRef: ref }),
 
-  // setState performs a smart deep merge.
+  // FIXED: setState performs a smart deep merge.
   // - trackItemsMap patches are merged per-item (not full replacement)
   // - transitionsMap entries are merged shallowly
   // - All other keys are shallow-merged at the top level
