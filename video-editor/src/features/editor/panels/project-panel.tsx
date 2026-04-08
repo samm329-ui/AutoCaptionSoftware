@@ -257,19 +257,36 @@ function hslToHex(h: number, s: number, l: number): string {
 // ─── Drag payload builder ─────────────────────────────────────────────────────
 
 function buildDragPayload(file: UploadedFile) {
+  if (!file || typeof file !== "object") {
+    console.error("Invalid file object:", file);
+    return JSON.stringify({ type: "video", src: "", name: "Unknown" });
+  }
   const fileTypeForTimeline = file.type === "adjustment" ? "video" : file.type === "colormatte" ? "image" : file.type;
   return JSON.stringify({
-    type: "track-item",
-    src: file.objectUrl,
-    name: file.fileName,
+    type: fileTypeForTimeline,
+    src: file.objectUrl || "",
+    name: file.fileName || "Untitled",
     fileType: fileTypeForTimeline,
-    duration: file.duration,
-    width: file.width,
-    height: file.height,
+    duration: file.duration || 5000,
+    width: file.width || 1920,
+    height: file.height || 1080,
     color: file.color,
     isAdjustment: file.type === "adjustment",
     isColorMatte: file.type === "colormatte",
     originalType: file.type,
+    details: {
+      src: file.objectUrl || "",
+      width: file.width || 1920,
+      height: file.height || 1080,
+    },
+    metadata: {
+      previewUrl: file.type === "video" ? file.objectUrl : undefined,
+      duration: file.duration,
+      width: file.width,
+      height: file.height,
+      fps: file.fps,
+    },
+    display: { from: 0, to: (file.duration || 5000) },
   });
 }
 
