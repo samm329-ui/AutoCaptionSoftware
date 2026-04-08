@@ -248,8 +248,13 @@ export default function SourceControlPanel() {
     try {
       const data = e.dataTransfer.getData("text/plain");
       if (!data || data === "text/plain") return;
-      const item = JSON.parse(data);
-      if (item.type === "track-item" && item.src) {
+      let item;
+      try {
+        item = JSON.parse(data);
+      } catch {
+        return;
+      }
+      if (item && typeof item === "object" && item.type === "track-item" && item.src) {
         setSourceSrc(item.src);
         setSourceName(item.name || "Dropped clip");
         setSourceType(item.fileType || "video");
