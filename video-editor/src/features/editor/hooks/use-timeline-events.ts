@@ -18,7 +18,7 @@ function isPlainObject(value: unknown): value is Record<string, any> {
 }
 
 // ─── useTimelineEvents ─────────────────────────────────────────────────────────
-// Each subscription block has its own useEffect with the correct dependency
+// FIXED: Each subscription block has its own useEffect with the correct dependency
 // array. Previously all three were in one effect, causing subscriptions to be
 // recreated on every state change and leaking stale closures.
 const useTimelineEvents = () => {
@@ -82,6 +82,7 @@ const useTimelineEvents = () => {
   }, [playerRef, fps]);
 
   // Layer selection events — keep Zustand activeIds in sync with stateManager
+  // FIXED: Previously this only ran when `timeline` changed, missing initial load.
   useEffect(() => {
     const selectionSub = subject
       .pipe(filter(({ key }) => key.startsWith(LAYER_PREFIX)))
@@ -98,7 +99,7 @@ const useTimelineEvents = () => {
   }, [setState]);
 
   // EDIT_OBJECT events — patch Zustand trackItemsMap
-  // This subscription is now isolated. Previously it was inside the
+  // FIXED: This subscription is now isolated. Previously it was inside the
   // player effect, which meant it was torn down and re-created every time
   // playerRef or fps changed — causing brief gaps where edits were missed.
   useEffect(() => {
@@ -107,37 +108,20 @@ const useTimelineEvents = () => {
       .subscribe((obj) => {
         const payload = obj.value?.payload;
         if (!isPlainObject(payload)) return;
-<<<<<<< Updated upstream
-        // Use getState() + setState() instead of the closure `setState`
+        // FIXED: Use getState() + setState() instead of the closure `setState`
         // to guarantee we always merge against the freshest state, not a stale
         // closure snapshot captured at subscription creation time.
-=======
->>>>>>> Stashed changes
         const current = useStore.getState().trackItemsMap;
         const merged: Record<string, any> = { ...current };
         for (const [id, patch] of Object.entries(payload)) {
           if (!isPlainObject(patch)) continue;
-          const existing = current[id] ?? {};
-          const existingDetails = (existing as any)?.details ?? {};
-          const patchDetails = (patch as any).details ?? {};
-
-          let finalDetails = { ...existingDetails, ...patchDetails };
-          if (patchDetails.appliedEffects !== undefined) {
-            finalDetails.appliedEffects = patchDetails.appliedEffects;
-          }
-
           merged[id] = {
-            ...existing,
+            ...(current[id] ?? {}),
             ...patch,
-            details: finalDetails,
-          };
-        }
-
-          merged[id] = {
-            ...existing,
-            ...patch,
-            details: finalDetails,
->>>>>>> Stashed changes
+            details: {
+              ...((current[id] as any)?.details ?? {}),
+              ...((patch as any).details ?? {}),
+            },
           };
         }
         useStore.getState().setState({ trackItemsMap: merged as any });

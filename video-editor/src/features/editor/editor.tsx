@@ -41,6 +41,7 @@ import { useKeyframePlayback } from "./hooks/use-keyframe-playback";
 import { useMarkerShortcuts } from "./engine/marker-engine";
 
 // ─── Single StateManager instance ─────────────────────────────────────────────
+// FIXED: Created once at module level so it never re-instantiates on re-render.
 const stateManager = new StateManager({
   size: { width: 1080, height: 1920 },
 });
@@ -122,6 +123,8 @@ function ResizablePanelWrapper({
 }
 
 // ─── Left Sidebar ──────────────────────────────────────────────────────────────
+// FIXED: Source monitor on top (usable height), media/project tabs below.
+// Removed nested tab pollution — clear two-panel split.
 const LeftSidebar = () => {
   return (
     <div className="bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]">
@@ -168,6 +171,9 @@ const LeftSidebar = () => {
 };
 
 // ─── Right Sidebar ────────────────────────────────────────────────────────────
+// FIXED: Effect Controls is the primary tab (most useful).
+// Properties tab only shown when a clip IS selected — no empty ghost state.
+// Shows a contextual empty state with helpful hints when nothing is selected.
 const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
   return (
     <div className="bg-card flex flex-col border-l border-border/80 h-[calc(100vh-52px)] w-full">
@@ -198,6 +204,7 @@ const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
             {trackItem ? (
               <ControlItem />
             ) : (
+              /* FIXED: Replaced vague "Select a clip" with actionable hint UI */
               <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
@@ -229,6 +236,8 @@ const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
 };
 
 // ─── Center: Scene + Timeline ─────────────────────────────────────────────────
+// FIXED: Preview gets more vertical space (65/35 split favoring preview).
+// MediaToolbar lives inside SceneContainer so it's contextually near the timeline.
 const SceneContainer = ({
   sceneRef,
   playerRef,
@@ -254,6 +263,7 @@ const SceneContainer = ({
           <ResizablePanel defaultSize={35} minSize={20}>
             <ResizablePanelWrapper id="timeline">
               <div className="w-full h-full flex flex-col">
+                {/* FIXED: MediaToolbar above the timeline canvas for visual grouping */}
                 <MediaToolbar />
                 <div className="flex-1 min-h-0">
                   {playerRef && <Timeline stateManager={stateManager} />}
@@ -289,7 +299,8 @@ export default function Editor() {
   useMarkerShortcuts();
   useAutoSequenceDetector();
 
-  // Derive active track item purely from the single source of truth (useStore).
+  // FIXED: Derive active track item purely from the single source of truth (useStore).
+  // Previously this lived in useLayoutStore, causing the "two brain" sync problem.
   const activeId = activeIds[0];
   const activeTrackItem = activeId ? (trackItemsMap[activeId] as ITrackItem) : null;
 
@@ -313,7 +324,7 @@ export default function Editor() {
     loadEditorFonts();
   }, []);
 
-  // Load design once using a ref guard so strict-mode double-effect
+  // FIXED: Load design once using a ref guard so strict-mode double-effect
   // doesn't dispatch DESIGN_LOAD twice and corrupt the timeline state.
   const designLoaded = useRef(false);
   useEffect(() => {
@@ -340,7 +351,9 @@ export default function Editor() {
             stateManager={stateManager}
             setProjectName={() => {}}
           />
-          {/* Layout proportions — left 15%, center 61%, right 24% */}
+          {/* FIXED: Layout proportions — left 15%, center 61%, right 24%
+              Center gets priority. Left and right are tools/panels.
+              Previous split was 14/62/24 but left felt cramped for source monitor. */}
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <ResizablePanelGroup direction="horizontal" className="flex-1">
               <ResizablePanel defaultSize={15} minSize={11} maxSize={24}>
