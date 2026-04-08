@@ -107,20 +107,37 @@ const useTimelineEvents = () => {
       .subscribe((obj) => {
         const payload = obj.value?.payload;
         if (!isPlainObject(payload)) return;
+<<<<<<< Updated upstream
         // Use getState() + setState() instead of the closure `setState`
         // to guarantee we always merge against the freshest state, not a stale
         // closure snapshot captured at subscription creation time.
+=======
+>>>>>>> Stashed changes
         const current = useStore.getState().trackItemsMap;
         const merged: Record<string, any> = { ...current };
         for (const [id, patch] of Object.entries(payload)) {
           if (!isPlainObject(patch)) continue;
+          const existing = current[id] ?? {};
+          const existingDetails = (existing as any)?.details ?? {};
+          const patchDetails = (patch as any).details ?? {};
+
+          let finalDetails = { ...existingDetails, ...patchDetails };
+          if (patchDetails.appliedEffects !== undefined) {
+            finalDetails.appliedEffects = patchDetails.appliedEffects;
+          }
+
           merged[id] = {
-            ...(current[id] ?? {}),
+            ...existing,
             ...patch,
-            details: {
-              ...((current[id] as any)?.details ?? {}),
-              ...((patch as any).details ?? {}),
-            },
+            details: finalDetails,
+          };
+        }
+
+          merged[id] = {
+            ...existing,
+            ...patch,
+            details: finalDetails,
+>>>>>>> Stashed changes
           };
         }
         useStore.getState().setState({ trackItemsMap: merged as any });
