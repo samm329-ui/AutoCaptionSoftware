@@ -287,9 +287,9 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   useEffect(() => {
     const availableScroll = horizontalScrollbarVpRef.current?.scrollWidth;
     if (!availableScroll || !timeline) return;
-    const canvasWidth = timeline.width;
+    const canvasWidth = timeline?.width ?? 0;
     if (availableScroll < canvasWidth + scrollLeft) {
-      timeline.scrollTo({ scrollLeft: availableScroll - canvasWidth });
+      timeline?.scrollTo?.({ scrollLeft: availableScroll - canvasWidth });
     }
   }, [scale]);
 
