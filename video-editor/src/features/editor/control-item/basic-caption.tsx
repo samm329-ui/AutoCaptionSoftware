@@ -17,6 +17,7 @@ import { ICompactFont, IFont } from "../interfaces/editor";
 import { DEFAULT_FONT } from "../constants/font";
 import { PresetCaption } from "./common/preset-caption";
 import AnimationCaption from "./common/animation-caption";
+import { bridgePush } from "../engine/legacy-bridge";
 
 interface ITextControlProps {
   color: string;
@@ -152,28 +153,28 @@ const BasicCaption = ({
       }
     ]);
     setSelectedFont({ ...selectedFont, name: styleName });
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            fontFamily: fontName,
-            fontUrl: fontUrl
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          fontFamily: fontName,
+          fontUrl: fontUrl
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const onChangeBorderWidth = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderWidth: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderWidth: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -183,15 +184,15 @@ const BasicCaption = ({
   };
 
   const onChangeBorderColor = (v: string) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderColor: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderColor: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -201,15 +202,15 @@ const BasicCaption = ({
   };
 
   const handleChangeOpacity = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            opacity: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          opacity: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -219,15 +220,15 @@ const BasicCaption = ({
   };
 
   const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            boxShadow: boxShadow
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          boxShadow: boxShadow
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
@@ -238,15 +239,15 @@ const BasicCaption = ({
   };
 
   const onChangeFontSize = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            fontSize: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          fontSize: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -272,16 +273,16 @@ const BasicCaption = ({
       fontFamilyDisplay: font.default.family
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            fontFamily: fontName,
-            fontUrl: fontUrl
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          fontFamily: fontName,
+          fontUrl: fontUrl
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const handleColorChange = (color: string) => {
@@ -292,15 +293,15 @@ const BasicCaption = ({
       } as ITextControlProps;
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            color: color
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          color: color
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const onChangeTextAlign = (v: string) => {
@@ -310,15 +311,15 @@ const BasicCaption = ({
         textAlign: v
       } as ITextControlProps;
     });
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            textAlign: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          textAlign: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const onChangeTextDecoration = (v: string) => {
@@ -327,15 +328,15 @@ const BasicCaption = ({
       textDecoration: v
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            textDecoration: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          textDecoration: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const applyAnimation = (presetName: PresetName, type: "in" | "out") => {
@@ -346,17 +347,17 @@ const BasicCaption = ({
     const presetAnimation = presets[presetName];
     const composition: Animation[] = [presetAnimation];
 
-    dispatch(ADD_ANIMATION, {
-      payload: {
-        id: trackItem.id,
-        animations: {
-          [type]: {
-            name: presetName,
-            composition
-          }
+    const payload = {
+      id: trackItem.id,
+      animations: {
+        [type]: {
+          name: presetName,
+          composition
         }
       }
-    });
+    };
+    dispatch(ADD_ANIMATION, { payload });
+    bridgePush(ADD_ANIMATION, payload);
   };
   const createPresetButtons = (
     filter: (key: string) => boolean,
