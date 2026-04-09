@@ -36,6 +36,14 @@ import DecibelMeter from "./decibel-meter";
 import TrackHeaders from "./track-headers";
 import { useTrackOrdering } from "../hooks/use-track-ordering";
 
+// ENGINE MIGRATION: Import engine hooks
+import {
+  useEngineZoom,
+  useEnginePlayhead,
+  useEngineDuration,
+  useEngineSelector,
+} from "../engine/engine-provider";
+
 CanvasTimeline.registerItems({
   Text,
   Image,
@@ -59,7 +67,15 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<CanvasTimeline | null>(null);
   const horizontalScrollbarVpRef = useRef<HTMLDivElement>(null);
+  
+  // MIGRATION: Get values from Zustand (CanvasTimeline needs them)
   const { scale, playerRef, fps, duration, setState, timeline } = useStore();
+  
+  // ENGINE MIGRATION: Get values from engine where applicable
+  const engineZoom = useEngineZoom();
+  const enginePlayhead = useEnginePlayhead();
+  const engineDuration = useEngineDuration();
+  
   const currentFrame = useCurrentPlayerFrame(playerRef);
   const [canvasSize, setCanvasSize] = useState(EMPTY_SIZE);
   const canvasSizeRef = useRef(EMPTY_SIZE);
