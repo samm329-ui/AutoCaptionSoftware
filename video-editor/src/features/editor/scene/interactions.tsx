@@ -185,12 +185,12 @@ export function SceneInteractions({
   // FIXED: onDrag still moves the DOM element visually (necessary for smooth 60fps feel),
   // but onDragEnd commits the final value to the editor state via dispatch(EDIT_OBJECT).
   // The state is NEVER ahead of the DOM — they converge at drag end.
-  const handleDrag = ({ target, top, left }: { target: HTMLElement; top: number; left: number }) => {
+  const handleDrag = ({ target, top, left }: { target: HTMLElement | SVGElement; top: number; left: number }) => {
     target.style.top = `${top}px`;
     target.style.left = `${left}px`;
   };
 
-  const handleDragEnd = ({ target, isDrag }: { target: HTMLElement; isDrag: boolean }) => {
+  const handleDragEnd = ({ target, isDrag }: { target: HTMLElement | SVGElement; isDrag: boolean }) => {
     if (!isDrag) return;
     const targetId = getIdFromClassName(target.className) as string;
     const currentLeft = parseFloat(target.style.left);
@@ -213,7 +213,7 @@ export function SceneInteractions({
     transform,
     direction,
   }: {
-    target: HTMLElement;
+    target: HTMLElement | SVGElement;
     transform: string;
     direction: number[];
   }) => {
@@ -243,7 +243,7 @@ export function SceneInteractions({
     target.style.top = `${newTop}px`;
   };
 
-  const handleScaleEnd = ({ target }: { target: HTMLElement }) => {
+  const handleScaleEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
     const currentLeft = parseFloat(target.style.left);
@@ -262,11 +262,11 @@ export function SceneInteractions({
   };
 
   // ─── ROTATE ──────────────────────────────────────────────────────────────────
-  const handleRotate = ({ target, transform }: { target: HTMLElement; transform: string }) => {
+  const handleRotate = ({ target, transform }: { target: HTMLElement | SVGElement; transform: string }) => {
     target.style.transform = transform;
   };
 
-  const handleRotateEnd = ({ target }: { target: HTMLElement }) => {
+  const handleRotateEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
     dispatch(EDIT_OBJECT, {
@@ -287,7 +287,7 @@ export function SceneInteractions({
     height: nextHeight,
     direction,
   }: {
-    target: HTMLElement;
+    target: HTMLElement | SVGElement;
     width: number;
     height: number;
     direction: number[];
@@ -382,7 +382,7 @@ export function SceneInteractions({
   };
 
   // FIXED: onResizeEnd commits the authoritative value to the central editor state.
-  const handleResizeEnd = ({ target }: { target: HTMLElement }) => {
+  const handleResizeEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     const targetId = getIdFromClassName(target.className) as string;
     if (!targetId || !trackItemsMap[targetId]) return;
     const type = trackItemsMap[targetId].type;
