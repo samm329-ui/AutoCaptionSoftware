@@ -15,6 +15,7 @@ import { getCurrentTime } from "../utils/time";
 import {
   calculateTextHeight,
 } from "../utils/text";
+import { useEngineDispatch } from "../engine/engine-provider";
 
 // ─── Module-level drag state ──────────────────────────────────────────────────
 // These live outside React to avoid closure stale issues during fast drag events.
@@ -54,6 +55,9 @@ export function SceneInteractions({
   } = useStore();
   const moveableRef = useRef<Moveable>(null);
   const [selectionInfo, setSelectionInfo] = useState<SelectionInfo>(emptySelection);
+  
+  // MIGRATION: Also dispatch to engine for sync
+  const engineDispatch = useEngineDispatch();
 
   // ─── Snap guidelines ────────────────────────────────────────────────────────
   const elementGuidelines = useMemo(
@@ -195,6 +199,8 @@ export function SceneInteractions({
     const targetId = getIdFromClassName(target.className) as string;
     const currentLeft = parseFloat(target.style.left);
     const currentTop = parseFloat(target.style.top);
+    
+    // Dispatch to DesignCombo (timeline sync)
     dispatch(EDIT_OBJECT, {
       payload: {
         [targetId]: {
@@ -202,6 +208,18 @@ export function SceneInteractions({
             left: isNaN(currentLeft) ? 0 : currentLeft,
             top: isNaN(currentTop) ? 0 : currentTop,
           },
+        },
+      },
+    });
+    
+    // MIGRATION: Also dispatch to engine
+    engineDispatch({
+      type: "UPDATE_CLIP",
+      payload: {
+        clipId: targetId,
+        details: {
+          left: isNaN(currentLeft) ? 0 : currentLeft,
+          top: isNaN(currentTop) ? 0 : currentTop,
         },
       },
     });
@@ -248,6 +266,8 @@ export function SceneInteractions({
     const targetId = getIdFromClassName(target.className) as string;
     const currentLeft = parseFloat(target.style.left);
     const currentTop = parseFloat(target.style.top);
+    
+    // Dispatch to DesignCombo (timeline sync)
     dispatch(EDIT_OBJECT, {
       payload: {
         [targetId]: {
@@ -256,6 +276,19 @@ export function SceneInteractions({
             left: isNaN(currentLeft) ? 0 : currentLeft,
             top: isNaN(currentTop) ? 0 : currentTop,
           },
+        },
+      },
+    });
+    
+    // MIGRATION: Also dispatch to engine
+    engineDispatch({
+      type: "UPDATE_CLIP",
+      payload: {
+        clipId: targetId,
+        details: {
+          left: isNaN(currentLeft) ? 0 : currentLeft,
+          top: isNaN(currentTop) ? 0 : currentTop,
+          transform: target.style.transform,
         },
       },
     });
@@ -269,11 +302,22 @@ export function SceneInteractions({
   const handleRotateEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
+    
+    // Dispatch to DesignCombo (timeline sync)
     dispatch(EDIT_OBJECT, {
       payload: {
         [targetId]: {
           details: { transform: target.style.transform },
         },
+      },
+    });
+    
+    // MIGRATION: Also dispatch to engine
+    engineDispatch({
+      type: "UPDATE_CLIP",
+      payload: {
+        clipId: targetId,
+        details: { transform: target.style.transform },
       },
     });
   };
@@ -387,34 +431,57 @@ export function SceneInteractions({
     if (!targetId || !trackItemsMap[targetId]) return;
     const type = trackItemsMap[targetId].type;
 
+    const buildPayload = () => ({
+      clipId: targetId,
+      details: {
+        ...trackItemsMap[targetId].details,
+        width: parseFloat(target.style.width),
+        height: parseFloat(target.style.height),
+      },
+    });
+
     if (type === "text" || type === "caption") {
       const selector = type === "text" ? `[data-text-id="${targetId}"]` : `#caption-${targetId}`;
       const textDiv = document.querySelector(selector) as HTMLDivElement;
       if (textDiv) {
-        dispatch(EDIT_OBJECT, {
-          payload: {
-            [targetId]: {
-              details: {
-                ...trackItemsMap[targetId].details,
-                width: parseFloat(target.style.width),
-                height: parseFloat(target.style.height),
-                fontSize: parseFloat(textDiv.style.fontSize),
-              },
-            },
-          },
-        });
-      }
-    } else if (type === "progressSquare") {
-      const currentLeft = parseFloat(target.style.left);
-      dispatch(EDIT_OBJECT, {
-        payload: {
+        const payload = {
           [targetId]: {
             details: {
               ...trackItemsMap[targetId].details,
               width: parseFloat(target.style.width),
               height: parseFloat(target.style.height),
-              left: isNaN(currentLeft) ? 0 : currentLeft,
+              fontSize: parseFloat(textDiv.style.fontSize),
             },
+          },
+        };
+        
+        dispatch(EDIT_OBJECT, { payload });
+        engineDispatch({
+          type: "UPDATE_CLIP",
+          payload: buildPayload(),
+        });
+      }
+    } else if (type === "progressSquare") {
+      const currentLeft = parseFloat(target.style.left);
+      const payload = {
+        [targetId]: {
+          details: {
+            ...trackItemsMap[targetId].details,
+            width: parseFloat(target.style.width),
+            height: parseFloat(target.style.height),
+            left: isNaN(currentLeft) ? 0 : currentLeft,
+          },
+        },
+      };
+      
+      dispatch(EDIT_OBJECT, { payload });
+      engineDispatch({
+        type: "UPDATE_CLIP",
+        payload: {
+          ...buildPayload(),
+          details: {
+            ...buildPayload().details,
+            left: isNaN(currentLeft) ? 0 : currentLeft,
           },
         },
       });
@@ -430,6 +497,7 @@ export function SceneInteractions({
           },
         },
       });
+      engineDispatch({ type: "UPDATE_CLIP", payload: buildPayload() });
     }
   };
 
