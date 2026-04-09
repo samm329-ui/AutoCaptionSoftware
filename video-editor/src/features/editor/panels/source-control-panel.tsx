@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { dispatch } from "@designcombo/events";
 import { ADD_VIDEO, ADD_AUDIO, ADD_IMAGE } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
+import { bridgePush } from "../engine/legacy-bridge";
 
 const DEFAULT_FPS = 30;
 
@@ -193,12 +194,15 @@ export default function SourceControlPanel() {
     switch (ft) {
       case "video":
         dispatch(ADD_VIDEO, { payload, options: { resourceId: "main", scaleMode: "fit" } });
+        bridgePush(ADD_VIDEO, payload);
         break;
       case "audio":
         dispatch(ADD_AUDIO, { payload: { ...payload, type: "audio" }, options: {} });
+        bridgePush(ADD_AUDIO, payload);
         break;
       case "image":
         dispatch(ADD_IMAGE, { payload: { ...payload, type: "image" }, options: {} });
+        bridgePush(ADD_IMAGE, payload);
         break;
     }
   }, [sourceSrc, sourceType, duration, inFrameClamped, outFrameClamped]);
