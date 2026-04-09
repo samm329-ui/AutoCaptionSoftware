@@ -53,7 +53,10 @@ import React, {
   useCallback,
   type ReactNode,
 } from "react";
-import { engineStore, type Project, type EditorCommand } from "./engine-core";
+import { engineStore, type Project, type EditorCommand, type Clip, type Track, type Transform } from "./engine-core";
+
+// Re-export types for convenience
+export type { Clip, Track, Transform };
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -153,32 +156,32 @@ export function useEngineSelector<T>(
 ): T {
   const store = useEngineStore();
 
-  // Keep the latest selector in a ref so the snapshot function always calls
-  // the up-to-date selector without needing to recreate the snapshot closure.
+  // Store selector and equality function in refs to avoid recreation
   const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
   selectorRef.current = selector;
+  isEqualRef.current = isEqual;
 
-  // Memoised previous value — prevents returning a new reference when the
-  // derived value is shallowly equal to the previous one.
-  const lastRef = useRef<{ value: T } | undefined>(undefined);
+  // Cache the last computed value to avoid unnecessary re-renders
+  const cacheRef = useRef<{ value: T } | null>(null);
 
   const getSnapshot = useCallback((): T => {
     const next = selectorRef.current(store.getState());
 
-    if (lastRef.current !== undefined) {
-      const prev = lastRef.current.value;
-      const equal = isEqual ? isEqual(prev, next) : Object.is(prev, next);
+    if (cacheRef.current !== null) {
+      const prev = cacheRef.current.value;
+      const equal = isEqualRef.current ? isEqualRef.current(prev, next) : Object.is(prev, next);
       if (equal) return prev;
     }
 
-    lastRef.current = { value: next };
+    cacheRef.current = { value: next };
     return next;
-  }, [store, isEqual]);
+  }, [store]);
 
   return useSyncExternalStore(
     makeSubscribe(store),
     getSnapshot,
-    getSnapshot // server snapshot — same value, no server state in this engine
+    getSnapshot
   );
 }
 
