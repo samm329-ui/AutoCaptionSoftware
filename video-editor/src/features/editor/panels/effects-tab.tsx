@@ -57,6 +57,7 @@ import { setDragData } from "@/components/shared/drag-data";
 import { dispatch } from "@designcombo/events";
 import { EDIT_OBJECT } from "@designcombo/state";
 import useStore from "../store/use-store";
+import { useEngineSelection, useEngineDispatch } from "../engine/engine-provider";
 
 const EFFECT_CATEGORY_ICONS: Partial<Record<EffectCategory, React.ReactNode>> = {
   "adjust":             <Sparkles className="w-3 h-3" />,
@@ -204,7 +205,10 @@ const CategorySection: React.FC<{
 };
 
 const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
-  const { activeIds } = useStore();
+  const engineSelection = useEngineSelection();
+  const legacyActiveIds = useStore((s) => s.activeIds);
+  const activeIds = engineSelection.length > 0 ? engineSelection : legacyActiveIds;
+  const engineDispatch = useEngineDispatch();
 
   const handleApplyEffect = useCallback(
     (effect: VideoEffectDef) => {
@@ -231,7 +235,7 @@ const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
         },
       });
     },
-    [activeIds]
+    [activeIds, engineDispatch]
   );
 
   const filteredByCategory = useMemo(() => {
@@ -281,7 +285,10 @@ const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
 };
 
 const TransitionsSubTab: React.FC<{ search: string }> = ({ search }) => {
-  const { activeIds } = useStore();
+  const engineSelection = useEngineSelection();
+  const legacyActiveIds = useStore((s) => s.activeIds);
+  const activeIds = engineSelection.length > 0 ? engineSelection : legacyActiveIds;
+  const engineDispatch = useEngineDispatch();
 
   const handleApplyTransition = useCallback(
     (transition: VideoTransitionDef) => {
@@ -307,7 +314,7 @@ const TransitionsSubTab: React.FC<{ search: string }> = ({ search }) => {
         },
       });
     },
-    [activeIds]
+    [activeIds, engineDispatch]
   );
 
   const filteredByCategory = useMemo(() => {
