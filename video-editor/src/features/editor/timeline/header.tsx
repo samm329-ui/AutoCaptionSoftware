@@ -25,6 +25,9 @@ import { ITimelineScaleState } from "@designcombo/types";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 
+// ENGINE MIGRATION: Import engine hooks
+import { useEngineSelection, useEngineDuration } from "../engine/engine-provider";
+
 const IconPlayerPlayFilled = ({ size }: { size: number }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -86,7 +89,13 @@ const IconPlayerSkipForward = ({ size }: { size: number }) => (
 
 const Header = () => {
   const [playing, setPlaying] = useState(false);
-  const { duration, fps, scale, playerRef, activeIds } = useStore();
+  
+  // MIGRATION: Get values from Zustand for infrastructure
+  const { duration, fps, scale, playerRef } = useStore();
+  
+  // ENGINE MIGRATION: Get selection from engine
+  const engineSelection = useEngineSelection();
+  
   const isLargeScreen = useIsLargeScreen();
   useUpdateAnsestors({ playing, playerRef });
 
@@ -107,10 +116,11 @@ const Header = () => {
   };
 
   const doExtractAudio = async () => {
-    if (activeIds.length === 0) return;
+    // MIGRATION: Use engine selection
+    if (engineSelection.length === 0) return;
 
     const { trackItemsMap } = useStore.getState();
-    const firstActiveId = activeIds[0];
+    const firstActiveId = engineSelection[0];
     const trackItem = trackItemsMap[firstActiveId];
     if (!trackItem) return;
 
@@ -232,7 +242,7 @@ const Header = () => {
         >
           <div className="flex px-2">
             <Button
-              disabled={!activeIds.length}
+              disabled={!engineSelection.length}
               onClick={doActiveDelete}
               variant={"ghost"}
               size={isLargeScreen ? "sm" : "icon"}
@@ -243,7 +253,7 @@ const Header = () => {
             </Button>
 
             <Button
-              disabled={!activeIds.length}
+              disabled={!engineSelection.length}
               onClick={doActiveSplit}
               variant={"ghost"}
               size={isLargeScreen ? "sm" : "icon"}
@@ -253,7 +263,7 @@ const Header = () => {
               <span className="hidden lg:block">Split</span>
             </Button>
             <Button
-              disabled={!activeIds.length}
+              disabled={!engineSelection.length}
               onClick={doExtractAudio}
               variant={"ghost"}
               size={isLargeScreen ? "sm" : "icon"}
@@ -263,7 +273,7 @@ const Header = () => {
               <span className="hidden lg:block">Extract Audio</span>
             </Button>
             <Button
-              disabled={!activeIds.length}
+              disabled={!engineSelection.length}
               onClick={() => {
                 dispatch(LAYER_CLONE);
               }}
