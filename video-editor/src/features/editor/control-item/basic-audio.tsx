@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { dispatch } from "@designcombo/events";
 import { EDIT_OBJECT, LAYER_REPLACE } from "@designcombo/state";
 import { Button } from "@/components/ui/button";
+import { bridgePush } from "../engine/legacy-bridge";
 
 const BasicAudio = ({
   trackItem,
@@ -18,15 +19,15 @@ const BasicAudio = ({
   const [properties, setProperties] = useState(trackItem);
 
   const handleChangeVolume = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            volume: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          volume: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
@@ -40,13 +41,13 @@ const BasicAudio = ({
   };
 
   const handleChangeSpeed = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          playbackRate: v
-        }
+    const payload = {
+      [trackItem.id]: {
+        playbackRate: v
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
