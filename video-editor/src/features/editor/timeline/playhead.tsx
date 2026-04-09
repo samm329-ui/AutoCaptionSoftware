@@ -12,13 +12,15 @@ import { timeMsToUnits, unitsToTimeMs } from "../utils/timeline";
 import { TIMELINE_OFFSET_CANVAS_LEFT } from "../constants/constants";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useTheme } from "next-themes";
+import { useEngineZoom } from "../engine/engine-provider";
 const Playhead = ({ scrollLeft }: { scrollLeft: number }) => {
   const playheadRef = useRef<HTMLDivElement>(null);
   const { playerRef, fps, scale } = useStore();
+  const engineZoom = useEngineZoom();
   const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
   
   const safeFps = fps || 30;
-  const safeScaleZoom = scale?.zoom || (1 / 300);
+  const safeScaleZoom = engineZoom || scale?.zoom || (1 / 300);
   const safeScrollLeft = scrollLeft || 0;
   
   const position =
