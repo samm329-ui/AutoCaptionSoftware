@@ -12,6 +12,7 @@ import { ICompactFont, IFont } from "../interfaces/editor";
 import { DEFAULT_FONT } from "../constants/font";
 import { PresetText } from "./common/preset-text";
 import { Animations } from "./common/animations";
+import { bridgePush } from "../engine/legacy-bridge";
 
 interface ITextControlProps {
   color: string;
@@ -130,28 +131,28 @@ const BasicText = ({
       }
     ]);
     setSelectedFont({ ...selectedFont, name: styleName });
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            fontFamily: fontName,
-            fontUrl: fontUrl
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          fontFamily: fontName,
+          fontUrl: fontUrl
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const onChangeBorderWidth = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderWidth: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderWidth: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -161,15 +162,15 @@ const BasicText = ({
   };
 
   const onChangeBorderColor = (v: string) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderColor: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderColor: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -179,15 +180,15 @@ const BasicText = ({
   };
 
   const handleChangeOpacity = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            opacity: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          opacity: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -197,15 +198,15 @@ const BasicText = ({
   };
 
   const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            boxShadow: boxShadow
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          boxShadow: boxShadow
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
@@ -216,15 +217,15 @@ const BasicText = ({
   };
 
   const onChangeFontSize = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            fontSize: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          fontSize: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -250,16 +251,16 @@ const BasicText = ({
       fontFamilyDisplay: font.default.family
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            fontFamily: fontName,
-            fontUrl: fontUrl
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          fontFamily: fontName,
+          fontUrl: fontUrl
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const handleColorChange = (color: string) => {
@@ -270,15 +271,15 @@ const BasicText = ({
       } as ITextControlProps;
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            color: color
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          color: color
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const handleBackgroundChange = (color: string) => {
@@ -289,15 +290,15 @@ const BasicText = ({
       } as ITextControlProps;
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            backgroundColor: color
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          backgroundColor: color
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const onChangeTextAlign = (v: string) => {
@@ -307,15 +308,15 @@ const BasicText = ({
         textAlign: v
       } as ITextControlProps;
     });
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            textAlign: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          textAlign: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const onChangeTextDecoration = (v: string) => {
@@ -324,15 +325,15 @@ const BasicText = ({
       textDecoration: v
     });
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            textDecoration: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          textDecoration: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
   };
 
   const components = [
