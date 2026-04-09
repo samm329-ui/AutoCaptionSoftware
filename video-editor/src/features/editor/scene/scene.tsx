@@ -8,6 +8,9 @@ import useZoom from "../hooks/use-zoom";
 import { SceneInteractions } from "./interactions";
 import { SceneRef } from "./scene.types";
 
+// ENGINE MIGRATION: Import engine hooks
+import { useEngineSelector } from "../engine/engine-provider";
+
 const Scene = forwardRef<
   SceneRef,
   {
@@ -16,6 +19,10 @@ const Scene = forwardRef<
 >(({ stateManager }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { size, trackItemIds } = useStore();
+  
+  // ENGINE MIGRATION: Get clip count from engine
+  const engineClipCount = useEngineSelector((p) => Object.keys(p.clips).length);
+  
   const { zoom, handlePinch, recalculateZoom } = useZoom(
     containerRef as React.RefObject<HTMLDivElement>,
     size
@@ -25,6 +32,9 @@ const Scene = forwardRef<
   useImperativeHandle(ref, () => ({
     recalculateZoom
   }));
+
+  // Use engine clips count if available
+  const hasClips = engineClipCount > 0 || trackItemIds.length > 0;
 
   return (
     <div
@@ -41,7 +51,7 @@ const Scene = forwardRef<
       }}
       ref={containerRef}
     >
-      {trackItemIds.length === 0 && <SceneEmpty />}
+      {!hasClips && <SceneEmpty />}
       <div
         style={{
           width: size.width,
