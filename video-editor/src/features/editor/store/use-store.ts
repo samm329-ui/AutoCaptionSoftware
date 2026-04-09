@@ -73,9 +73,17 @@ const MAX_HISTORY = 120;
 
 function cloneState(state: any) {
   try {
+    if (typeof state !== 'object' || state === null) {
+      return state;
+    }
     return structuredClone(state);
   } catch {
-    return JSON.parse(JSON.stringify(state));
+    try {
+      return JSON.parse(JSON.stringify(state));
+    } catch {
+      console.warn('[useStore] Failed to clone state, returning empty object');
+      return {};
+    }
   }
 }
 
