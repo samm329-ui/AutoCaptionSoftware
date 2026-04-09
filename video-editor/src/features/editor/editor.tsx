@@ -40,8 +40,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useKeyframePlayback } from "./hooks/use-keyframe-playback";
 import { useMarkerShortcuts } from "./engine/marker-engine";
 
+// ─── NEW: Engine provider + legacy bridge ─────────────────────────────────────
+// Phase 1 of migration: mount the engine and wire DesignCombo → engine sync.
+import { EngineProvider } from "./engine/engine-provider";
+import { useLegacyBridge } from "./engine/legacy-bridge";
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Single StateManager instance ─────────────────────────────────────────────
-// FIXED: Created once at module level so it never re-instantiates on re-render.
 const stateManager = new StateManager({
   size: { width: 1080, height: 1920 },
 });
@@ -123,13 +128,10 @@ function ResizablePanelWrapper({
 }
 
 // ─── Left Sidebar ──────────────────────────────────────────────────────────────
-// FIXED: Source monitor on top (usable height), media/project tabs below.
-// Removed nested tab pollution — clear two-panel split.
 const LeftSidebar = () => {
   return (
     <div className="bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]">
       <ResizablePanelGroup direction="vertical" className="w-full">
-        {/* Source monitor — primary preview area */}
         <ResizablePanel defaultSize={45} minSize={25} maxSize={70}>
           <ResizablePanelWrapper id="source">
             <SourceControlPanel />
@@ -138,7 +140,6 @@ const LeftSidebar = () => {
 
         <ResizableHandle withHandle />
 
-        {/* Media / Project bin */}
         <ResizablePanel defaultSize={55} minSize={30} maxSize={75}>
           <ResizablePanelWrapper id="project">
             <Tabs defaultValue="media" className="flex flex-col h-full">
@@ -171,9 +172,6 @@ const LeftSidebar = () => {
 };
 
 // ─── Right Sidebar ────────────────────────────────────────────────────────────
-// FIXED: Effect Controls is the primary tab (most useful).
-// Properties tab only shown when a clip IS selected — no empty ghost state.
-// Shows a contextual empty state with helpful hints when nothing is selected.
 const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
   return (
     <div className="bg-card flex flex-col border-l border-border/80 h-[calc(100vh-52px)] w-full">
@@ -204,7 +202,6 @@ const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
             {trackItem ? (
               <ControlItem />
             ) : (
-              /* FIXED: Replaced vague "Select a clip" with actionable hint UI */
               <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
@@ -236,8 +233,6 @@ const RightSidebar = ({ trackItem }: { trackItem: ITrackItem | null }) => {
 };
 
 // ─── Center: Scene + Timeline ─────────────────────────────────────────────────
-// FIXED: Preview gets more vertical space (65/35 split favoring preview).
-// MediaToolbar lives inside SceneContainer so it's contextually near the timeline.
 const SceneContainer = ({
   sceneRef,
   playerRef,
@@ -247,7 +242,6 @@ const SceneContainer = ({
     <div className="flex flex-col bg-background h-full">
       <div className="flex-1 min-h-0">
         <ResizablePanelGroup direction="vertical" className="h-full">
-          {/* Preview — primary work area */}
           <ResizablePanel defaultSize={65} minSize={35}>
             <ResizablePanelWrapper id="scene">
               <div className="flex-1 relative overflow-hidden w-full h-full">
@@ -259,11 +253,9 @@ const SceneContainer = ({
 
           <ResizableHandle className="bg-border/90" withHandle />
 
-          {/* Timeline — always visible, minimum height enforced */}
           <ResizablePanel defaultSize={35} minSize={20}>
             <ResizablePanelWrapper id="timeline">
               <div className="w-full h-full flex flex-col">
-                {/* FIXED: MediaToolbar above the timeline canvas for visual grouping */}
                 <MediaToolbar />
                 <div className="flex-1 min-h-0">
                   {playerRef && <Timeline stateManager={stateManager} />}
@@ -277,8 +269,8 @@ const SceneContainer = ({
   );
 };
 
-// ─── Main Editor ──────────────────────────────────────────────────────────────
-export default function Editor() {
+// ─── Inner editor shell (inside EngineProvider) ───────────────────────────────
+function EditorShell() {
   const {
     playerRef,
     setPlayerRef,
@@ -299,18 +291,18 @@ export default function Editor() {
   useMarkerShortcuts();
   useAutoSequenceDetector();
 
-  // FIXED: Derive active track item purely from the single source of truth (useStore).
-  // Previously this lived in useLayoutStore, causing the "two brain" sync problem.
+  // ── NEW: wire DesignCombo events → engine store ──────────────────────────
+  useLegacyBridge();
+  // ────────────────────────────────────────────────────────────────────────
+
   const activeId = activeIds[0];
   const activeTrackItem = activeId ? (trackItemsMap[activeId] as ITrackItem) : null;
 
-  // Mirror active item into layout store only for UI purposes (control panel rendering).
   useEffect(() => {
     if (activeTrackItem) setTrackItem(activeTrackItem);
     else setTrackItem(null);
   }, [activeTrackItem, setTrackItem]);
 
-  // Load fonts once
   useEffect(() => {
     const loadEditorFonts = async () => {
       const compactFonts = await getCompactFontData(FONTS);
@@ -324,8 +316,6 @@ export default function Editor() {
     loadEditorFonts();
   }, []);
 
-  // FIXED: Load design once using a ref guard so strict-mode double-effect
-  // doesn't dispatch DESIGN_LOAD twice and corrupt the timeline state.
   const designLoaded = useRef(false);
   useEffect(() => {
     if (designLoaded.current) return;
@@ -351,9 +341,6 @@ export default function Editor() {
             stateManager={stateManager}
             setProjectName={() => {}}
           />
-          {/* FIXED: Layout proportions — left 15%, center 61%, right 24%
-              Center gets priority. Left and right are tools/panels.
-              Previous split was 14/62/24 but left felt cramped for source monitor. */}
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <ResizablePanelGroup direction="horizontal" className="flex-1">
               <ResizablePanel defaultSize={15} minSize={11} maxSize={24}>
@@ -385,7 +372,6 @@ export default function Editor() {
     );
   }
 
-  // Mobile fallback
   return (
     <FullscreenProvider>
       <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -408,5 +394,14 @@ export default function Editor() {
         <FloatingControl />
       </div>
     </FullscreenProvider>
+  );
+}
+
+// ─── Root export — wraps everything in EngineProvider ─────────────────────────
+export default function Editor() {
+  return (
+    <EngineProvider>
+      <EditorShell />
+    </EngineProvider>
   );
 }
