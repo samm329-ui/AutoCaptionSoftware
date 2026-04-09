@@ -44,6 +44,7 @@ import { useMarkerShortcuts } from "./engine/marker-engine";
 // Phase 1 of migration: mount the engine and wire DesignCombo → engine sync.
 import { EngineProvider } from "./engine/engine-provider";
 import { useLegacyBridge } from "./engine/legacy-bridge";
+import { EngineDebugPanel } from "./engine-debug-panel"; // TODO: Remove after debugging
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Single StateManager instance ─────────────────────────────────────────────
@@ -392,6 +393,7 @@ function EditorShell() {
           <ControlItemHorizontal />
         </div>
         <FloatingControl />
+        <EngineDebugPanel /> {/* TODO: Remove after debugging */}
       </div>
     </FullscreenProvider>
   );
