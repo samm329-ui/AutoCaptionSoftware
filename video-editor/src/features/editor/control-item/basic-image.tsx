@@ -15,6 +15,7 @@ import Brightness from "./common/brightness";
 import useLayoutStore from "../store/use-layout-store";
 import { Label } from "@/components/ui/label";
 import { Animations } from "./common/animations";
+import { bridgePush } from "../engine/legacy-bridge";
 
 const BasicImage = ({
   trackItem,
@@ -31,15 +32,15 @@ const BasicImage = ({
   }, [trackItem]);
 
   const onChangeBorderWidth = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderWidth: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderWidth: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -52,15 +53,15 @@ const BasicImage = ({
   };
 
   const onChangeBorderColor = (v: string) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderColor: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderColor: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -73,15 +74,15 @@ const BasicImage = ({
   };
 
   const handleChangeOpacity = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            opacity: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          opacity: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -94,15 +95,15 @@ const BasicImage = ({
   };
 
   const onChangeBlur = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            blur: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          blur: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -114,15 +115,15 @@ const BasicImage = ({
     });
   };
   const onChangeBrightness = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            brightness: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          brightness: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -135,15 +136,15 @@ const BasicImage = ({
   };
 
   const onChangeBorderRadius = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderRadius: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderRadius: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -156,15 +157,15 @@ const BasicImage = ({
   };
 
   const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            boxShadow: boxShadow
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          boxShadow: boxShadow
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
