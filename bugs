@@ -1,0 +1,18 @@
+contrast slider has no effect on the video
+position in x direction working with slider but at the time of reseting its not comming to its acctual position it goes somewhere else
+rotation is not working at all
+opacity option is not working at all its performing random stuffs like completely blackout the video
+saturation change has no effect on video in simple words its not working at all
+volume is has no effect on video its not working
+crop left,right,top,bottom, nothing is working
+Opacity is working in the properties tab but not in effects control
+remove the round option from the properties tab
+remove the animation option from the properties tab
+outline shadows has no work for videos so remove that from properties 
+scale slider is also not working properly in the effects control properly its doing some random stuff like completely destructure the video size
+Lock Ratio function is also not working for the video
+changes are not applying when i pause or play the video they are getting reset
+select tool, cut tool, in built split tool, ripple edit tool, slip tool, hand tool, rectangle tool, pen tool, track select tool and in the tool bar the zoom in zoom out tool is also not working 
+previous frame (left arrow), next frame (right arrow) is not working
+If I am extracting any audio from selected video file and then I am deleting extracted audio file from audio and then I'm listening to the video I'm getting still the videos audio but it should not be happened'cause when I am extracting video files AUD then the video file has no audio so if the video fail or the more audio how the video will produce sound so this is the basic logic of the thing like extracting audios basic logic So
+double clicking anywhere it fill the screen with the pannel, we have create a specific place for it
