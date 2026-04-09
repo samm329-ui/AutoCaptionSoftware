@@ -15,6 +15,7 @@ import Speed from "./common/speed";
 import useLayoutStore from "../store/use-layout-store";
 import { Label } from "@/components/ui/label";
 import { Animations } from "./common/animations";
+import { bridgePush } from "../engine/legacy-bridge";
 
 const BasicVideo = ({
   trackItem,
@@ -27,15 +28,15 @@ const BasicVideo = ({
   const [properties, setProperties] = useState(trackItem);
   const { setCropTarget } = useLayoutStore();
   const handleChangeVolume = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            volume: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          volume: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
@@ -49,15 +50,15 @@ const BasicVideo = ({
   };
 
   const onChangeBorderWidth = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderWidth: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderWidth: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -70,15 +71,15 @@ const BasicVideo = ({
   };
 
   const onChangeBorderColor = (v: string) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderColor: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderColor: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -91,15 +92,15 @@ const BasicVideo = ({
   };
 
   const handleChangeOpacity = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            opacity: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          opacity: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -112,15 +113,15 @@ const BasicVideo = ({
   };
 
   const onChangeBorderRadius = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            borderRadius: v
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          borderRadius: v
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
     setProperties((prev) => {
       return {
         ...prev,
@@ -133,15 +134,15 @@ const BasicVideo = ({
   };
 
   const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          details: {
-            boxShadow: boxShadow
-          }
+    const payload = {
+      [trackItem.id]: {
+        details: {
+          boxShadow: boxShadow
         }
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
@@ -158,13 +159,13 @@ const BasicVideo = ({
   }, [trackItem]);
 
   const handleChangeSpeed = (v: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          playbackRate: v
-        }
+    const payload = {
+      [trackItem.id]: {
+        playbackRate: v
       }
-    });
+    };
+    dispatch(EDIT_OBJECT, { payload });
+    bridgePush(EDIT_OBJECT, payload);
 
     setProperties((prev) => {
       return {
