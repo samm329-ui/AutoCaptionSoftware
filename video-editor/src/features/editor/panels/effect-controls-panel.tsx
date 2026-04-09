@@ -309,22 +309,13 @@ const EffectSection: React.FC<{
 
 const EffectControlsPanel: React.FC = () => {
   // FIXED: Read directly from the live store on every render.
-  // Previously `clip` was derived once and could go stale if the user
-  // dragged the clip and the panel didn't re-subscribe to the new data.
   const { activeIds, trackItemsMap, fps, playerRef } = useStore();
   const clipId = activeIds[0];
   const clip = clipId ? (trackItemsMap[clipId] as ITrackItem) : null;
 
-  if (!clip) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs gap-2 px-4 text-center">
-        <Clock className="w-6 h-6 opacity-40" />
-        <p>Select a clip in the timeline to see its properties</p>
-      </div>
-    );
-  }
-
-  // FIXED: getCurrentTimeMs reads from playerRef every call — no stale closure.
+  // All hooks MUST be called before any conditional returns
+  // This is REQUIRED by React Rules of Hooks
+  
   const getCurrentTimeMs = useCallback(() => {
     try {
       const frame = playerRef?.current?.getCurrentFrame() ?? 0;
@@ -334,10 +325,6 @@ const EffectControlsPanel: React.FC = () => {
     }
   }, [playerRef, fps]);
 
-  const currentTimeMs = getCurrentTimeMs();
-
-  // FIXED: dispatchEdit always goes through EDIT_OBJECT → stateManager → Zustand.
-  // Never writes to Zustand directly.
   const dispatchEdit = useCallback(
     (property: string, value: any) => {
       if (!clipId) return;
@@ -349,22 +336,32 @@ const EffectControlsPanel: React.FC = () => {
     [clipId]
   );
 
-  const details = (clip.details as any) ?? {};
-  const from = clip.display?.from ?? 0;
-  const clipLocalTime = Math.max(0, currentTimeMs - from);
-  const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
-
-  // FIXED: removeEffect dispatches through EDIT_OBJECT — never mutates state directly.
   const removeEffect = useCallback(
-    (index: number) => {
+    (index: number, appliedEffects: AppliedEffect[]) => {
       const newEffects = [...appliedEffects];
       newEffects.splice(index, 1);
       dispatch(EDIT_OBJECT, {
         payload: { [clipId]: { details: { appliedEffects: newEffects } } },
       });
     },
-    [clipId, appliedEffects]
+    [clipId]
   );
+
+  const currentTimeMs = getCurrentTimeMs();
+  const details = (clip?.details as any) ?? {};
+  const from = clip?.display?.from ?? 0;
+  const clipLocalTime = Math.max(0, currentTimeMs - from);
+  const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
+
+  // NOW we can do conditional rendering - all hooks called above
+  if (!clip) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs gap-2 px-4 text-center">
+        <Clock className="w-6 h-6 opacity-40" />
+        <p>Select a clip in the timeline to see its properties</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -595,7 +592,7 @@ const EffectControlsPanel: React.FC = () => {
                   key={`${effect.kind}-${index}`}
                   effect={effect}
                   clipId={clipId}
-                  onRemove={() => removeEffect(index)}
+                  onRemove={() => removeEffect(index, appliedEffects)}
                 />
               ))
             )}
