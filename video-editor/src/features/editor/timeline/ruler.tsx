@@ -11,6 +11,9 @@ import useStore from "../store/use-store";
 import { debounce } from "lodash";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 
+// ENGINE MIGRATION: Import engine hooks
+import { useEngineZoom, useEngineDuration } from "../engine/engine-provider";
+
 interface RulerProps {
   height?: number;
   longLineSize?: number;
@@ -36,7 +39,13 @@ const Ruler = (props: RulerProps) => {
     onClick,
     onScroll
   } = props;
+  
+  // MIGRATION: Get scale from Zustand (needed for canvas drawing)
   const { scale } = useStore();
+  
+  // ENGINE MIGRATION: Get duration from engine
+  const engineDuration = useEngineDuration();
+  
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [canvasContext, setCanvasContext] =
     useState<CanvasRenderingContext2D | null>(null);
