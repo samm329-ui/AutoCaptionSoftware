@@ -2,11 +2,15 @@
  * engine-hooks.ts
  * React hooks for editor-engine integration.
  * Uses useSyncExternalStore for React 19 compatibility.
+ * 
+ * Note: This file provides standalone hooks. For most use cases,
+ * import from engine-provider.tsx which provides the same hooks
+ * with proper caching.
  */
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useRef, useCallback } from "react";
 import { engineStore, createEmptyProject } from "./engine-core";
-import type { Project } from "./engine-core";
+import type { Project, EditorCommand } from "./engine-core";
 
 const EMPTY_PROJECT = createEmptyProject();
 
@@ -29,15 +33,52 @@ export function useEngineState(): Project {
   );
 }
 
+// Cache for selectors
+const selectorCache = new WeakMap<(state: Project) => unknown, { value: unknown }>();
+
 /**
  * Select a specific slice of engine state.
+ * Note: For array selectors, use shallowArrayEqual as second argument.
  */
-export function useEngineSelector<T>(selector: (state: Project) => T): T {
+export function useEngineSelector<T>(
+  selector: (state: Project) => T,
+  isEqual?: (a: T, b: T) => boolean
+): T {
+  const cacheRef = useRef<{ value: T } | null>(null);
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+
+  const getSnapshot = useCallback((): T => {
+    const next = selectorRef.current(engineStore.getState());
+
+    if (cacheRef.current !== null) {
+      const prev = cacheRef.current.value;
+      const equal = isEqualRef.current 
+        ? isEqualRef.current(prev as T, next) 
+        : Object.is(prev, next);
+      if (equal) return prev;
+    }
+
+    cacheRef.current = { value: next };
+    return next;
+  }, []);
+
   return useSyncExternalStore(
     subscribe,
-    () => selector(engineStore.getState()),
-    () => selector(EMPTY_PROJECT)
+    getSnapshot,
+    getSnapshot
   );
+}
+
+// Shallow array comparison helper
+function shallowArrayEqual(a: unknown[], b: unknown[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
 
 /**
@@ -65,14 +106,14 @@ export function useEngineZoom(): number {
  * Get all tracks from engine.
  */
 export function useEngineTracks() {
-  return useEngineSelector((state) => Object.values(state.tracks));
+  return useEngineSelector((state) => Object.values(state.tracks), shallowArrayEqual);
 }
 
 /**
  * Get all clips from engine.
  */
 export function useEngineClips() {
-  return useEngineSelector((state) => Object.values(state.clips));
+  return useEngineSelector((state) => Object.values(state.clips), shallowArrayEqual);
 }
 
 /**
@@ -80,7 +121,7 @@ export function useEngineClips() {
  */
 export function useEngineHistory() {
   return useEngineSelector((state) => ({
-    canUndo: state.ui.selection.length > 0, // Simplified
+    canUndo: state.ui.selection.length > 0,
     canRedo: false,
   }));
 }
@@ -88,9 +129,6 @@ export function useEngineHistory() {
 /**
  * Dispatch command to engine.
  */
-import { useCallback } from "react";
-import type { EditorCommand } from "./engine-core";
-
 export function useEngineDispatch() {
   return useCallback((command: EditorCommand) => {
     engineStore.dispatch(command);
