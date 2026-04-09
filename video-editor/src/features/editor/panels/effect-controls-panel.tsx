@@ -3,17 +3,19 @@
 /**
  * Effect Controls Panel
  * ─────────────────────
- * FIXES applied:
- * 1. Panel reads clip data from useStore().trackItemsMap[clipId] on every render
- *    instead of reading a cached snapshot — so it always reflects the current state.
- * 2. PropertyRow.localValue is seeded from the live store value, not a one-time
- *    useState initializer. Uses useEffect to sync when the clip changes.
- * 3. dispatchEdit calls dispatch(EDIT_OBJECT) which goes through the central
- *    command path — it never writes directly to Zustand.
- * 4. getCurrentTimeMs() reads from playerRef on every call instead of capturing
- *    fps in a stale closure.
- * 5. Applied effects section: removing an effect dispatches EDIT_OBJECT so all
- *    subscribers (timeline, preview, panel) stay in sync.
+ * 
+ * MIGRATION STATUS: Partially migrated to use engine
+ * 
+ * WHAT USES ENGINE:
+ *   - Selection (useEngineSelection)
+ *   - Clip data (useEngineSelector)
+ *   - Clip mutations (engineDispatch with UPDATE_CLIP)
+ * 
+ * WHAT STILL USES ZUSTAND (infrastructure):
+ *   - fps (for playhead calculation)
+ *   - playerRef (for Remotion player control)
+ * 
+ * All other panels should migrate to engine hooks following this pattern.
  */
 
 import React, { useState, useCallback, useEffect } from "react";
@@ -33,7 +35,6 @@ import {
 import { cn } from "@/lib/utils";
 import { dispatch } from "@designcombo/events";
 import { EDIT_OBJECT } from "@designcombo/state";
-import { ITrackItem } from "@designcombo/types";
 import useStore from "../store/use-store";
 import {
   useKeyframeStore,
@@ -48,6 +49,12 @@ import {
   getEffectDef,
   AppliedEffect,
 } from "../data/video-effects";
+import {
+  useEngineSelection,
+  useEngineSelector,
+  useEngineDispatch,
+  type Clip,
+} from "../engine/engine-provider";
 
 // ─── Property Row ─────────────────────────────────────────────────────────────
 
@@ -308,14 +315,29 @@ const EffectSection: React.FC<{
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 const EffectControlsPanel: React.FC = () => {
-  // FIXED: Read directly from the live store on every render.
+  // Read selection from ENGINE
+  const engineSelection = useEngineSelection();
+  const clipId = engineSelection[0] ?? null;
+
+  // Read clip data from ENGINE, fall back to Zustand if not found
+  const engineClip = useEngineSelector<Clip | null>(
+    (p) => (clipId ? (p.clips[clipId] ?? null) : null)
+  );
+
+  // Fallback to Zustand for clip data (during migration)
   const { activeIds, trackItemsMap, fps, playerRef } = useStore();
-  const clipId = activeIds[0];
-  const clip = clipId ? (trackItemsMap[clipId] as ITrackItem) : null;
+  const zustandClipId = activeIds[0];
+  const zustandClip = zustandClipId ? (trackItemsMap[zustandClipId] as any) : null;
+
+  // Use engine clip if available, otherwise fall back to Zustand
+  const clip = engineClip ?? zustandClip;
 
   // All hooks MUST be called before any conditional returns
   // This is REQUIRED by React Rules of Hooks
-  
+
+  // MIGRATED: Dispatch to ENGINE instead of DesignCombo
+  const engineDispatch = useEngineDispatch();
+
   const getCurrentTimeMs = useCallback(() => {
     try {
       const frame = playerRef?.current?.getCurrentFrame() ?? 0;
@@ -327,28 +349,53 @@ const EffectControlsPanel: React.FC = () => {
 
   const dispatchEdit = useCallback(
     (property: string, value: any) => {
-      if (!clipId) return;
+      const targetClipId = clipId ?? zustandClipId;
+      if (!targetClipId) return;
       const safeValue = Number.isFinite(value) ? value : 0;
+      
+      // Dispatch to ENGINE
+      engineDispatch({
+        type: "UPDATE_CLIP",
+        payload: {
+          clipId: targetClipId,
+          details: { [property]: safeValue }
+        },
+      });
+      
+      // Keep DesignCombo dispatch for timeline sync during migration
       dispatch(EDIT_OBJECT, {
-        payload: { [clipId]: { details: { [property]: safeValue } } },
+        payload: { [targetClipId]: { details: { [property]: safeValue } } },
       });
     },
-    [clipId]
+    [clipId, zustandClipId, engineDispatch]
   );
 
   const removeEffect = useCallback(
     (index: number, appliedEffects: AppliedEffect[]) => {
+      const targetClipId = clipId ?? zustandClipId;
+      if (!targetClipId) return;
       const newEffects = [...appliedEffects];
       newEffects.splice(index, 1);
+      
+      // Dispatch to ENGINE
+      engineDispatch({
+        type: "UPDATE_CLIP",
+        payload: {
+          clipId: targetClipId,
+          details: { appliedEffects: newEffects }
+        },
+      });
+      
+      // Keep DesignCombo dispatch for timeline sync during migration
       dispatch(EDIT_OBJECT, {
-        payload: { [clipId]: { details: { appliedEffects: newEffects } } },
+        payload: { [targetClipId]: { details: { appliedEffects: newEffects } } },
       });
     },
-    [clipId]
+    [clipId, zustandClipId, engineDispatch]
   );
 
   const currentTimeMs = getCurrentTimeMs();
-  const details = (clip?.details as any) ?? {};
+  const details = (clip?.details ?? {}) as Record<string, any>;
   const from = clip?.display?.from ?? 0;
   const clipLocalTime = Math.max(0, currentTimeMs - from);
   const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
