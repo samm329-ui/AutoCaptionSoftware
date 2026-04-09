@@ -37,6 +37,7 @@ import { dispatch } from "@designcombo/events";
 import { ADD_VIDEO, ADD_IMAGE, ADD_AUDIO } from "@designcombo/state";
 import { generateId } from "@designcombo/timeline";
 import EffectsTab from "./effects-tab";
+import { bridgePush } from "../engine/legacy-bridge";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
@@ -641,30 +642,28 @@ const ProjectPanel: React.FC = () => {
     const dur = (file.duration || 5) * 1000;
 
     if (file.type === "colormatte") {
-      dispatch(ADD_IMAGE, {
-        payload: {
-          id,
-          type: "image",
-          details: { src: file.objectUrl },
-          metadata: { previewUrl: file.objectUrl, duration: dur, color: file.color, isColorMatte: true },
-          display: { from: 0, to: dur },
-        },
-        options: {},
-      });
+      const payload = {
+        id,
+        type: "image",
+        details: { src: file.objectUrl },
+        metadata: { previewUrl: file.objectUrl, duration: dur, color: file.color, isColorMatte: true },
+        display: { from: 0, to: dur },
+      };
+      dispatch(ADD_IMAGE, { payload, options: {} });
+      bridgePush(ADD_IMAGE, payload);
     } else if (file.type === "adjustment") {
-      dispatch(ADD_VIDEO, {
-        payload: {
-          id,
-          details: { src: file.objectUrl },
-          metadata: { previewUrl: file.objectUrl, duration: dur, isAdjustment: true },
-          display: { from: 0, to: dur },
-        },
-        options: { resourceId: "main", scaleMode: "fit" },
-      });
+      const payload = {
+        id,
+        details: { src: file.objectUrl },
+        metadata: { previewUrl: file.objectUrl, duration: dur, isAdjustment: true },
+        display: { from: 0, to: dur },
+      };
+      dispatch(ADD_VIDEO, { payload, options: { resourceId: "main", scaleMode: "fit" } });
+      bridgePush(ADD_VIDEO, payload);
     } else {
       addFileToTimeline(file);
     }
-  }, []);
+  }, [addFileToTimeline]);
 
   const handleCreateFolder = useCallback(() => {
     const name = prompt("Folder name:");
