@@ -22,7 +22,7 @@ export function TimelineVerticalScrollbar({ className }: TimelineVerticalScrollb
   const updateScrollPosition = useCallback(() => {
     if (!timeline) return;
     
-    const contentHeight = timeline.height || 500;
+    const contentHeight = timeline?.height ?? 500;
     const visibleHeight = containerHeight;
     
     const scrollableHeight = contentHeight - visibleHeight;
@@ -69,11 +69,11 @@ export function TimelineVerticalScrollbar({ className }: TimelineVerticalScrollb
       setThumbPosition(newPosition);
       
       if (timeline) {
-        const contentHeight = timeline.height || 500;
+        const contentHeight = timeline?.height ?? 500;
         const scrollableHeight = contentHeight - containerHeight;
         const newScrollTop = (newPosition / maxPosition) * scrollableHeight;
         setScrollTop(newScrollTop);
-        timeline.scrollTo({ scrollTop: newScrollTop });
+        timeline?.scrollTo?.({ scrollTop: newScrollTop });
       }
     };
     
@@ -99,11 +99,11 @@ export function TimelineVerticalScrollbar({ className }: TimelineVerticalScrollb
     const newPosition = Math.max(0, Math.min(maxPosition, clickPercent - thumbHeight / 2));
     setThumbPosition(newPosition);
     
-    const contentHeight = timeline.height || 500;
+    const contentHeight = timeline?.height ?? 500;
     const scrollableHeight = contentHeight - containerHeight;
     const newScrollTop = (newPosition / maxPosition) * scrollableHeight;
     setScrollTop(newScrollTop);
-    timeline.scrollTo({ scrollTop: newScrollTop });
+    timeline?.scrollTo?.({ scrollTop: newScrollTop });
   };
 
   return (
