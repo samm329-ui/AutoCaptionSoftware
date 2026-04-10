@@ -34,19 +34,6 @@ import {
 import useStore from "../store/use-store";
 import { ITrack } from "@designcombo/types";
 
-// ENGINE MIGRATION: Import engine hooks
-import { useEngineSelector } from "../engine/engine-provider";
-import type { Track } from "../engine/engine-provider";
-
-// Shallow array comparison - compares arrays by length and item equality
-function shallowArrayEqual(a: unknown[], b: unknown[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
 const VIDEO_TYPES = new Set(["video", "image", "main", "customTrack", "customTrack2"]);
 const AUDIO_TYPES = new Set(["audio", "linealAudioBars", "radialAudioBars", "waveAudioBars", "hillAudioBars"]);
 
@@ -115,17 +102,8 @@ interface TrackHeadersProps {
 }
 
 export default function TrackHeaders({ canvasRef }: TrackHeadersProps) {
-  // MIGRATION: Get tracks from Zustand for backward compatibility
-  const { tracks: zustandTracks, setState } = useStore();
-  
-  // ENGINE MIGRATION: Get tracks from engine (use shallowArrayEqual to compare)
-  const engineTracks = useEngineSelector(
-    (p) => Object.values(p.tracks) as unknown as ITrack[],
-    shallowArrayEqual
-  );
-  
-  // Use engine tracks if available, fallback to Zustand
-  const tracks = engineTracks.length > 0 ? engineTracks : zustandTracks;
+  // Get tracks from Zustand store only
+  const { tracks, setState } = useStore();
   
   const [trackPositions, setTrackPositions] = useState<
     Array<{ id: string; top: number; height: number }>
