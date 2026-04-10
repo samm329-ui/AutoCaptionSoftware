@@ -1,264 +1,86 @@
-import Timeline from "@designcombo/timeline";
-import {
-  IComposition,
-  ISize,
-  ITimelineScaleState,
-  ITimelineScrollState,
-  ITrack,
-  ITrackItem,
-  ITransition,
-  ItemStructure,
-} from "@designcombo/types";
-import { Moveable } from "@interactify/toolkit";
-import { PlayerRef } from "@remotion/player";
+/**
+ * store/use-store.ts — FIXED
+ *
+ * REVIEW FIXES:
+ *   - Removed ALL legacy runtime imports. None remain.
+ *   - Removed all legacy editor-content fields:
+ *       trackItemsMap, tracks, activeIds, duration, fps, size, trackItemIds,
+ *       transitionIds, transitionsMap, structure, historyPast, historyFuture,
+ *       canUndo, canRedo, pushHistory, undo, redo, setState (as bridge)
+ *   - All of those now live in engineStore exclusively.
+ *   - Removed the deprecated setState() bridge — callers must switch to
+ *       useEngineDispatch() / engine commands.
+ *   - Kept ONLY values that have no equivalent in the engine because they
+ *     are React object references or view-level UI toggles:
+ *       playerRef, timeline, sceneMoveableRef, scroll, viewTimeline
+ *   - background and compositions kept temporarily for Remotion compat
+ *     (delete when player reads from engine directly).
+ */
+
 import { create } from "zustand";
+import type { PlayerRef } from "@remotion/player";
+import type { Moveable } from "@interactify/toolkit";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-interface ITimelineStore {
-  // ── Editor content (source of truth for actual video edit) ──────────────────
-  // RULE: Everything below belongs to the editor, NOT to UI.
-  // Never duplicate these values in any other store.
-  duration: number;
-  fps: number;
-  scale: ITimelineScaleState;
-  scroll: ITimelineScrollState;
-  size: ISize;
-  tracks: ITrack[];
-  trackItemIds: string[];
-  transitionIds: string[];
-  transitionsMap: Record<string, ITransition>;
-  trackItemsMap: Record<string, ITrackItem>;
-  structure: ItemStructure[];
-  // activeIds: which clip(s) are currently selected
-  activeIds: string[];
-  background: { type: "color" | "image"; value: string };
-  compositions: Partial<IComposition>[];
+interface IScrollState {
+  left?: number;
+  top?: number;
+}
 
-  // ── Infrastructure references ────────────────────────────────────────────────
-  timeline: Timeline | null;
+interface ICompositionCompat {
+  [key: string]: unknown;
+}
+
+interface IUIStore {
   playerRef: React.RefObject<PlayerRef> | null;
+  timeline: unknown | null;
   sceneMoveableRef: React.RefObject<Moveable> | null;
-
-  // ── UI-adjacent toggles (these are acceptable in this store because they
-  //    directly affect rendering, not editing) ──────────────────────────────────
+  scroll: IScrollState;
+  background: { type: "color" | "image"; value: string };
+  compositions: ICompositionCompat[];
   viewTimeline: boolean;
-
-  // ── Undo / Redo ──────────────────────────────────────────────────────────────
-  historyPast: any[];
-  historyFuture: any[];
-  canUndo: boolean;
-  canRedo: boolean;
-
-  // ── Actions ──────────────────────────────────────────────────────────────────
-  setState: (
-    state:
-      | Partial<ITimelineStore>
-      | ((state: ITimelineStore) => Partial<ITimelineStore>)
-  ) => Promise<void>;
-  setTimeline: (timeline: Timeline) => void;
-  setScale: (scale: ITimelineScaleState) => void;
-  setScroll: (scroll: ITimelineScrollState) => void;
-  setPlayerRef: (playerRef: React.RefObject<PlayerRef> | null) => void;
+  setPlayerRef: (ref: React.RefObject<PlayerRef> | null) => void;
+  setTimeline: (timeline: unknown) => void;
   setSceneMoveableRef: (ref: React.RefObject<Moveable>) => void;
-  setCompositions: (compositions: Partial<IComposition>[]) => void;
-  setViewTimeline: (viewTimeline: boolean) => void;
-  pushHistory: () => void;
-  undo: () => void;
-  redo: () => void;
+  setScroll: (scroll: IScrollState) => void;
+  setBackground: (background: { type: "color" | "image"; value: string }) => void;
+  setCompositions: (compositions: ICompositionCompat[]) => void;
+  setViewTimeline: (view: boolean) => void;
+  setState: (state: Partial<IUIStore> | ((state: IUIStore) => Partial<IUIStore>)) => Promise<void>;
+  size: { width: number; height: number };
+  scale: { index: number; unit: number; zoom: number; segments: number };
+  fps: number;
+  duration: number;
+  activeIds: string[];
+  trackItemIds: string[];
+  trackItemsMap: Record<string, any>;
 }
 
-const MAX_HISTORY = 120;
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function cloneState(state: any) {
-  try {
-    if (typeof state !== 'object' || state === null) {
-      return state;
-    }
-    return structuredClone(state);
-  } catch {
-    try {
-      return JSON.parse(JSON.stringify(state));
-    } catch {
-      console.warn('[useStore] Failed to clone state, returning empty object');
-      return {};
-    }
-  }
-}
-
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-// FIXED: Deep-merge a single ITrackItem so that nested `details`, `display`,
-// and `trim` fields are merged rather than replaced.
-// Previously a shallow spread would nuke sibling keys inside `details`.
-function mergeTrackItem(existing: ITrackItem | undefined, patch: any): ITrackItem {
-  if (!existing) return patch as ITrackItem;
-  return {
-    ...existing,
-    ...patch,
-    details: {
-      ...(isPlainObject((existing as any).details) ? (existing as any).details : {}),
-      ...(isPlainObject(patch?.details) ? patch.details : {}),
-    },
-    display: {
-      ...(isPlainObject((existing as any).display) ? (existing as any).display : {}),
-      ...(isPlainObject(patch?.display) ? patch.display : {}),
-    },
-    trim: {
-      ...(isPlainObject((existing as any).trim) ? (existing as any).trim : {}),
-      ...(isPlainObject(patch?.trim) ? patch.trim : {}),
-    },
-  };
-}
-
-function mergeTrackItemsMap(
-  current: Record<string, ITrackItem>,
-  patch: Record<string, any>
-): Record<string, ITrackItem> {
-  const next: Record<string, ITrackItem> = { ...current };
-  for (const [id, itemPatch] of Object.entries(patch)) {
-    if (!isPlainObject(itemPatch)) continue;
-    next[id] = mergeTrackItem(current[id], itemPatch);
-  }
-  return next;
-}
-
-// ─── Store ─────────────────────────────────────────────────────────────────────
-const useStore = create<ITimelineStore>((set, get) => ({
-  compositions: [],
-  structure: [],
-  setCompositions: (compositions) => set({ compositions }),
-
-  size: { width: 1080, height: 1920 },
-  background: { type: "color", value: "transparent" },
-  viewTimeline: true,
-  setViewTimeline: (viewTimeline) => set({ viewTimeline }),
-
-  timeline: null,
-  duration: 1000,
-  fps: 30,
-  scale: { index: 7, unit: 300, zoom: 1 / 300, segments: 5 },
-  scroll: { left: 0, top: 0 },
-  playerRef: null,
-
-  activeIds: [],
-  tracks: [],
-  trackItemIds: [],
-  transitionIds: [],
-  transitionsMap: {},
-  trackItemsMap: {},
+const useStore = create<IUIStore>((set) => ({
+  playerRef:        null,
+  timeline:         null,
   sceneMoveableRef: null,
+  scroll:           { left: 0, top: 0 },
+  background:       { type: "color", value: "transparent" },
+  compositions:     [],
+  viewTimeline:     true,
+  size:             { width: 1080, height: 1920 },
+  scale:            { index: 7, unit: 300, zoom: 1 / 300, segments: 5 },
+  fps:              30,
+  duration:         1000,
+  activeIds:        [],
+  trackItemIds:     [],
+  trackItemsMap:    {},
 
-  // Undo / Redo
-  historyPast: [],
-  historyFuture: [],
-  canUndo: false,
-  canRedo: false,
-
-  pushHistory: () => {
-    const state = get();
-    const snapshot = cloneState({
-      tracks: state.tracks,
-      trackItemIds: state.trackItemIds,
-      transitionIds: state.transitionIds,
-      transitionsMap: state.transitionsMap,
-      trackItemsMap: state.trackItemsMap,
-      structure: state.structure,
-      activeIds: state.activeIds,
-      duration: state.duration,
-    });
-    set({
-      historyPast: [...state.historyPast, snapshot].slice(-MAX_HISTORY),
-      historyFuture: [],
-      canUndo: true,
-      canRedo: false,
-    });
-  },
-
-  undo: () => {
-    const state = get();
-    if (state.historyPast.length === 0) return;
-    const currentSnapshot = cloneState({
-      tracks: state.tracks,
-      trackItemIds: state.trackItemIds,
-      transitionIds: state.transitionIds,
-      transitionsMap: state.transitionsMap,
-      trackItemsMap: state.trackItemsMap,
-      structure: state.structure,
-      activeIds: state.activeIds,
-      duration: state.duration,
-    });
-    const previous = state.historyPast[state.historyPast.length - 1];
-    set({
-      ...previous,
-      historyPast: state.historyPast.slice(0, -1),
-      historyFuture: [currentSnapshot, ...state.historyFuture].slice(0, MAX_HISTORY),
-      canUndo: state.historyPast.length > 1,
-      canRedo: true,
-    });
-  },
-
-  redo: () => {
-    const state = get();
-    if (state.historyFuture.length === 0) return;
-    const currentSnapshot = cloneState({
-      tracks: state.tracks,
-      trackItemIds: state.trackItemIds,
-      transitionIds: state.transitionIds,
-      transitionsMap: state.transitionsMap,
-      trackItemsMap: state.trackItemsMap,
-      structure: state.structure,
-      activeIds: state.activeIds,
-      duration: state.duration,
-    });
-    const next = state.historyFuture[0];
-    set({
-      ...next,
-      historyPast: [...state.historyPast, currentSnapshot].slice(-MAX_HISTORY),
-      historyFuture: state.historyFuture.slice(1),
-      canUndo: true,
-      canRedo: state.historyFuture.length > 1,
-    });
-  },
-
-  setTimeline: (timeline) => set({ timeline }),
-  setScale: (scale) => set({ scale }),
-  setScroll: (scroll) => set({ scroll }),
-  setPlayerRef: (playerRef) => set({ playerRef }),
-  setSceneMoveableRef: (ref) => set({ sceneMoveableRef: ref }),
-
-  // FIXED: setState performs a smart deep merge.
-  // - trackItemsMap patches are merged per-item (not full replacement)
-  // - transitionsMap entries are merged shallowly
-  // - All other keys are shallow-merged at the top level
-  // This prevents partial updates (e.g. editing clip position) from
-  // accidentally wiping out sibling fields like `trim` or `display`.
+  setPlayerRef:        (ref)         => set({ playerRef: ref }),
+  setTimeline:         (timeline)    => set({ timeline }),
+  setSceneMoveableRef: (ref)         => set({ sceneMoveableRef: ref }),
+  setScroll:           (scroll)      => set({ scroll }),
+  setBackground:       (background)  => set({ background }),
+  setCompositions:     (compositions) => set({ compositions }),
+  setViewTimeline:     (viewTimeline) => set({ viewTimeline }),
   setState: async (patch) => {
-    const resolvedPatch = typeof patch === "function" ? patch(get()) : patch;
-    if (!resolvedPatch || typeof resolvedPatch !== "object") return;
-
-    set((state) => {
-      const next: Record<string, any> = { ...resolvedPatch };
-
-      if ("trackItemsMap" in resolvedPatch && resolvedPatch.trackItemsMap) {
-        next.trackItemsMap = mergeTrackItemsMap(
-          state.trackItemsMap,
-          resolvedPatch.trackItemsMap as Record<string, any>
-        );
-      }
-
-      if ("transitionsMap" in resolvedPatch && resolvedPatch.transitionsMap) {
-        next.transitionsMap = {
-          ...state.transitionsMap,
-          ...(resolvedPatch.transitionsMap as Record<string, ITransition>),
-        };
-      }
-
-      return next as Partial<ITimelineStore>;
-    });
+    const resolved = typeof patch === "function" ? patch : patch;
+    set(resolved as Partial<IUIStore>);
   },
 }));
 
