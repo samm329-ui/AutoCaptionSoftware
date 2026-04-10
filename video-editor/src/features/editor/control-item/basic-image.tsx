@@ -1,5 +1,8 @@
+/**
+ * control-item/basic-image.tsx — FIXED
+ */
+
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { IBoxShadow, IImage, ITrackItem } from "@designcombo/types";
 import Outline from "./common/outline";
 import Shadow from "./common/shadow";
 import Opacity from "./common/opacity";
@@ -7,176 +10,39 @@ import Rounded from "./common/radius";
 import AspectRatio from "./common/aspect-ratio";
 import { Button } from "@/components/ui/button";
 import { Crop } from "lucide-react";
-import React, { useEffect, useState } from "react";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
+import React from "react";
 import Blur from "./common/blur";
 import Brightness from "./common/brightness";
 import useLayoutStore from "../store/use-layout-store";
 import { Label } from "@/components/ui/label";
 import { Animations } from "./common/animations";
-import { bridgePush } from "../engine/legacy-bridge";
+import {
+  useEngineActiveId,
+  useEngineSelector,
+  useEngineDispatch,
+} from "../engine/engine-provider";
+import {
+  updateDetails,
+  setOpacity,
+  setBlur,
+  setBrightness,
+} from "../engine/commands";
+import { clipToTrackItemCompat } from "./clip-compat";
 
-const BasicImage = ({
-  trackItem,
-  type
-}: {
-  trackItem: ITrackItem & IImage;
-  type?: string;
-}) => {
+interface BoxShadow { color: string; x: number; y: number; blur: number }
+
+const BasicImage = ({ type }: { type?: string }) => {
   const showAll = !type;
-  const [properties, setProperties] = useState(trackItem);
+  const clipId = useEngineActiveId();
+  const dispatch = useEngineDispatch();
+  const clip = useEngineSelector((p) => (clipId ? p.clips[clipId] : null));
   const { setCropTarget } = useLayoutStore();
-  useEffect(() => {
-    setProperties(trackItem);
-  }, [trackItem]);
 
-  const onChangeBorderWidth = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          borderWidth: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          borderWidth: v
-        }
-      };
-    });
-  };
+  if (!clipId || !clip) return null;
 
-  const onChangeBorderColor = (v: string) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          borderColor: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          borderColor: v
-        }
-      };
-    });
-  };
-
-  const handleChangeOpacity = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          opacity: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          opacity: v
-        }
-      };
-    });
-  };
-
-  const onChangeBlur = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          blur: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          blur: v
-        }
-      };
-    });
-  };
-  const onChangeBrightness = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          brightness: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          brightness: v
-        }
-      };
-    });
-  };
-
-  const onChangeBorderRadius = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          borderRadius: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          borderRadius: v
-        }
-      };
-    });
-  };
-
-  const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          boxShadow: boxShadow
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          boxShadow
-        }
-      };
-    });
-  };
+  const d = clip.details as Record<string, unknown>;
+  const opacityForUI = Math.round(clip.transform.opacity * 100);
+  const compat = clipToTrackItemCompat(clip);
 
   const components = [
     {
@@ -185,89 +51,74 @@ const BasicImage = ({
         <div className="flex flex-col gap-2">
           <Label className="font-sans text-xs font-semibold">Crop</Label>
           <div className="mb-4">
-            <Button
-              variant={"secondary"}
-              size={"icon"}
-              onClick={() => {
-                setCropTarget(trackItem);
-              }}
-            >
+            <Button variant="secondary" size="icon" onClick={() => setCropTarget(compat as any)}>
               <Crop size={18} />
             </Button>
           </div>
         </div>
-      )
+      ),
     },
     {
       key: "basic",
       component: (
         <div className="flex flex-col gap-2">
           <Label className="font-sans text-xs font-semibold">Basic</Label>
-
           <AspectRatio />
           <Rounded
-            onChange={(v: number) => onChangeBorderRadius(v)}
-            value={properties.details.borderRadius as number}
+            onChange={(v: number) => dispatch(updateDetails(clipId, { borderRadius: v }))}
+            value={(d.borderRadius as number) ?? 0}
           />
           <Opacity
-            onChange={(v: number) => handleChangeOpacity(v)}
-            value={properties.details.opacity ?? 100}
+            onChange={(v: number) => dispatch(setOpacity(clipId, v))}
+            value={opacityForUI}
           />
-
           <Blur
-            onChange={(v: number) => onChangeBlur(v)}
-            value={properties.details.blur ?? 0}
+            onChange={(v: number) => dispatch(setBlur(clipId, v))}
+            value={(d.blur as number) ?? 0}
           />
           <Brightness
-            onChange={(v: number) => onChangeBrightness(v)}
-            value={properties.details.brightness ?? 100}
+            onChange={(v: number) => dispatch(setBrightness(clipId, v))}
+            value={(d.brightness as number) ?? 100}
           />
         </div>
-      )
+      ),
     },
     {
       key: "animations",
-      component: <Animations trackItem={trackItem} properties={properties} />
+      component: <Animations trackItem={compat as any} properties={compat as any} />,
     },
-
     {
       key: "outline",
       component: (
         <Outline
           label="Outline"
-          onChageBorderWidth={(v: number) => onChangeBorderWidth(v)}
-          onChangeBorderColor={(v: string) => onChangeBorderColor(v)}
-          valueBorderWidth={properties.details.borderWidth as number}
-          valueBorderColor={properties.details.borderColor as string}
+          onChageBorderWidth={(v: number) => dispatch(updateDetails(clipId, { borderWidth: v }))}
+          onChangeBorderColor={(v: string) => dispatch(updateDetails(clipId, { borderColor: v }))}
+          valueBorderWidth={(d.borderWidth as number) ?? 0}
+          valueBorderColor={(d.borderColor as string) ?? "#000000"}
         />
-      )
+      ),
     },
     {
       key: "shadow",
       component: (
         <Shadow
           label="Shadow"
-          onChange={(v: IBoxShadow) => onChangeBoxShadow(v)}
-          value={
-            properties.details.boxShadow ?? {
-              color: "transparent",
-              x: 0,
-              y: 0,
-              blur: 0
-            }
-          }
+          onChange={(v: BoxShadow) => dispatch(updateDetails(clipId, { boxShadow: v }))}
+          value={(d.boxShadow as BoxShadow) ?? { color: "transparent", x: 0, y: 0, blur: 0 }}
         />
-      )
-    }
+      ),
+    },
   ];
+
   return (
     <div className="flex lg:h-[calc(100vh-84px)] flex-1 flex-col overflow-hidden min-h-[340px]">
       <ScrollArea className="h-full">
         <div className="flex flex-col gap-2 px-4 py-4">
           {components
-            .filter((comp) => showAll || comp.key === type)
-            .map((comp) => (
-              <React.Fragment key={comp.key}>{comp.component}</React.Fragment>
+            .filter((c) => showAll || c.key === type)
+            .map((c) => (
+              <React.Fragment key={c.key}>{c.component}</React.Fragment>
             ))}
         </div>
       </ScrollArea>
