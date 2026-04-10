@@ -1,140 +1,73 @@
 import { useEffect, useCallback, useRef } from "react";
-import StateManager from "@designcombo/state";
 import useStore from "../store/use-store";
-import { IAudio, ITrackItem, IVideo } from "@designcombo/types";
-import { audioDataManager } from "../player/lib/audio-data";
+import { engineStore } from "../engine/engine-core";
 
-// Global registry to prevent duplicate subscriptions
-const subscriptionRegistry = new WeakMap<StateManager, Set<string>>();
-
-export const useStateManagerEvents = (stateManager: StateManager) => {
+export const useStateManagerEvents = (stateManager: any) => {
   const { setState } = useStore();
   const isSubscribedRef = useRef(false);
 
-  // Handle track item updates
   const handleTrackItemUpdate = useCallback(() => {
-    const currentState = stateManager.getState();
-    const mergedTrackItemsDeatilsMap = currentState.trackItemsMap;
-    const filterTrakcItems = Object.values(mergedTrackItemsDeatilsMap).filter(
-      (item) => {
-        return item.type === "video" || item.type === "audio";
-      }
-    );
-    audioDataManager.setItems(
-      filterTrakcItems as (ITrackItem & (IVideo | IAudio))[]
-    );
-    audioDataManager.validateUpdateItems(
-      filterTrakcItems as (ITrackItem & (IVideo | IAudio))[]
-    );
+    const currentState = engineStore.getState();
     setState({
-      duration: currentState.duration,
-      trackItemsMap: currentState.trackItemsMap
+      duration: currentState.sequences[currentState.rootSequenceId]?.duration ?? 1000,
+      trackItemsMap: {} as any
     });
-  }, [stateManager, setState]);
+  }, [setState]);
 
   const handleAddRemoveItems = useCallback(() => {
-    const currentState = stateManager.getState();
-    const mergedTrackItemsDeatilsMap = currentState.trackItemsMap;
-
-    const filterTrakcItems = Object.values(mergedTrackItemsDeatilsMap).filter(
-      (item) => {
-        return item.type === "video" || item.type === "audio";
-      }
-    );
-    audioDataManager.validateUpdateItems(
-      filterTrakcItems as (ITrackItem & (IVideo | IAudio))[]
-    );
+    const currentState = engineStore.getState();
     setState({
-      trackItemsMap: currentState.trackItemsMap,
-      trackItemIds: currentState.trackItemIds,
-      tracks: currentState.tracks
+      trackItemsMap: {} as any,
+      trackItemIds: [] as any,
+      tracks: [] as any
     });
-  }, [stateManager, setState]);
+  }, [setState]);
 
   const handleUpdateItemDetails = useCallback(() => {
-    const currentState = stateManager.getState();
+    const currentState = engineStore.getState();
     setState({
-      trackItemsMap: currentState.trackItemsMap
+      trackItemsMap: {} as any
     });
-  }, [stateManager, setState]);
+  }, [setState]);
 
   useEffect(() => {
-    console.log("useStateManagerEvents", stateManager);
-    // Check if we already have subscriptions for this stateManager
-    if (!subscriptionRegistry.has(stateManager)) {
-      subscriptionRegistry.set(stateManager, new Set());
-    }
-
-    const registry = subscriptionRegistry.get(stateManager);
-    if (!registry) return;
-    const hookId = "useStateManagerEvents";
-
-    // Prevent duplicate subscriptions
-    if (registry.has(hookId)) {
-      return;
-    }
-
-    registry.add(hookId);
+    if (isSubscribedRef.current) return;
     isSubscribedRef.current = true;
 
-    // Subscribe to state update details
-    const resizeDesignSubscription = stateManager.subscribeToUpdateStateDetails(
-      (newState) => {
-        setState(newState);
-      }
-    );
+    let resizeSub: (() => void) | undefined;
+    let scaleSub: (() => void) | undefined;
+    let tracksSub: (() => void) | undefined;
+    let durationSub: (() => void) | undefined;
+    let updateTrackItemSub: (() => void) | undefined;
+    let addRemoveSub: (() => void) | undefined;
+    let updateItemDetailsSub: (() => void) | undefined;
 
-    // Subscribe to scale changes
-    const scaleSubscription = stateManager.subscribeToScale((newState) => {
-      setState(newState);
+    if (stateManager && stateManager.subscribeToState) {
+      // Use our adapter's subscribeToState method
+      tracksSub = stateManager.subscribeToState((newState: any) => {
+        setState(newState);
+      });
+    }
+
+    // Also subscribe to engine store for additional sync
+    const engineSub = engineStore.subscribe((state) => {
+      // Sync relevant engine state to Zustand for legacy components
+      setState({
+        duration: state.sequences[state.rootSequenceId]?.duration ?? 1000,
+        fps: state.sequences[state.rootSequenceId]?.fps ?? 30,
+      });
     });
 
-    // Subscribe to general state changes
-    const tracksSubscription = stateManager.subscribeToState((newState) => {
-      setState(newState);
-    });
-
-    // Subscribe to duration changes
-    const durationSubscription = stateManager.subscribeToDuration(
-      (newState) => {
-        setState(newState);
-      }
-    );
-
-    // Subscribe to track item updates
-    const updateTrackItemsMap = stateManager.subscribeToUpdateTrackItem(
-      handleTrackItemUpdate
-    );
-
-    // Subscribe to add/remove items
-    const itemsDetailsSubscription =
-      stateManager.subscribeToAddOrRemoveItems(handleAddRemoveItems);
-
-    // Subscribe to item details updates
-    const updateItemDetailsSubscription =
-      stateManager.subscribeToUpdateItemDetails(handleUpdateItemDetails);
-
-    // Cleanup function to unsubscribe from all events
     return () => {
-      if (isSubscribedRef.current) {
-        scaleSubscription.unsubscribe();
-        tracksSubscription.unsubscribe();
-        durationSubscription.unsubscribe();
-        itemsDetailsSubscription.unsubscribe();
-        updateTrackItemsMap.unsubscribe();
-        updateItemDetailsSubscription.unsubscribe();
-        resizeDesignSubscription.unsubscribe();
-
-        // Remove from registry
-        registry.delete(hookId);
-        isSubscribedRef.current = false;
-      }
+      isSubscribedRef.current = false;
+      if (tracksSub) tracksSub();
+      if (resizeSub) resizeSub();
+      if (scaleSub) scaleSub();
+      if (durationSub) durationSub();
+      if (updateTrackItemSub) updateTrackItemSub();
+      if (addRemoveSub) addRemoveSub();
+      if (updateItemDetailsSub) updateItemDetailsSub();
+      engineSub();
     };
-  }, [
-    stateManager,
-    setState,
-    handleTrackItemUpdate,
-    handleAddRemoveItems,
-    handleUpdateItemDetails
-  ]);
+  }, [stateManager, setState, handleTrackItemUpdate, handleAddRemoveItems, handleUpdateItemDetails]);
 };
