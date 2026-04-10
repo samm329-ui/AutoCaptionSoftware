@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Selection, Moveable } from "@interactify/toolkit";
 import { getIdFromClassName } from "../utils/scene";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
 import {
   SelectionInfo,
   emptySelection,
@@ -10,15 +8,13 @@ import {
   getTargetById,
 } from "../utils/target";
 import useStore from "../store/use-store";
-import StateManager from "@designcombo/state";
 import { getCurrentTime } from "../utils/time";
 import {
   calculateTextHeight,
 } from "../utils/text";
-import { useEngineDispatch } from "../engine/engine-provider";
+import { useEngineDispatch, useEngineSelector } from "../engine/engine-provider";
+import { setSelection, updateTransform } from "../engine/commands";
 
-// ─── Module-level drag state ──────────────────────────────────────────────────
-// These live outside React to avoid closure stale issues during fast drag events.
 let holdGroupPosition: Record<string, { left: number; top: number }> | null = null;
 let dragStartEnd = false;
 
@@ -32,7 +28,7 @@ const snapDirections = {
 };
 
 interface SceneInteractionsProps {
-  stateManager: StateManager;
+  stateManager: any;
   containerRef: React.RefObject<HTMLDivElement>;
   zoom: number;
   size: { width: number; height: number };
@@ -44,7 +40,7 @@ export function SceneInteractions({
   zoom,
 }: SceneInteractionsProps) {
   const [targets, setTargets] = useState<HTMLDivElement[]>([]);
-  const [selection, setSelection] = useState<Selection>();
+  const [selection, setSelectionState] = useState<Selection>();
   const {
     activeIds,
     setState,
@@ -56,10 +52,9 @@ export function SceneInteractions({
   const moveableRef = useRef<Moveable>(null);
   const [selectionInfo, setSelectionInfo] = useState<SelectionInfo>(emptySelection);
   
-  // MIGRATION: Also dispatch to engine for sync
   const engineDispatch = useEngineDispatch();
+  const engineSelection = useEngineSelector((p) => p.ui.selection);
 
-  // ─── Snap guidelines ────────────────────────────────────────────────────────
   const elementGuidelines = useMemo(
     () =>
       ["artboard", ...trackItemIds.filter((id) => !activeIds.includes(id))].map(
@@ -73,14 +68,11 @@ export function SceneInteractions({
     [trackItemIds, activeIds]
   );
 
-  // ─── Keep targets in sync with activeIds + playhead position ────────────────
-  // FIXED: Targets are derived from editor state, not from DOM queries alone.
-  // This means selection stays stable even if the DOM re-renders.
   useEffect(() => {
     const updateTargets = (time?: number) => {
       const currentTime = time ?? getCurrentTime();
-      const { trackItemsMap } = useStore.getState();
-      const targetIds = activeIds.filter((id) => {
+      const currentIds = engineSelection.length > 0 ? engineSelection : activeIds;
+      const targetIds = currentIds.filter((id: string) => {
         const item = trackItemsMap[id];
         return item?.display.from <= currentTime && item?.display.to >= currentTime;
       });
@@ -108,9 +100,8 @@ export function SceneInteractions({
       playerRef?.current?.removeEventListener("seeked", onSeeked);
       clearTimeout(timer);
     };
-  }, [activeIds, playerRef, trackItemsMap]);
+  }, [engineSelection, activeIds, playerRef, trackItemsMap]);
 
-  // ─── Selection box setup ─────────────────────────────────────────────────────
   useEffect(() => {
     const sel = new Selection({
       container: containerRef.current,
@@ -127,12 +118,8 @@ export function SceneInteractions({
         );
         const ids = filtered.map((el) => getIdFromClassName(el.className));
         setTargets(filtered as HTMLDivElement[]);
-        // FIXED: Always route selection through stateManager (single source of truth).
-        // Never write directly to Zustand store from selection events.
-        stateManager.updateState(
-          { activeIds: ids },
-          { updateHistory: false, kind: "layer:selection" }
-        );
+        engineDispatch(setSelection(ids));
+        stateManager?.updateState({ activeIds: ids }, { updateHistory: false, kind: "layer:selection" });
       })
       .on("dragStart", (e) => {
         const target = e.inputEvent.target as HTMLDivElement;
@@ -155,40 +142,37 @@ export function SceneInteractions({
             (el) => !el.className.includes("designcombo-scene-item-type-audio")
           ) as HTMLDivElement[];
           const ids = filtered.map((el) => getIdFromClassName(el.className));
-          stateManager.updateState(
-            { activeIds: ids },
-            { updateHistory: false, kind: "layer:selection" }
-          );
+          engineDispatch(setSelection(ids));
+          stateManager?.updateState({ activeIds: ids }, { updateHistory: false, kind: "layer:selection" });
           setTargets(filtered);
         }
       });
 
-    setSelection(sel);
+    setSelectionState(sel);
     return () => sel.destroy();
   }, []);
 
-  // ─── Subscribe to stateManager active ID changes ─────────────────────────────
   useEffect(() => {
-    const sub = stateManager.subscribeToActiveIds((newState) => {
-      setState(newState);
-    });
-    return () => sub.unsubscribe();
-  }, []);
+    if (stateManager && stateManager.subscribeToState) {
+      const unsubscribe = stateManager.subscribeToState((newState: any) => {
+        setState(newState);
+      });
+      return () => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      };
+    }
+  }, [stateManager]);
 
-  // ─── Keep moveable rect fresh when clip data changes ────────────────────────
   useEffect(() => {
     moveableRef.current?.moveable.updateRect();
   }, [trackItemsMap]);
 
-  // ─── Register moveable ref ────────────────────────────────────────────────────
   useEffect(() => {
     setSceneMoveableRef(moveableRef as React.RefObject<Moveable>);
   }, []);
 
-  // ─── DRAG ────────────────────────────────────────────────────────────────────
-  // FIXED: onDrag still moves the DOM element visually (necessary for smooth 60fps feel),
-  // but onDragEnd commits the final value to the editor state via dispatch(EDIT_OBJECT).
-  // The state is NEVER ahead of the DOM — they converge at drag end.
   const handleDrag = ({ target, top, left }: { target: HTMLElement | SVGElement; top: number; left: number }) => {
     target.style.top = `${top}px`;
     target.style.left = `${left}px`;
@@ -200,32 +184,21 @@ export function SceneInteractions({
     const currentLeft = parseFloat(target.style.left);
     const currentTop = parseFloat(target.style.top);
     
-    // Dispatch to DesignCombo (timeline sync)
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [targetId]: {
-          details: {
-            left: isNaN(currentLeft) ? 0 : currentLeft,
-            top: isNaN(currentTop) ? 0 : currentTop,
-          },
-        },
-      },
-    });
-    
-    // MIGRATION: Also dispatch to engine
-    engineDispatch({
-      type: "UPDATE_CLIP",
-      payload: {
-        clipId: targetId,
+    stateManager?.updateState({
+      [targetId]: {
         details: {
           left: isNaN(currentLeft) ? 0 : currentLeft,
           top: isNaN(currentTop) ? 0 : currentTop,
         },
       },
     });
+    
+    engineDispatch(updateTransform(targetId, {
+      x: isNaN(currentLeft) ? 0 : currentLeft,
+      y: isNaN(currentTop) ? 0 : currentTop,
+    }));
   };
 
-  // ─── SCALE ───────────────────────────────────────────────────────────────────
   const handleScale = ({
     target,
     transform,
@@ -267,34 +240,22 @@ export function SceneInteractions({
     const currentLeft = parseFloat(target.style.left);
     const currentTop = parseFloat(target.style.top);
     
-    // Dispatch to DesignCombo (timeline sync)
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [targetId]: {
-          details: {
-            transform: target.style.transform,
-            left: isNaN(currentLeft) ? 0 : currentLeft,
-            top: isNaN(currentTop) ? 0 : currentTop,
-          },
+    stateManager?.updateState({
+      [targetId]: {
+        details: {
+          transform: target.style.transform,
+          left: isNaN(currentLeft) ? 0 : currentLeft,
+          top: isNaN(currentTop) ? 0 : currentTop,
         },
       },
     });
     
-    // MIGRATION: Also dispatch to engine
-    engineDispatch({
-      type: "UPDATE_CLIP",
-      payload: {
-        clipId: targetId,
-        details: {
-          left: isNaN(currentLeft) ? 0 : currentLeft,
-          top: isNaN(currentTop) ? 0 : currentTop,
-          transform: target.style.transform,
-        },
-      },
-    });
+    engineDispatch(updateTransform(targetId, {
+      x: isNaN(currentLeft) ? 0 : currentLeft,
+      y: isNaN(currentTop) ? 0 : currentTop,
+    }));
   };
 
-  // ─── ROTATE ──────────────────────────────────────────────────────────────────
   const handleRotate = ({ target, transform }: { target: HTMLElement | SVGElement; transform: string }) => {
     target.style.transform = transform;
   };
@@ -303,28 +264,21 @@ export function SceneInteractions({
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
     
-    // Dispatch to DesignCombo (timeline sync)
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [targetId]: {
-          details: { transform: target.style.transform },
-        },
-      },
-    });
-    
-    // MIGRATION: Also dispatch to engine
-    engineDispatch({
-      type: "UPDATE_CLIP",
-      payload: {
-        clipId: targetId,
+    stateManager?.updateState({
+      [targetId]: {
         details: { transform: target.style.transform },
       },
     });
+    
+    const rotateMatch = target.style.transform.match(/rotate\(([^)]+)/);
+    if (rotateMatch) {
+      const degrees = parseFloat(rotateMatch[1]);
+      if (!isNaN(degrees)) {
+        engineDispatch(updateTransform(targetId, { rotate: degrees }));
+      }
+    }
   };
 
-  // ─── RESIZE ──────────────────────────────────────────────────────────────────
-  // FIXED: Resize updates DOM for smooth visual feedback, but ALSO syncs Zustand
-  // via setState immediately so the right panel stays live during resize (no lag).
   const handleResize = ({
     target,
     width: nextWidth,
@@ -393,7 +347,6 @@ export function SceneInteractions({
             textDiv.style.height = `${finalH}px`;
           }
         }
-        // FIXED: Sync Zustand in real-time so Effect Controls panel shows live values.
         setState({
           trackItemsMap: {
             [id]: {
@@ -406,7 +359,6 @@ export function SceneInteractions({
       }
     }
 
-    // Default free resize (image, video, shape, etc.)
     target.style.width = `${nextWidth}px`;
     target.style.height = `${nextHeight}px`;
     const animDiv = target.firstElementChild?.firstElementChild as HTMLDivElement | null;
@@ -414,7 +366,6 @@ export function SceneInteractions({
       animDiv.style.width = `${nextWidth}px`;
       animDiv.style.height = `${nextHeight}px`;
     }
-    // FIXED: Sync Zustand live so property panel is always up to date.
     setState({
       trackItemsMap: {
         [id]: {
@@ -425,7 +376,6 @@ export function SceneInteractions({
     });
   };
 
-  // FIXED: onResizeEnd commits the authoritative value to the central editor state.
   const handleResizeEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     const targetId = getIdFromClassName(target.className) as string;
     if (!targetId || !trackItemsMap[targetId]) return;
@@ -455,7 +405,7 @@ export function SceneInteractions({
           },
         };
         
-        dispatch(EDIT_OBJECT, { payload });
+        stateManager?.updateState({ payload });
         engineDispatch({
           type: "UPDATE_CLIP",
           payload: buildPayload(),
@@ -474,7 +424,7 @@ export function SceneInteractions({
         },
       };
       
-      dispatch(EDIT_OBJECT, { payload });
+      stateManager?.updateState({ payload });
       engineDispatch({
         type: "UPDATE_CLIP",
         payload: {
@@ -486,7 +436,7 @@ export function SceneInteractions({
         },
       });
     } else {
-      dispatch(EDIT_OBJECT, {
+      stateManager?.updateState({
         payload: {
           [targetId]: {
             details: {
@@ -501,7 +451,6 @@ export function SceneInteractions({
     }
   };
 
-  // ─── GROUP DRAG ───────────────────────────────────────────────────────────────
   const handleDragGroup = ({ events }: { events: any[] }) => {
     holdGroupPosition = {};
     for (const event of events) {
@@ -527,7 +476,7 @@ export function SceneInteractions({
         details: { top: `${pos.top}px`, left: `${pos.left}px` },
       };
     }
-    dispatch(EDIT_OBJECT, { payload });
+    stateManager?.updateState({ payload });
     holdGroupPosition = null;
   };
 
