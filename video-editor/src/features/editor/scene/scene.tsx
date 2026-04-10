@@ -1,40 +1,35 @@
 import { Player } from "../player";
 import { useRef, useImperativeHandle, forwardRef } from "react";
 import useStore from "../store/use-store";
-import StateManager from "@designcombo/state";
 import SceneEmpty from "./empty";
 import Board from "./board";
 import useZoom from "../hooks/use-zoom";
 import { SceneInteractions } from "./interactions";
 import { SceneRef } from "./scene.types";
-
-// ENGINE MIGRATION: Import engine hooks
 import { useEngineSelector } from "../engine/engine-provider";
+import { selectClipCount } from "../engine/selectors";
 
 const Scene = forwardRef<
   SceneRef,
   {
-    stateManager: StateManager;
+    stateManager: any;
   }
 >(({ stateManager }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { size, trackItemIds } = useStore();
+  const { size } = useStore();
   
-  // ENGINE MIGRATION: Get clip count from engine
-  const engineClipCount = useEngineSelector((p) => Object.keys(p.clips).length);
+  const engineClipCount = useEngineSelector(selectClipCount);
   
   const { zoom, handlePinch, recalculateZoom } = useZoom(
     containerRef as React.RefObject<HTMLDivElement>,
     size
   );
 
-  // Expose the recalculateZoom function to parent
   useImperativeHandle(ref, () => ({
     recalculateZoom
   }));
 
-  // Use engine clips count if available
-  const hasClips = engineClipCount > 0 || trackItemIds.length > 0;
+  const hasClips = engineClipCount > 0;
 
   return (
     <div
