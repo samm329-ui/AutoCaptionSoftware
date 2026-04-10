@@ -1,8 +1,8 @@
-import { dispatch } from "@designcombo/events";
-import { ADD_AUDIO, ADD_IMAGE, ADD_TRANSITION, ADD_VIDEO } from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
 import React, { useCallback, useState, useRef } from "react";
 import { getDragData, clearDragData } from "@/components/shared/drag-data";
+import { useEngineDispatch } from "../engine/engine-provider";
+import { addClip, createTrack, nanoid } from "../engine/engine-core";
+import type { Clip } from "../engine/engine-core";
 
 enum AcceptedDropTypes {
   IMAGE = "image",
@@ -27,36 +27,53 @@ interface DroppableAreaProps {
 const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
   const [isPointerInside, setIsPointerInside] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const engineDispatch = useEngineDispatch();
 
   const handleDrop = useCallback((draggedData: DraggedData) => {
-    const payload = { ...draggedData, id: generateId() };
-    switch (draggedData.type) {
-      case AcceptedDropTypes.IMAGE:
-        dispatch(ADD_IMAGE, { payload });
-        break;
-      case AcceptedDropTypes.VIDEO:
-        dispatch(ADD_VIDEO, { payload });
-        break;
-      case AcceptedDropTypes.AUDIO:
-        dispatch(ADD_AUDIO, { payload });
-        break;
-      case AcceptedDropTypes.TRANSITION:
-        dispatch(ADD_TRANSITION, { payload });
-        break;
-    }
-  }, []);
+    const clipId = nanoid();
+    const clipType = draggedData.type === "audio" ? "audio" 
+      : draggedData.type === "image" ? "image"
+      : draggedData.type === "transition" ? "transition"
+      : "video";
+    
+    const track = createTrack(clipType as Clip["type"]);
+    
+    const clip: Clip = {
+      id: clipId,
+      type: clipType as Clip["type"],
+      trackId: track.id,
+      name: draggedData.name || clipType,
+      display: { from: 0, to: 5000 },
+      trim: { from: 0, to: 5000 },
+      transform: {
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotate: 0,
+        opacity: 1,
+        flipX: false,
+        flipY: false,
+      },
+      details: draggedData.details || {},
+      appliedEffects: [],
+      effectIds: [],
+      keyframeIds: [],
+      assetId: draggedData.assetId,
+    };
+
+    engineDispatch({ type: "ADD_TRACK", payload: { track } });
+    engineDispatch({ type: "ADD_CLIP", payload: { clip, trackId: track.id } });
+  }, [engineDispatch]);
 
   const parseDragData = (e: React.DragEvent<HTMLDivElement>): DraggedData | null => {
     try {
-      // First try the module-level ref (set by Draggable component)
       const refData = getDragData();
       if (refData && typeof refData === "object" && refData.type) {
         return refData as DraggedData;
       }
       
-      // Fall back to dataTransfer
       const transferData = e.dataTransfer?.getData("text/plain");
-      // Guard: must be non-empty string
       if (typeof transferData === "string" && transferData.length > 0) {
         try {
           const parsed = JSON.parse(transferData);
