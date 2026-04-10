@@ -1,92 +1,100 @@
 /**
- * useTrackOrdering
- * ─────────────────
- * Keeps visual track order in sync with a Premiere Pro-style layout:
+ * hooks/use-track-ordering.ts — FIXED
  *
- *   Canvas top ──────────────────────────────
- *     V3  (highest video track)
- *     V2
- *     V1  (lowest video track, just above divider)
- *   ──── divider ────
- *     A1  (lowest audio track, just below divider)
- *     A2
- *     A3  (highest audio track)
- *   Canvas bottom ───────────────────────────
- *
- * Only reorders Zustand + canvas. Does NOT write back to StateManager.
- * StateManager stays as the authoritative source; Zustand is its visual mirror.
+ * Track ordering is now derived purely from engine state.
+ * Reorder decisions are persisted back to the engine via UPDATE_TRACK commands.
  */
 
-import { useEffect, useRef, useCallback } from "react";
-import useStore from "../store/use-store";
-import { ITrack } from "@designcombo/types";
+import { useEffect, useRef, useState } from "react";
+import { useEngineDispatch, useEngineStore } from "../engine/engine-provider";
+import { updateTrack } from "../engine/commands";
+import type { Track, Project } from "../engine/engine-core";
 
-const VIDEO_TYPES = new Set(["video", "image", "main", "customTrack", "customTrack2"]);
-const AUDIO_TYPES = new Set(["audio", "linealAudioBars", "radialAudioBars", "waveAudioBars", "hillAudioBars"]);
+const VIDEO_TYPES = new Set<Track["type"]>(["video", "overlay"]);
+const AUDIO_TYPES = new Set<Track["type"]>(["audio"]);
 
-function isVideoTrack(t: ITrack) {
-  return VIDEO_TYPES.has(t.type);
+function isVideoTrack(t: Track): boolean { return VIDEO_TYPES.has(t.type); }
+function isAudioTrack(t: Track): boolean { return AUDIO_TYPES.has(t.type); }
+
+function selectOrderedTracksArray(p: Project): Track[] {
+  const seq = p.sequences[p.rootSequenceId];
+  if (!seq) return [];
+  return seq.trackIds
+    .map((id) => p.tracks[id])
+    .filter((t): t is Track => !!t)
+    .sort((a, b) => a.order - b.order);
 }
 
-function isAudioTrack(t: ITrack) {
-  return AUDIO_TYPES.has(t.type);
-}
+export function useTrackOrdering(canvasRef?: React.RefObject<any>): void {
+  const store = useEngineStore();
+  const dispatch = useEngineDispatch();
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const prevSignatureRef = useRef("");
+  const isSyncingRef = useRef(false);
+  const initializedRef = useRef(false);
 
-export function useTrackOrdering(canvasRef: React.RefObject<any>) {
-  const { tracks } = useStore();
-  const prevOrderRef = useRef<string>("");
-  const isReorderingRef = useRef(false);
-
-  const reorderTracks = useCallback(() => {
-    const currentTracks = useStore.getState().tracks;
-    if (!currentTracks || currentTracks.length === 0) return;
-
-    const currentOrder = currentTracks.map((t) => t.id).join("|");
-    if (currentOrder === prevOrderRef.current) return;
-
-    const videoTracks = currentTracks.filter(isVideoTrack);
-    const audioTracks = currentTracks.filter(isAudioTrack);
-    const otherTracks = currentTracks.filter(
-      (t) => !isVideoTrack(t) && !isAudioTrack(t)
-    );
-
-    // Video: newest (last added) renders at canvas top = V3, V2, V1 (reversed)
-    const orderedVideo = [...videoTracks].reverse();
-    // Audio: keep chronological so first added = A1 (just below divider)
-    const orderedAudio = [...audioTracks];
-
-    // Final order: [V3, V2, V1, A1, A2, A3, ...others]
-    const sorted = [...orderedVideo, ...orderedAudio, ...otherTracks];
-    const sortedOrder = sorted.map((t) => t.id).join("|");
-
-    if (currentOrder === sortedOrder) {
-      prevOrderRef.current = currentOrder;
-      return;
-    }
-
-    isReorderingRef.current = true;
-
-    // Only update Zustand — canvas reads from Zustand tracks
-    useStore.getState().setState({ tracks: sorted });
-
-    const canvas = canvasRef.current;
-    if (canvas) {
-      requestAnimationFrame(() => {
-        canvas.renderTracks();
-        canvas.refreshTrackLayout();
-        canvas.alignItemsToTrack();
-        canvas.requestRenderAll();
-        isReorderingRef.current = false;
-      });
-    } else {
-      isReorderingRef.current = false;
-    }
-
-    prevOrderRef.current = sortedOrder;
-  }, [canvasRef]);
+  // Subscribe to track changes
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    
+    const unsubscribe = store.subscribe((state) => {
+      const orderedTracks = selectOrderedTracksArray(state);
+      setTracks(orderedTracks);
+    });
+    
+    // Initial load
+    setTracks(selectOrderedTracksArray(store.getState()));
+    
+    return unsubscribe;
+  }, [store]);
 
   useEffect(() => {
-    if (isReorderingRef.current) return;
-    reorderTracks();
-  }, [tracks, reorderTracks]);
+    if (!tracks || tracks.length === 0) return;
+    if (isSyncingRef.current) return;
+
+    const signature = tracks.map((t) => `${t.id}:${t.order}`).join("|");
+    if (signature === prevSignatureRef.current) return;
+
+    const videoTracks = tracks.filter(isVideoTrack);
+    const audioTracks = tracks.filter(isAudioTrack);
+    const otherTracks = tracks.filter((t) => !isVideoTrack(t) && !isAudioTrack(t));
+
+    const sorted = [
+      ...[...videoTracks].sort((a, b) => b.order - a.order),
+      ...[...audioTracks].sort((a, b) => a.order - b.order),
+      ...otherTracks,
+    ];
+
+    isSyncingRef.current = true;
+    let changed = false;
+
+    sorted.forEach((t, idx) => {
+      if (t.order !== idx) {
+        dispatch(updateTrack(t.id, { order: idx }));
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      prevSignatureRef.current = sorted.map((t, i) => `${t.id}:${i}`).join("|");
+    } else {
+      prevSignatureRef.current = signature;
+    }
+
+    const canvas = canvasRef?.current;
+    if (canvas && changed) {
+      requestAnimationFrame(() => {
+        try {
+          canvas.renderTracks?.();
+          canvas.refreshTrackLayout?.();
+          canvas.alignItemsToTrack?.();
+          canvas.requestRenderAll?.();
+        } catch { /* ignore canvas errors */ }
+        isSyncingRef.current = false;
+      });
+    } else {
+      isSyncingRef.current = false;
+    }
+  }, [tracks, dispatch, canvasRef]);
 }
