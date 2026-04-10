@@ -1,81 +1,49 @@
+/**
+ * control-item/basic-audio.tsx — FIXED
+ */
+
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { IAudio, ITrackItem } from "@designcombo/types";
 import Volume from "./common/volume";
 import Speed from "./common/speed";
-import React, { useState } from "react";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT, LAYER_REPLACE } from "@designcombo/state";
-import { Button } from "@/components/ui/button";
-import { bridgePush } from "../engine/legacy-bridge";
+import React from "react";
+import {
+  useEngineActiveId,
+  useEngineSelector,
+  useEngineDispatch,
+} from "../engine/engine-provider";
+import { setVolume, setPlaybackRate } from "../engine/commands";
 
-const BasicAudio = ({
-  trackItem,
-  type
-}: {
-  trackItem: ITrackItem & IAudio;
-  type?: string;
-}) => {
+const BasicAudio = ({ type }: { type?: string }) => {
   const showAll = !type;
-  const [properties, setProperties] = useState(trackItem);
+  const clipId = useEngineActiveId();
+  const dispatch = useEngineDispatch();
+  const clip = useEngineSelector((p) => (clipId ? p.clips[clipId] : null));
 
-  const handleChangeVolume = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          volume: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
+  if (!clipId || !clip) return null;
 
-    setProperties((prev) => {
-      return {
-        ...prev,
-        details: {
-          ...prev.details,
-          volume: v
-        }
-      };
-    });
-  };
-
-  const handleChangeSpeed = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        playbackRate: v
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-
-    setProperties((prev) => {
-      return {
-        ...prev,
-        playbackRate: v
-      };
-    });
-  };
+  const d = clip.details as Record<string, unknown>;
+  const volume = (d.volume as number) ?? 100;
+  const playbackRate = (d.playbackRate as number) ?? 1;
 
   const components = [
     {
       key: "speed",
       component: (
         <Speed
-          value={properties.playbackRate ?? 1}
-          onChange={handleChangeSpeed}
+          value={playbackRate}
+          onChange={(v: number) => dispatch(setPlaybackRate(clipId, v))}
         />
-      )
+      ),
     },
     {
       key: "volume",
       component: (
         <Volume
-          onChange={(v: number) => handleChangeVolume(v)}
-          value={properties.details.volume ?? 100}
+          onChange={(v: number) => dispatch(setVolume(clipId, v))}
+          value={volume}
         />
-      )
-    }
+      ),
+    },
   ];
 
   return (
@@ -83,9 +51,9 @@ const BasicAudio = ({
       <ScrollArea className="h-full">
         <div className="flex flex-col gap-2 px-4 py-4">
           {components
-            .filter((comp) => showAll || comp.key === type)
-            .map((comp) => (
-              <React.Fragment key={comp.key}>{comp.component}</React.Fragment>
+            .filter((c) => showAll || c.key === type)
+            .map((c) => (
+              <React.Fragment key={c.key}>{c.component}</React.Fragment>
             ))}
         </div>
       </ScrollArea>
