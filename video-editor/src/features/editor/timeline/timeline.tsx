@@ -20,7 +20,6 @@ import {
   WaveAudioBars,
   HillAudioBars
 } from "./items";
-import StateManager from "@designcombo/state";
 import {
   TIMELINE_OFFSET_CANVAS_LEFT,
   TIMELINE_OFFSET_CANVAS_RIGHT
@@ -36,7 +35,6 @@ import DecibelMeter from "./decibel-meter";
 import TrackHeaders from "./track-headers";
 import { useTrackOrdering } from "../hooks/use-track-ordering";
 
-// ENGINE MIGRATION: Import engine hooks
 import {
   useEngineZoom,
   useEnginePlayhead,
@@ -60,7 +58,7 @@ CanvasTimeline.registerItems({
 });
 
 const EMPTY_SIZE = { width: 0, height: 0 };
-const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
+const Timeline = ({ stateManager }: { stateManager: any }) => {
   const canScrollRef = useRef(false);
   const [scrollLeft, setScrollLeft] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,13 +66,12 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   const canvasRef = useRef<CanvasTimeline | null>(null);
   const horizontalScrollbarVpRef = useRef<HTMLDivElement>(null);
   
-  // MIGRATION: Get values from Zustand (CanvasTimeline needs them)
   const { scale, playerRef, fps, duration, setState, timeline } = useStore();
   
-  // ENGINE MIGRATION: Get values from engine where applicable
   const engineZoom = useEngineZoom();
   const enginePlayhead = useEnginePlayhead();
   const engineDuration = useEngineDuration();
+  const engineFps = useEngineSelector((p) => p.sequences[p.rootSequenceId]?.fps ?? 30);
   
   const currentFrame = useCurrentPlayerFrame(playerRef);
   const [canvasSize, setCanvasSize] = useState(EMPTY_SIZE);
@@ -93,7 +90,6 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   useStateManagerEvents(stateManager);
   useTrackOrdering(canvasRef);
 
-  // Theme change re-render
   useEffect(() => {
     const timeout = setTimeout(() => {
       timeline?.requestRenderAll();
@@ -101,7 +97,6 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     return () => clearTimeout(timeout);
   }, [theme, timeline]);
 
-  // Auto-scroll during playback
   useEffect(() => {
     if (playerRef?.current) {
       canScrollRef.current = playerRef.current.isPlaying();
@@ -142,12 +137,10 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     lastScrollFrameRef.current = currentFrame;
   }, [currentFrame, fps, scale.zoom, scrollLeft]);
 
-  // Keep canvasSizeRef in sync
   useEffect(() => {
     canvasSizeRef.current = canvasSize;
   }, [canvasSize]);
 
-  // Initialize canvas once
   useEffect(() => {
     const canvasEl = canvasElRef.current;
     const timelineContainerEl = timelineContainerRef.current;
@@ -252,14 +245,12 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     };
   }, []);
 
-  // Update canvas scale when zoom changes
   useEffect(() => {
     if (!canvasRef.current) return;
     canvasRef.current.setScale(scale);
     canvasRef.current.requestRenderAll();
   }, [scale]);
 
-  // Recalculate canvas dimensions when scale changes (no setCanvasSize call to avoid loop)
   useEffect(() => {
     if (!canvasRef.current) return;
     const TOOLBAR_WIDTH = 64;
