@@ -1,519 +1,169 @@
+/**
+ * control-item/basic-caption.tsx — FIXED
+ */
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import useDataState from "../store/use-data-state";
 import { loadFonts } from "../utils/fonts";
-import { dispatch } from "@designcombo/events";
-import { ADD_ANIMATION, EDIT_OBJECT } from "@designcombo/state";
 import React, { useEffect, useState } from "react";
-import { IBoxShadow, ICaption, ITrackItem } from "@designcombo/types";
 import Outline from "./common/outline";
 import Shadow from "./common/shadow";
 import CaptionWords from "./common/caption-words";
 import CaptionColors from "./common/caption-colors";
 import { TextControls } from "./common/text";
-import { Animation, presets } from "../player/animated";
-import { PresetName } from "../player/animated/presets";
-import { X } from "lucide-react";
+import AnimationCaption from "./common/animation-caption";
+import { PresetCaption } from "./common/preset-caption";
 import { ICompactFont, IFont } from "../interfaces/editor";
 import { DEFAULT_FONT } from "../constants/font";
-import { PresetCaption } from "./common/preset-caption";
-import AnimationCaption from "./common/animation-caption";
-import { bridgePush } from "../engine/legacy-bridge";
+import {
+  useEngineActiveId,
+  useEngineSelector,
+  useEngineDispatch,
+} from "../engine/engine-provider";
+import { updateDetails, setOpacity } from "../engine/commands";
+import {
+  clipToTrackItemCompat,
+  clipToCaptionProperties,
+} from "./clip-compat";
 
-interface ITextControlProps {
-  color: string;
-  colorDisplay: string;
-  appearedColor: string;
-  activeColor: string;
-  activeFillColor: string;
-  fontSize: number;
-  fontSizeDisplay: string;
-  fontFamily: string;
-  fontFamilyDisplay: string;
-  opacityDisplay: string;
-  textAlign: string;
-  textDecoration: string;
-  borderWidth: number;
-  borderColor: string;
-  opacity: number;
-  boxShadow: IBoxShadow;
-  isKeywordColor: string;
-  preservedColorKeyWord: boolean;
-}
+interface BoxShadow { color: string; x: number; y: number; blur: number }
 
-const getStyleNameFromFontName = (fontName: string) => {
-  const fontFamilyEnd = fontName.lastIndexOf("-");
-  const styleName = fontName
-    .substring(fontFamilyEnd + 1)
-    .replace("Italic", " Italic");
-  return styleName;
+const getStyleName = (fontName: string): string => {
+  const end = fontName.lastIndexOf("-");
+  return fontName.substring(end + 1).replace("Italic", " Italic");
 };
 
-const BasicCaption = ({
-  trackItem,
-  type
-}: {
-  trackItem: ITrackItem & ICaption;
-  type?: string;
-}) => {
+const BasicCaption = ({ type }: { type?: string }) => {
   const showAll = !type;
-  const [activeModalAnimation, setActiveModalAnimation] =
-    useState<boolean>(false);
-  const handleModalAnimation = (newState?: boolean) => {
-    if (newState !== undefined) {
-      setActiveModalAnimation(newState);
-    } else {
-      setActiveModalAnimation(!activeModalAnimation);
-    }
-  };
-  const [properties, setProperties] = useState<ITextControlProps>({
-    color: "#000000",
-    colorDisplay: "#000000",
-    appearedColor: "#ffffff",
-    activeColor: "#ffffff",
-    activeFillColor: "#ffffff",
-    isKeywordColor: "transparent",
-    preservedColorKeyWord: false,
-    fontSize: 12,
-    fontSizeDisplay: "12px",
-    fontFamily: "Open Sans",
-    fontFamilyDisplay: "Open Sans",
-    opacity: 1,
-    opacityDisplay: "100%",
-    textAlign: "left",
-    textDecoration: "none",
-    borderWidth: 0,
-    borderColor: "#000000",
-    boxShadow: {
-      color: "#000000",
-      x: 0,
-      y: 0,
-      blur: 0
-    }
-  });
+  const clipId = useEngineActiveId();
+  const dispatch = useEngineDispatch();
+  const clip = useEngineSelector((p) => (clipId ? p.clips[clipId] : null));
+  const { compactFonts, fonts } = useDataState();
+  const [activeModalAnimation, setActiveModalAnimation] = useState(false);
 
   const [selectedFont, setSelectedFont] = useState<ICompactFont>({
     family: "Open Sans",
     styles: [],
     default: DEFAULT_FONT,
-    name: "Regular"
+    name: "Regular",
   });
-  const { compactFonts, fonts } = useDataState();
 
   useEffect(() => {
-    const fontFamily =
-      trackItem.details.fontFamily || DEFAULT_FONT.postScriptName;
-    const currentFont = fonts.find(
-      (font) => font.postScriptName === fontFamily
-    );
-    const selectedFont = compactFonts.find(
-      (font) => font.family === currentFont?.family
-    );
+    if (!clip) return;
+    const d = clip.details as Record<string, unknown>;
+    const fontFamily = (d.fontFamily as string) || DEFAULT_FONT.postScriptName;
+    const currentFont = fonts.find((f) => f.postScriptName === fontFamily);
+    if (!currentFont) return;
+    const compactFont = compactFonts.find((f) => f.family === currentFont.family);
+    if (!compactFont) return;
+    setSelectedFont({ ...compactFont, name: getStyleName(currentFont.postScriptName) });
+  }, [clip?.id, fonts, compactFonts]);
 
-    if (selectedFont && currentFont) {
-      setSelectedFont({
-        ...selectedFont,
-        name: getStyleNameFromFontName(currentFont.postScriptName)
-      });
-    }
-    setProperties({
-      color: trackItem.details.color || "#ffffff",
-      colorDisplay: trackItem.details.color || "#ffffff",
-      fontSize: trackItem.details.fontSize || 62,
-      fontSizeDisplay: `${trackItem.details.fontSize || 62}px`,
-      fontFamily: selectedFont?.family || "Open Sans",
-      fontFamilyDisplay: selectedFont?.family || "Open Sans",
-      opacity: trackItem.details.opacity || 100,
-      opacityDisplay: `${(trackItem.details.opacity || 1) * 100 || "100"}%`,
-      textAlign: trackItem.details.textAlign || "left",
-      textDecoration: trackItem.details.textDecoration || "none",
-      borderWidth: trackItem.details.borderWidth || 0,
-      borderColor: trackItem.details.borderColor || "#000000",
-      appearedColor: trackItem.details.appearedColor || "#ffffff",
-      activeColor: trackItem.details.activeColor || "#ffffff",
-      activeFillColor: trackItem.details.activeFillColor || "#ffffff",
-      isKeywordColor: trackItem.details.isKeywordColor || "transparent",
-      preservedColorKeyWord: trackItem.details.preservedColorKeyWord || false,
-      boxShadow: trackItem.details.boxShadow || {
-        color: "#000000",
-        x: 0,
-        y: 0,
-        blur: 0
-      }
-    });
-  }, [trackItem]);
+  if (!clipId || !clip) return null;
+
+  const d = clip.details as Record<string, unknown>;
+  const compat = clipToTrackItemCompat(clip);
+  const properties = clipToCaptionProperties(clip, selectedFont.family);
 
   const handleChangeFontStyle = async (font: IFont) => {
-    const fontName = font.postScriptName;
-    const fontUrl = font.url;
-    const styleName = getStyleNameFromFontName(fontName);
-    await loadFonts([
-      {
-        name: fontName,
-        url: fontUrl
-      }
-    ]);
-    setSelectedFont({ ...selectedFont, name: styleName });
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          fontFamily: fontName,
-          fontUrl: fontUrl
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-  };
-
-  const onChangeBorderWidth = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          borderWidth: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        borderWidth: v
-      } as ITextControlProps;
-    });
-  };
-
-  const onChangeBorderColor = (v: string) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          borderColor: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        borderColor: v
-      } as ITextControlProps;
-    });
-  };
-
-  const handleChangeOpacity = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          opacity: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        opacity: v
-      } as ITextControlProps;
-    }); // Update local state
-  };
-
-  const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          boxShadow: boxShadow
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-
-    setProperties((prev) => {
-      return {
-        ...prev,
-        boxShadow
-      } as ITextControlProps;
-    });
-  };
-
-  const onChangeFontSize = (v: number) => {
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          fontSize: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-    setProperties((prev) => {
-      return {
-        ...prev,
-        fontSize: v
-      } as ITextControlProps;
-    });
+    await loadFonts([{ name: font.postScriptName, url: font.url }]);
+    setSelectedFont({ ...selectedFont, name: getStyleName(font.postScriptName) });
+    dispatch(updateDetails(clipId, { fontFamily: font.postScriptName, fontUrl: font.url }));
   };
 
   const onChangeFontFamily = async (font: ICompactFont) => {
-    const fontName = font.default.postScriptName;
-    const fontUrl = font.default.url;
-
-    await loadFonts([
-      {
-        name: fontName,
-        url: fontUrl
-      }
-    ]);
-    setSelectedFont({ ...font, name: getStyleNameFromFontName(fontName) });
-    setProperties({
-      ...properties,
-      fontFamily: font.default.family,
-      fontFamilyDisplay: font.default.family
-    });
-
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          fontFamily: fontName,
-          fontUrl: fontUrl
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
+    await loadFonts([{ name: font.default.postScriptName, url: font.default.url }]);
+    setSelectedFont({ ...font, name: getStyleName(font.default.postScriptName) });
+    dispatch(updateDetails(clipId, { fontFamily: font.default.postScriptName, fontUrl: font.default.url }));
   };
-
-  const handleColorChange = (color: string) => {
-    setProperties((prev) => {
-      return {
-        ...prev,
-        color: color
-      } as ITextControlProps;
-    });
-
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          color: color
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-  };
-
-  const onChangeTextAlign = (v: string) => {
-    setProperties((prev) => {
-      return {
-        ...prev,
-        textAlign: v
-      } as ITextControlProps;
-    });
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          textAlign: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-  };
-
-  const onChangeTextDecoration = (v: string) => {
-    setProperties({
-      ...properties,
-      textDecoration: v
-    });
-
-    const payload = {
-      [trackItem.id]: {
-        details: {
-          textDecoration: v
-        }
-      }
-    };
-    dispatch(EDIT_OBJECT, { payload });
-    bridgePush(EDIT_OBJECT, payload);
-  };
-
-  const applyAnimation = (presetName: PresetName, type: "in" | "out") => {
-    if (!trackItem.id) {
-      console.warn("No active ID to apply the animation to.");
-      return;
-    }
-    const presetAnimation = presets[presetName];
-    const composition: Animation[] = [presetAnimation];
-
-    const payload = {
-      id: trackItem.id,
-      animations: {
-        [type]: {
-          name: presetName,
-          composition
-        }
-      }
-    };
-    dispatch(ADD_ANIMATION, { payload });
-    bridgePush(ADD_ANIMATION, payload);
-  };
-  const createPresetButtons = (
-    filter: (key: string) => boolean,
-    type: "in" | "out"
-  ) =>
-    Object.keys(presets)
-      .filter(filter)
-      .map((presetKey) => {
-        const preset = presets[presetKey as "scaleIn"];
-        const style = React.useMemo(
-          () => ({
-            backgroundImage: `url(${preset.previewUrl})`,
-            backgroundSize: "cover",
-            width: "50px",
-            height: "50px",
-            borderRadius: "8px"
-          }),
-          [preset.previewUrl]
-        );
-        if (
-          preset.property?.toLowerCase().includes("text") ||
-          preset.property?.toLowerCase().includes("shake")
-        )
-          return;
-
-        return (
-          <div
-            key={presetKey}
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground"
-            onClick={() => applyAnimation(presetKey as PresetName, type)}
-          >
-            <div style={style} draggable={false} />
-            <div>{preset.name}</div>
-          </div>
-        );
-      });
-
-  const presetInButtons = createPresetButtons(
-    (key) => key.includes("In"),
-    "in"
-  );
 
   const components = [
     {
       key: "captionPreset",
-      component: <PresetCaption trackItem={trackItem} properties={properties} />
+      component: <PresetCaption trackItem={compat as any} properties={properties as any} />,
     },
     {
       key: "captionWords",
-      component: (
-        <CaptionWords
-          id={trackItem.id}
-          handleModalAnimation={handleModalAnimation}
-          trackItem={trackItem}
-        />
-      )
-    },
-    {
-      key: "animations",
-      component: <AnimationCaption />
-    },
-    {
-      key: "captionColors",
-      component: (
-        <CaptionColors
-          id={trackItem.id}
-          activeColor={properties.activeColor}
-          activeFillColor={properties.activeFillColor}
-          appearedColor={properties.appearedColor}
-          isKeywordColor={properties.isKeywordColor}
-          preservedColorKeyWord={properties.preservedColorKeyWord}
-        />
-      )
+      component: <CaptionWords trackItem={compat as any} />,
     },
     {
       key: "textControls",
       component: (
         <TextControls
-          trackItem={trackItem}
-          properties={properties}
+          trackItem={compat as any}
+          properties={properties as any}
           selectedFont={selectedFont}
           onChangeFontFamily={onChangeFontFamily}
           handleChangeFontStyle={handleChangeFontStyle}
-          onChangeFontSize={onChangeFontSize}
-          handleColorChange={handleColorChange}
-          onChangeTextAlign={onChangeTextAlign}
-          onChangeTextDecoration={onChangeTextDecoration}
-          handleChangeOpacity={handleChangeOpacity}
-          handleBackgroundChange={(v: string) => console.log(v)}
+          onChangeFontSize={(v: number) => dispatch(updateDetails(clipId, { fontSize: v }))}
+          handleColorChange={(v: string) => dispatch(updateDetails(clipId, { color: v }))}
+          handleBackgroundChange={(v: string) => dispatch(updateDetails(clipId, { backgroundColor: v }))}
+          onChangeTextAlign={(v: string) => dispatch(updateDetails(clipId, { textAlign: v }))}
+          onChangeTextDecoration={(v: string) => dispatch(updateDetails(clipId, { textDecoration: v }))}
+          handleChangeOpacity={(v: number) => dispatch(setOpacity(clipId, v))}
         />
-      )
+      ),
+    },
+    {
+      key: "captionColors",
+      component: (
+        <CaptionColors
+          trackItem={compat as any}
+          properties={properties as any}
+          onChangeAppearedColor={(v: string) => dispatch(updateDetails(clipId, { appearedColor: v }))}
+          onChangeActiveColor={(v: string) => dispatch(updateDetails(clipId, { activeColor: v }))}
+          onChangeActiveFillColor={(v: string) => dispatch(updateDetails(clipId, { activeFillColor: v }))}
+          onChangeIsKeywordColor={(v: string) => dispatch(updateDetails(clipId, { isKeywordColor: v }))}
+          onChangePreservedColor={(v: boolean) => dispatch(updateDetails(clipId, { preservedColorKeyWord: v }))}
+        />
+      ),
+    },
+    {
+      key: "animationCaption",
+      component: (
+        <AnimationCaption
+          trackItem={compat as any}
+          activeModal={activeModalAnimation}
+          handleModal={setActiveModalAnimation}
+        />
+      ),
     },
     {
       key: "fontStroke",
       component: (
         <Outline
           label="Font stroke"
-          onChageBorderWidth={(v: number) => onChangeBorderWidth(v)}
-          onChangeBorderColor={(v: string) => onChangeBorderColor(v)}
-          valueBorderWidth={properties.borderWidth as number}
-          valueBorderColor={properties.borderColor as string}
+          onChageBorderWidth={(v: number) => dispatch(updateDetails(clipId, { borderWidth: v }))}
+          onChangeBorderColor={(v: string) => dispatch(updateDetails(clipId, { borderColor: v }))}
+          valueBorderWidth={(d.borderWidth as number) || 0}
+          valueBorderColor={(d.borderColor as string) || "#000000"}
         />
-      )
+      ),
     },
     {
       key: "fontShadow",
       component: (
         <Shadow
           label="Font shadow"
-          onChange={(v: IBoxShadow) => onChangeBoxShadow(v)}
-          value={properties.boxShadow}
+          onChange={(v: BoxShadow) => dispatch(updateDetails(clipId, { boxShadow: v }))}
+          value={(d.boxShadow as BoxShadow) || { color: "#000000", x: 0, y: 0, blur: 0 }}
         />
-      )
-    }
+      ),
+    },
   ];
-  return (
-    <>
-      {activeModalAnimation && (
-        <div
-          className="absolute right-[275px] top-1/2 z-[200] mt-6 flex h-[calc(100%-180px)] w-[250px] -translate-y-1/2 rounded-lg bg-background/80 shadow-lg transition duration-300 ease-in-out"
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          <div className="flex h-full flex-col gap-2 p-4">
-            <div className="flex justify-between">
-              <p>Animations</p>
-              <X
-                width={16}
-                className="cursor-pointer"
-                onClick={() => {
-                  handleModalAnimation();
-                }}
-              />
-            </div>
-            <div className="h-full overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="grid grid-cols-3 gap-2 py-4">
-                  {presetInButtons}
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <div className="flex lg:h-[calc(100vh-84px)] flex-1 flex-col overflow-hidden min-h-[340px]">
-        <ScrollArea className="h-full">
-          <div className="flex flex-col gap-2 px-4 py-4">
-            {components
-              .filter((comp) => showAll || comp.key === type)
-              .map((comp) => (
-                <React.Fragment key={comp.key}>{comp.component}</React.Fragment>
-              ))}
-          </div>
-        </ScrollArea>
-      </div>
-    </>
+  return (
+    <div className="flex lg:h-[calc(100vh-84px)] flex-1 flex-col overflow-hidden min-h-[340px]">
+      <ScrollArea className="h-full">
+        <div className="flex flex-col gap-2 px-4 py-4">
+          {components
+            .filter((c) => showAll || c.key === type)
+            .map((c) => (
+              <React.Fragment key={c.key}>{c.component}</React.Fragment>
+            ))}
+        </div>
+      </ScrollArea>
+    </div>
   );
 };
 
