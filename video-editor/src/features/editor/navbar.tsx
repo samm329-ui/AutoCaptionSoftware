@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { dispatch } from "@designcombo/events";
-import { HISTORY_UNDO, HISTORY_REDO, DESIGN_RESIZE } from "@designcombo/state";
 import { Icons } from "@/components/shared/icons";
 import {
   Popover,
@@ -17,9 +15,6 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
-import type StateManager from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
-import type { IDesign } from "@designcombo/types";
 import { useDownloadState } from "./store/use-download-state";
 import DownloadProgressModal from "./download-progress-modal";
 import AutosizeInput from "@/components/ui/autosize-input";
@@ -36,6 +31,10 @@ import { ShortcutsModal } from "./shortcuts-modal";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import MenuBar from "./menu-bar";
 import { handleFileUpload } from "@/store/upload-store";
+import { engineStore } from "./engine/engine-core";
+import { setCanvas, undo, redo } from "./engine/commands";
+import { LegacyStateAdapter } from "./engine/legacy-state-adapter";
+import { nanoid } from "nanoid";
 
 export default function Navbar({
   user,
@@ -44,7 +43,7 @@ export default function Navbar({
   projectName
 }: {
   user: any | null;
-  stateManager: StateManager;
+  stateManager: LegacyStateAdapter;
   setProjectName: (name: string) => void;
   projectName: string;
 }) {
@@ -56,11 +55,11 @@ export default function Navbar({
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const handleUndo = () => {
-    dispatch(HISTORY_UNDO);
+    engineStore.dispatch(undo());
   };
 
   const handleRedo = () => {
-    dispatch(HISTORY_REDO);
+    engineStore.dispatch(redo());
   };
 
   const handleImport = useCallback(() => {
@@ -175,15 +174,15 @@ export default function Navbar({
   );
 }
 
-const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
+const DownloadPopover = ({ stateManager }: { stateManager: LegacyStateAdapter }) => {
   const isMediumScreen = useIsMediumScreen();
   const { actions, exportType } = useDownloadState();
   const [isExportTypeOpen, setIsExportTypeOpen] = useState(false);
   const [open, setOpen] = useState(false);
 
   const handleExport = () => {
-    const data: IDesign = {
-      id: generateId(),
+    const data = {
+      id: nanoid(),
       ...stateManager.toJSON()
     };
 
@@ -296,11 +295,7 @@ const RESIZE_OPTIONS: ResizeOptionProps[] = [
 
 const ResizeVideo = () => {
   const handleResize = (options: ResizeValue) => {
-    dispatch(DESIGN_RESIZE, {
-      payload: {
-        ...options
-      }
-    });
+    engineStore.dispatch(setCanvas(options.width, options.height));
   };
   return (
     <Popover>
