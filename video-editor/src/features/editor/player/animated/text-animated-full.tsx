@@ -1,5 +1,14 @@
-import { ITextDetails } from "@designcombo/types";
 import TypeWriterIn from "./text-animated-types/animations-in/type-writer-in";
+
+interface ITextDetails {
+  fontFamily?: string;
+  fontSize?: number | string;
+  fontWeight?: string;
+  color?: string;
+  width?: number | string;
+  height?: number | string;
+  [key: string]: unknown;
+}
 import TypeWriterOut from "./text-animated-types/animations-out/type-writer-out";
 import BackgroundIn from "./text-animated-types/animations-in/background-in";
 import BackgroundOut from "./text-animated-types/animations-out/background-out";

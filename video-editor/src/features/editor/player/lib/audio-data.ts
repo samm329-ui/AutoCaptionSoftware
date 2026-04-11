@@ -1,6 +1,21 @@
-import { IAudio, ITrackItem, IVideo } from "@designcombo/types";
 import { AudioData, getAudioData, visualizeAudio } from "@remotion/media-utils";
 import { isEqual } from "lodash";
+
+interface ITrackItem {
+  id: string;
+  type: string;
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+}
+
+interface IVideo extends ITrackItem {
+  type: "video";
+}
+
+interface IAudio extends ITrackItem {
+  type: "audio";
+}
 
 interface AudioDataCache {
   data: AudioData | null;

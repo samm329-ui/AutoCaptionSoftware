@@ -1,6 +1,15 @@
-import { ITextDetails } from "@designcombo/types";
 import React, { useMemo } from "react";
 import { useCurrentFrame } from "remotion";
+
+interface ITextDetails {
+  fontFamily?: string;
+  fontSize?: number | string;
+  fontWeight?: string;
+  color?: string;
+  width?: number | string;
+  height?: number | string;
+  [key: string]: unknown;
+}
 import AnimatedTextIn from "./text-animated-types/animations-in/text-animated-in";
 import SunnyMorningsAnimationIn from "./text-animated-types/animations-in/sunny-mornings-in";
 import DominoDreamsIn from "./text-animated-types/animations-in/domino-dreams-in";

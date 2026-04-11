@@ -1,6 +1,15 @@
-import { ITextDetails } from "@designcombo/types";
 import { useMemo } from "react";
 import { interpolate } from "remotion";
+
+interface ITextDetails {
+  fontFamily?: string;
+  fontSize?: number | string;
+  fontWeight?: string;
+  color?: string;
+  width?: number | string;
+  height?: number | string;
+  [key: string]: unknown;
+}
 
 export default function TypeWriterIn({
   frame,

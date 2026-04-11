@@ -1,5 +1,28 @@
-import { IImage, IText, ITrackItem } from "@designcombo/types";
 import { buildEffectStyle } from "../utils/video-effects-utils";
+
+interface IImage {
+  type: "image";
+  details: {
+    width?: number | string;
+    height?: number | string;
+    borderRadius?: number;
+    borderWidth?: number;
+    borderColor?: string;
+    boxShadow?: { x: number; y: number; blur: number; color: string };
+    crop: { x: number; y: number; width: number; height: number };
+    [key: string]: unknown;
+  };
+}
+
+interface IText {
+  type: "text";
+  details: Record<string, unknown>;
+}
+
+interface ITrackItem {
+  type: string;
+  details: Record<string, unknown>;
+}
 
 export const calculateCropStyles = (
   details: IImage["details"],

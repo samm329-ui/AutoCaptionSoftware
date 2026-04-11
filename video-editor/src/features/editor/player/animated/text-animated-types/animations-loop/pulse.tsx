@@ -1,5 +1,14 @@
-import { ITextDetails } from "@designcombo/types";
 import { interpolate } from "remotion";
+
+interface ITextDetails {
+  fontFamily?: string;
+  fontSize?: number | string;
+  fontWeight?: string;
+  color?: string;
+  width?: number | string;
+  height?: number | string;
+  [key: string]: unknown;
+}
 
 const PulseText = ({
   char,
