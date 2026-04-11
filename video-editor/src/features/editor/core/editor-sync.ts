@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { filter, subject } from "@designcombo/events";
+import { dispatch, subscribe } from "../utils/events";
 import {
   ADD_AUDIO,
   ADD_CAPTIONS,
@@ -17,7 +17,7 @@ import {
   LAYER_CLONE,
   LAYER_DELETE,
   LAYER_SELECTION,
-} from "@designcombo/state";
+} from "../constants/events";
 import { patchEditorState } from "./editor-bridge";
 
 const SYNC_KEYS = [
@@ -48,14 +48,14 @@ export function initEditorSync() {
 
   hasMounted = true;
 
-  const subscription = subject
-    .pipe(filter(({ key }) => SYNC_KEYS.includes(key as any)))
-    .subscribe((event) => {
-      patchEditorState(event.key, event.value?.payload);
-    });
+  const cleanup = subscribe((eventKey: string, data?: { payload?: unknown }) => {
+    if (SYNC_KEYS.includes(eventKey as any)) {
+      patchEditorState(eventKey, data?.payload);
+    }
+  });
 
   return () => {
-    subscription.unsubscribe();
+    cleanup();
     hasMounted = false;
   };
 }

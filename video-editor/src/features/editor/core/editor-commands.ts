@@ -15,7 +15,7 @@ import {
   LAYER_CLONE,
   LAYER_DELETE,
   LAYER_SELECTION,
-} from "@designcombo/state";
+} from "../constants/events";
 import { applyEditorUpdate } from "./editor-bridge";
 
 export type EditorSelectionPayload = {

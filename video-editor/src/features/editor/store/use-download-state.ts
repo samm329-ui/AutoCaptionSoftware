@@ -1,4 +1,4 @@
-import { IDesign } from "@designcombo/types";
+import { IDesign } from "../types";
 import { create } from "zustand";
 interface Output {
   url: string;

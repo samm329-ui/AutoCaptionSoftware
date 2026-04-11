@@ -5,8 +5,7 @@
  *
  * This file now bootstraps the editor from the new engine only.
  * A thin engine-backed compatibility adapter is kept for un-migrated
- * consumers inside the app, but DesignCombo is no longer part of the
- * runtime path here.
+ * consumers inside the app.
  */
 
 import {
@@ -29,6 +28,7 @@ import {
 } from "./engine/engine-core";
 import { setPlayhead, setScroll, setSelection, setZoom } from "./engine/commands";
 import { LegacyStateAdapter, legacyStateAdapter } from "./engine/legacy-state-adapter";
+import { useLegacyBridge } from "./engine/legacy-bridge";
 
 // Store + hooks
 import useStore from "./store/use-store";
@@ -267,6 +267,9 @@ function EditorShell() {
   useKeyframePlayback();
   useMarkerShortcuts();
   useAutoSequenceDetector();
+
+  // Mount the legacy bridge (CRITICAL - this translates @designcombo events to engine)
+  useLegacyBridge();
 
   // Project initialization
   useEffect(() => {

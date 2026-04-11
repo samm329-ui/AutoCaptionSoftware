@@ -1,4 +1,4 @@
-import { dispatch } from "@designcombo/events";
+import { dispatch } from "../utils/events";
 import {
   ADD_AUDIO,
   ADD_CAPTIONS,
@@ -16,8 +16,8 @@ import {
   LAYER_CLONE,
   LAYER_DELETE,
   LAYER_SELECTION,
-} from "@designcombo/state";
-import type { ITrackItem } from "@designcombo/types";
+} from "../constants/events";
+import type { ITrackItem } from "../types";
 import useStore from "../store/use-store";
 
 type UnknownRecord = Record<string, any>;
