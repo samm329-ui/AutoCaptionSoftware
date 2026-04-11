@@ -16,7 +16,10 @@ import {
   MarkerColor,
 } from "../engine/marker-engine";
 import useStore from "../store/use-store";
-import { timeMsToUnits } from "@designcombo/timeline";
+
+const timeMsToUnits = (timeMs: number, zoom: number): number => {
+  return (timeMs / 1000) * 30 * zoom;
+};
 
 // ─── Marker Triangle ──────────────────────────────────────────────────────────
 

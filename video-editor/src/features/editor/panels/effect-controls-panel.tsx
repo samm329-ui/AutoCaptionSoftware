@@ -33,8 +33,6 @@ import {
   EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
 import useStore from "../store/use-store";
 import {
   useKeyframeStore,
@@ -55,6 +53,12 @@ import {
   useEngineDispatch,
   type Clip,
 } from "../engine/engine-provider";
+
+const EDIT_OBJECT = "EDIT_OBJECT";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
 
 // ─── Property Row ─────────────────────────────────────────────────────────────
 

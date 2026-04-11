@@ -33,11 +33,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { useUploadStore, addFileToTimeline, UploadedFile, handleFileUpload, ProjectFolder } from "@/store/upload-store";
 import { setDragData } from "@/components/shared/drag-data";
-import { dispatch } from "@designcombo/events";
-import { ADD_VIDEO, ADD_IMAGE, ADD_AUDIO } from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
 import EffectsTab from "./effects-tab";
 import { bridgePush } from "../engine/legacy-bridge";
+
+const ADD_VIDEO = "ADD_VIDEO";
+const ADD_IMAGE = "ADD_IMAGE";
+const ADD_AUDIO = "ADD_AUDIO";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;

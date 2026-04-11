@@ -25,10 +25,19 @@ import {
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { dispatch } from "@designcombo/events";
-import { ADD_VIDEO, ADD_AUDIO, ADD_IMAGE } from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
 import { bridgePush } from "../engine/legacy-bridge";
+
+const ADD_VIDEO = "ADD_VIDEO";
+const ADD_AUDIO = "ADD_AUDIO";
+const ADD_IMAGE = "ADD_IMAGE";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 const DEFAULT_FPS = 30;
 

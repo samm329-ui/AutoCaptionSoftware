@@ -54,10 +54,14 @@ import {
   getTransitionsByCategory,
 } from "../data/video-transitions";
 import { setDragData } from "@/components/shared/drag-data";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
 import useStore from "../store/use-store";
 import { useEngineSelection, useEngineDispatch } from "../engine/engine-provider";
+
+const EDIT_OBJECT = "EDIT_OBJECT";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
 
 const EFFECT_CATEGORY_ICONS: Partial<Record<EffectCategory, React.ReactNode>> = {
   "adjust":             <Sparkles className="w-3 h-3" />,
