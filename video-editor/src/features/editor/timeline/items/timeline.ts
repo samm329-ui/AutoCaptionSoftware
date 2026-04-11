@@ -1,12 +1,28 @@
-import TimelineBase from "@designcombo/timeline";
-import Video from "./video";
 import { throttle } from "lodash";
+import Video from "./video";
 import Audio from "./audio";
-import { TimelineOptions } from "@designcombo/timeline";
-import { ITimelineScaleState } from "@designcombo/types";
+import { ITimelineScaleState } from "../../types";
 
-class Timeline extends TimelineBase {
+interface TimelineOptions {
+  scale: ITimelineScaleState;
+  duration: number;
+  guideLineColor?: string;
+  width?: number;
+  height?: number;
+  left?: number;
+  top?: number;
+}
+
+class Timeline {
   public isShiftKey: boolean = false;
+  public viewportTransform: number[] = [1, 0, 0, 1, 0, 0];
+  public spacing: { left: number; right: number; top: number; bottom: number } = { left: 0, right: 0, top: 0, bottom: 0 };
+  
+  private canvasEl: HTMLCanvasElement;
+  private options: Partial<TimelineOptions>;
+  private _objects: any[] = [];
+  private _activeObject: any = null;
+
   constructor(
     canvasEl: HTMLCanvasElement,
     options: Partial<TimelineOptions> & {
@@ -15,9 +31,9 @@ class Timeline extends TimelineBase {
       guideLineColor?: string;
     }
   ) {
-    super(canvasEl, options); // Call the parent class constructor
+    this.canvasEl = canvasEl;
+    this.options = options;
 
-    // Add shift keyboard listener
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
   }
@@ -35,11 +51,26 @@ class Timeline extends TimelineBase {
   };
 
   public purge(): void {
-    super.purge();
-
-    // Cleanup event listener for Shift key
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
+  }
+
+  public getViewportPos(posX: number, posY: number) {
+    return { x: posX, y: posY };
+  }
+
+  public getObjects() {
+    return this._objects;
+  }
+
+  public getActiveObject() {
+    return this._activeObject;
+  }
+
+  public setActiveTrackItemCoords() {}
+
+  public requestRenderAll() {
+    // Stub - the actual rendering would be handled by the timeline component
   }
 
   public setViewportPos(posX: number, posY: number) {
@@ -56,6 +87,8 @@ class Timeline extends TimelineBase {
       scrollLeft: limitedPos.x - this.spacing.left
     });
   }
+
+  public onScroll?: (scrollInfo: { scrollTop: number; scrollLeft: number }) => void;
 
   public onScrollChange = throttle(async () => {
     const objects = this.getObjects();
@@ -75,7 +108,7 @@ class Timeline extends TimelineBase {
     scrollLeft?: number;
     scrollTop?: number;
   }): void {
-    const vt = this.viewportTransform; // Create a shallow copy
+    const vt = this.viewportTransform;
     let hasChanged = false;
 
     if (typeof scrollLeft === "number") {

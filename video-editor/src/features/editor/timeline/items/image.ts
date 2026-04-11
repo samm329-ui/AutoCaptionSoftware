@@ -1,27 +1,36 @@
-import {
-  Resizable,
-  ResizableProps,
-  Pattern,
-  util,
-  Control
-} from "@designcombo/timeline";
+import { IDisplay } from "../../types";
 import { createResizeControls } from "../controls";
 
-interface ImageProps extends ResizableProps {
+interface ImageProps {
+  id: string;
+  display: IDisplay;
+  tScale: number;
   src: string;
 }
 
-class Image extends Resizable {
+class Image {
   static type = "Image";
   public src: string;
   public hasSrc = true;
 
-  static createControls(): { controls: Record<string, Control> } {
+  public id: string;
+  public display: IDisplay;
+  public tScale: number;
+  public width: number = 0;
+  public height: number = 0;
+  public left: number = 0;
+  public top: number = 0;
+  public fill: any = null;
+  public isSelected: boolean = false;
+  public canvas: any = null;
+  public rx: number = 4;
+  public ry: number = 4;
+
+  static createControls(): { controls: Record<string, any> } {
     return { controls: createResizeControls() };
   }
 
   constructor(props: ImageProps) {
-    super(props);
     this.id = props.id;
     this.src = props.src;
     this.display = props.display;
@@ -30,23 +39,24 @@ class Image extends Resizable {
   }
 
   public _render(ctx: CanvasRenderingContext2D) {
-    super._render(ctx);
     this.updateSelected(ctx);
   }
 
   public loadImage() {
-    util.loadImage(this.src).then((img) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = this.src;
+    img.onload = () => {
       const imgHeight = img.height;
-      const rectHeight = this.height;
+      const rectHeight = this.height || 60;
       const scaleY = rectHeight / imgHeight;
-      const pattern = new Pattern({
+      this.set("fill", {
         source: img,
         repeat: "repeat-x",
         patternTransform: [scaleY, 0, 0, scaleY, 0, 0]
-      });
-      this.set("fill", pattern);
+      } as any);
       this.canvas?.requestRenderAll();
-    });
+    };
   }
 
   public setSrc(src: string) {
@@ -54,6 +64,14 @@ class Image extends Resizable {
     this.loadImage();
     this.canvas?.requestRenderAll();
   }
+
+  public set(key: string, value: any) {
+    if (key === "fill") {
+      this.fill = value;
+    }
+  }
+
+  public setCoords() {}
 
   public updateSelected(ctx: CanvasRenderingContext2D) {
     const borderColor = this.isSelected
@@ -65,11 +83,9 @@ class Image extends Resizable {
     ctx.save();
     ctx.fillStyle = borderColor;
 
-    // Create a path for the outer rectangle (no radius)
     ctx.beginPath();
     ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
 
-    // Create a path for the inner rectangle with rounded corners (the hole)
     ctx.roundRect(
       -this.width / 2 + borderWidth,
       -this.height / 2 + borderWidth,
@@ -78,7 +94,6 @@ class Image extends Resizable {
       innerRadius
     );
 
-    // Use even-odd fill rule to create the border effect
     ctx.fill("evenodd");
     ctx.restore();
   }

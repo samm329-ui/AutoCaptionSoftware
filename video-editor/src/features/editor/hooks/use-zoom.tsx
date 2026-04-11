@@ -1,5 +1,9 @@
-import { ISize } from "@designcombo/types";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+interface ISize {
+  width: number;
+  height: number;
+}
 
 function useZoom(containerRef: React.RefObject<HTMLDivElement>, size: ISize) {
   const [zoom, setZoom] = useState(0.01);

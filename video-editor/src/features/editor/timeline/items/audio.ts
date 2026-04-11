@@ -1,32 +1,30 @@
 import {
-  Control,
-  Trimmable,
-  TrimmableProps,
-  timeMsToUnits
-} from "@designcombo/timeline";
-import {
   AudioData,
   getAudioData,
   getWaveformPortion
 } from "@remotion/media-utils";
-import { IMetadata, ITrim } from "@designcombo/types";
+import { IMetadata, ITrim, IDisplay } from "../../types";
 import { createAudioControls } from "../controls";
 import { SECONDARY_FONT } from "../../constants/constants";
+import { timeMsToUnits } from "../../utils/local-timeline";
 
-const MAX_CANVAS_WIDTH = 12000; // Keep canvas size reasonable
+const MAX_CANVAS_WIDTH = 12000;
 const CANVAS_SAFE_DRAWING = 2000;
 
-interface AudioProps extends TrimmableProps {
-  aspectRatio: number;
+interface AudioProps {
+  id: string;
+  display: IDisplay;
   trim: ITrim;
   duration: number;
+  tScale: number;
+  aspectRatio: number;
   src: string;
   metadata: Partial<IMetadata> & {
     previewUrl: string;
   };
 }
 
-class Audio extends Trimmable {
+class Audio {
   static type = "Audio";
   public barData?: AudioData;
   public hasSrc = true;
@@ -35,15 +33,31 @@ class Audio extends Trimmable {
 
   public scrollLeft = 0;
   private isDirty = true;
-  declare playbackRate: number;
+  public playbackRate: number = 1;
   public bars: any[] = [];
 
-  static createControls(): { controls: Record<string, Control> } {
+  public id: string;
+  public display: IDisplay;
+  public trim: ITrim;
+  public duration: number;
+  public tScale: number;
+  public fill: string = "#2D1625";
+  public src: string;
+  public objectCaching: boolean = false;
+  public width: number = 0;
+  public height: number = 0;
+  public left: number = 0;
+  public top: number = 0;
+  public isSelected: boolean = false;
+  public canvas: any = null;
+  public rx: number = 4;
+  public ry: number = 4;
+
+  static createControls(): { controls: Record<string, any> } {
     return { controls: createAudioControls() };
   }
 
   constructor(props: AudioProps) {
-    super(props);
     this.id = props.id;
     this.tScale = props.tScale;
     this.display = props.display;
@@ -56,48 +70,50 @@ class Audio extends Trimmable {
     this.initialize();
   }
 
-  // Update the _render method to handle the visible portion
   public _render(ctx: CanvasRenderingContext2D) {
-    super._render(ctx);
     this.drawTextIdentity(ctx);
     this.updateSelected(ctx);
 
     ctx.save();
     ctx.translate(-this.width / 2, -this.height / 2);
 
-    // Clip the area to prevent drawing outside
     ctx.beginPath();
     ctx.rect(0, 0, this.width, this.height);
     ctx.clip();
 
     this.renderToOffscreen();
 
-    // Draw only the visible portion
-    const displayFromInUnits = timeMsToUnits(this.display!.from, this.tScale);
+    const displayFromInUnits = timeMsToUnits(this.display.from, this.tScale);
     const scrollLeft = this.scrollLeft + displayFromInUnits;
     const visibleStart = Math.max(0, -scrollLeft) - CANVAS_SAFE_DRAWING;
-    ctx.drawImage(
-      this.offscreenCanvas!,
-      0,
-      0,
-      this.offscreenCanvas!.width,
-      this.height,
-      visibleStart,
-      0,
-      this.offscreenCanvas!.width,
-      this.height
-    );
+    if (this.offscreenCanvas) {
+      ctx.drawImage(
+        this.offscreenCanvas,
+        0,
+        0,
+        this.offscreenCanvas.width,
+        this.height,
+        visibleStart,
+        0,
+        this.offscreenCanvas.width,
+        this.height
+      );
+    }
 
     ctx.restore();
     this.canvas?.requestRenderAll();
   }
 
   private async initialize() {
-    const audioData = await getAudioData(this.src);
-    this.barData = audioData;
-    this.bars = this.getBars(0, 0) as any;
-    this.canvas?.requestRenderAll();
-    this.onScrollChange({ scrollLeft: 0 });
+    try {
+      const audioData = await getAudioData(this.src);
+      this.barData = audioData;
+      this.bars = this.getBars(0, 0) as any;
+      this.canvas?.requestRenderAll();
+      this.onScrollChange({ scrollLeft: 0 });
+    } catch (e) {
+      console.warn("Failed to load audio data:", e);
+    }
   }
 
   public setSrc(src: string) {
@@ -112,7 +128,7 @@ class Audio extends Trimmable {
     if (!this.barData) return;
 
     const durationInUnits = timeMsToUnits(
-      this.duration!,
+      this.duration,
       this.tScale,
       this.playbackRate
     );
@@ -124,26 +140,27 @@ class Audio extends Trimmable {
       numberOfSamples: Math.round(durationInUnits / 4)
     });
 
-    // Cache the result
     return bars;
   }
 
   private initOffscreenCanvas() {
     if (!this.offscreenCanvas) {
-      this.offscreenCanvas = new OffscreenCanvas(this.width, this.height);
+      this.offscreenCanvas = new OffscreenCanvas(this.width || 300, this.height || 60);
       this.offscreenCtx = this.offscreenCanvas.getContext("2d");
     }
 
-    // Resize if dimensions changed
     if (
-      this.offscreenCanvas.width !== this.width ||
-      this.offscreenCanvas.height !== this.height
+      this.offscreenCanvas.width !== (this.width || 300) ||
+      this.offscreenCanvas.height !== (this.height || 60)
     ) {
-      this.offscreenCanvas.width = this.width;
-      this.offscreenCanvas.height = this.height;
+      this.offscreenCanvas.width = this.width || 300;
+      this.offscreenCanvas.height = this.height || 60;
       this.isDirty = true;
     }
   }
+
+  public setCoords() {}
+  public set(key: string, value: any) {}
 
   public drawTextIdentity(ctx: CanvasRenderingContext2D) {
     const audioIconPath = new Path2D(
@@ -174,11 +191,9 @@ class Audio extends Trimmable {
     ctx.save();
     ctx.fillStyle = borderColor;
 
-    // Create a path for the outer rectangle (no radius)
     ctx.beginPath();
     ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
 
-    // Create a path for the inner rectangle with rounded corners (the hole)
     ctx.roundRect(
       -this.width / 2 + borderWidth,
       -this.height / 2 + borderWidth,
@@ -187,34 +202,31 @@ class Audio extends Trimmable {
       innerRadius
     );
 
-    // Use even-odd fill rule to create the border effect
     ctx.fill("evenodd");
     ctx.restore();
   }
 
   public calculateOffscreenWidth({ scrollLeft }: { scrollLeft: number }) {
     const offscreenWidth = Math.min(this.left + scrollLeft, 0);
-
     return Math.abs(offscreenWidth);
   }
 
   public onScrollChange({ scrollLeft }: { scrollLeft: number }) {
     this.scrollLeft = scrollLeft;
-    this.isDirty = true; // Mark as dirty after preparing new thumbnails
+    this.isDirty = true;
   }
 
   public renderToOffscreen(force?: boolean) {
     if (!this.offscreenCtx) return;
     if (!this.isDirty && !force) return;
 
-    this.offscreenCanvas!.width = MAX_CANVAS_WIDTH;
-    this.offscreenCanvas!.height = this.height;
+    if (!this.offscreenCanvas) return;
+    this.offscreenCanvas.width = MAX_CANVAS_WIDTH;
+    this.offscreenCanvas.height = this.height;
 
     const ctx = this.offscreenCtx;
-    // Calculate visible range
-    const displayFromInUnits = timeMsToUnits(this.display!.from, this.tScale);
+    const displayFromInUnits = timeMsToUnits(this.display.from, this.tScale);
     const scrollLeft = this.scrollLeft + displayFromInUnits;
-    // Calculate the offset caused by the trimming
     const trimFromSize = timeMsToUnits(
       this.trim.from,
       this.tScale,
@@ -227,29 +239,24 @@ class Audio extends Trimmable {
     const bars = this.bars;
     if (!bars) return;
 
-    // Clear the offscreen canvas
-    ctx.clearRect(0, 0, this.offscreenCanvas!.width, this.height);
+    ctx.clearRect(0, 0, this.offscreenCanvas.width, this.height);
 
-    // Clip with rounded corners
     ctx.beginPath();
-    ctx.roundRect(0, 0, this.offscreenCanvas!.width, this.height, this.rx);
+    ctx.roundRect(0, 0, this.offscreenCanvas.width, this.height, this.rx);
     ctx.clip();
 
-    // Draw waveform
     ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
     ctx.imageSmoothingEnabled = false;
 
-    // Calculate which bars are visible
-    const barWidth = 4; // 1px bar + 3px space
+    const barWidth = 4;
     let startBarIndex = Math.floor(visibleStart / barWidth);
     let endBarIndex = Math.ceil((visibleStart + visibleWidth) / barWidth);
-    // Only draw visible bars
     ctx.beginPath();
     for (let i = startBarIndex; i < endBarIndex && i < bars.length; i++) {
       const bar = bars[i];
       if (bar) {
         const x = Math.round(i * barWidth - visibleStart);
-        if (x >= 0 && x < this.offscreenCanvas!.width) {
+        if (x >= 0 && x < this.offscreenCanvas.width) {
           const amplitude = bar.amplitude || 0;
           const height = Math.round(amplitude * 15);
           const y = Math.round((20 - height) / 2 + 8);

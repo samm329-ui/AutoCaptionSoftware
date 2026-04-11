@@ -1,9 +1,13 @@
 import { PlayerRef } from "@remotion/player";
 import { RefObject, useEffect } from "react";
 import useStore from "../store/use-store";
-import { dispatch } from "@designcombo/events";
-import { ENTER_EDIT_MODE } from "@designcombo/state";
 import { getTargetById, getTypeFromClassName } from "../utils/target";
+
+const ENTER_EDIT_MODE = "ENTER_EDIT_MODE";
+
+const dispatch = (key: string, payload: { payload?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
 
 export default function useUpdateAnsestors({
   playing,

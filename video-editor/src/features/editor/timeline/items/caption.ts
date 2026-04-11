@@ -1,24 +1,44 @@
-import { Control, Resizable, ResizableProps } from "@designcombo/timeline";
-import { IDisplay } from "@designcombo/types";
+import { IDisplay } from "../../types";
 import { createResizeControls } from "../controls";
 import { SECONDARY_FONT } from "../../constants/constants";
 
-interface CaptionsProps extends ResizableProps {
-  tScale: number;
+interface CaptionsProps {
+  id: string;
   display: IDisplay;
+  tScale: number;
   text: string;
+  width?: number;
+  height?: number;
+  left?: number;
+  top?: number;
 }
 
-class Caption extends Resizable {
+class Caption {
   static type = "Caption";
   public text: string;
 
-  static createControls(): { controls: Record<string, Control> } {
+  public id: string;
+  public display: IDisplay;
+  public tScale: number;
+  public width: number = 0;
+  public height: number = 0;
+  public left: number = 0;
+  public top: number = 0;
+  public fill: string = "#1B272C";
+  public isSelected: boolean = false;
+  public canvas: any = null;
+  public strokeWidth: number = 0;
+  public borderColor: string = "transparent";
+  public stroke: string = "transparent";
+  public rx: number = 4;
+  public ry: number = 4;
+
+  static createControls(): { controls: Record<string, any> } {
     return { controls: createResizeControls() };
   }
 
   constructor(props: CaptionsProps) {
-    super(props);
+    this.id = props.id;
     this.fill = "#1B272C";
     this.tScale = props.tScale;
     this.display = props.display;
@@ -29,8 +49,9 @@ class Caption extends Resizable {
     this.strokeWidth = 0;
   }
 
+  public setCoords() {}
+
   public _render(ctx: CanvasRenderingContext2D) {
-    super._render(ctx);
     this.drawTextIdentity(ctx);
     this.updateSelected(ctx);
   }
@@ -46,12 +67,10 @@ class Caption extends Resizable {
     ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
     ctx.textAlign = "left";
 
-    // Calculate available width for text (full width minus icon space and right padding)
-    const iconSpace = 28; // space for the icon
-    const rightPadding = 5; // 5px padding before ellipsis
+    const iconSpace = 28;
+    const rightPadding = 5;
     const availableWidth = this.width - iconSpace - rightPadding;
 
-    // Measure and truncate text if needed
     let displayText = this.text;
     const textWidth = ctx.measureText(this.text).width;
 
@@ -87,11 +106,9 @@ class Caption extends Resizable {
     ctx.save();
     ctx.fillStyle = borderColor;
 
-    // Create a path for the outer rectangle (no radius)
     ctx.beginPath();
     ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
 
-    // Create a path for the inner rectangle with rounded corners (the hole)
     ctx.roundRect(
       -this.width / 2 + borderWidth,
       -this.height / 2 + borderWidth,
@@ -100,7 +117,6 @@ class Caption extends Resizable {
       innerRadius
     );
 
-    // Use even-odd fill rule to create the border effect
     ctx.fill("evenodd");
     ctx.restore();
   }

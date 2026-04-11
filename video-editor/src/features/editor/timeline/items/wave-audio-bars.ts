@@ -1,24 +1,39 @@
-import { Resizable, ResizableProps } from "@designcombo/timeline";
+import { IDisplay } from "../../types";
 
-interface WaveAudioBarsProps extends ResizableProps {
+interface WaveAudioBarsProps {
+  id: string;
+  display: IDisplay;
+  tScale: number;
   src: string;
 }
 
-class WaveAudioBars extends Resizable {
+class WaveAudioBars {
   static type = "WaveAudioBars";
-  declare src: string;
+  public src: string;
   public backgroundColorDiv: string = "#808080";
-
   public hasSrc = true;
+
+  public id: string;
+  public display: IDisplay;
+  public tScale: number;
+  public width: number = 0;
+  public height: number = 0;
+  public left: number = 0;
+  public top: number = 0;
+  public fill: string = "#808080";
+  public isSelected: boolean = false;
+  public canvas: any = null;
+  public rx: number = 4;
+  public ry: number = 4;
+
   constructor(props: WaveAudioBarsProps) {
-    super(props);
     this.id = props.id;
     this.display = props.display;
     this.tScale = props.tScale;
+    this.src = props.src;
   }
 
   public _render(ctx: CanvasRenderingContext2D) {
-    super._render(ctx);
     this.updateSelected(ctx);
   }
 
@@ -32,11 +47,9 @@ class WaveAudioBars extends Resizable {
     ctx.save();
     ctx.fillStyle = borderColor;
 
-    // Create a path for the outer rectangle (no radius)
     ctx.beginPath();
     ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
 
-    // Create a path for the inner rectangle with rounded corners (the hole)
     ctx.roundRect(
       -this.width / 2 + borderWidth,
       -this.height / 2 + borderWidth,
@@ -45,7 +58,6 @@ class WaveAudioBars extends Resizable {
       innerRadius
     );
 
-    // Use even-odd fill rule to create the border effect
     ctx.fill("evenodd");
     ctx.restore();
   }

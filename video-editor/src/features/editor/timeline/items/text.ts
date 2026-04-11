@@ -1,7 +1,53 @@
-import { Control, Resizable, ResizableProps } from "@designcombo/timeline";
-import { IDisplay } from "@designcombo/types";
 import { createResizeControls } from "../controls";
 import { SECONDARY_FONT } from "../../constants/constants";
+
+interface IDisplay {
+  from: number;
+  to: number;
+}
+
+interface ResizableProps {
+  id: string;
+  display: IDisplay;
+  tScale: number;
+  width?: number;
+  height?: number;
+}
+
+interface Control {
+  x: number;
+  y: number;
+  render?: (ctx: CanvasRenderingContext2D, left: number, top: number, styleOverride: any, fabricObject: any) => void;
+  actionHandler?: (event: MouseEvent, transform: any, x: number, y: number) => void;
+  cursorStyleHandler?: (nearestCorner: any, nearestPoint: any) => string;
+  actionName?: string;
+}
+
+class Resizable {
+  static type = "Resizable";
+  id: string = "";
+  width: number = 0;
+  height: number = 0;
+  left: number = 0;
+  top: number = 0;
+  fill: string = "";
+  stroke: string = "";
+  borderColor: string = "";
+  canvas: any = null;
+  isSelected: boolean = false;
+
+  constructor(_props: ResizableProps) {}
+
+  set(key: string, value: any) {
+    (this as any)[key] = value;
+  }
+
+  _render(ctx: CanvasRenderingContext2D) {}
+
+  requestRenderAll() {
+    this.canvas?.requestRenderAll();
+  }
+}
 
 interface TextProps extends ResizableProps {
   text: string;

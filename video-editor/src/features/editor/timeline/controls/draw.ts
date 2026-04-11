@@ -1,4 +1,11 @@
-import { FabricObject, util } from "@designcombo/timeline";
+export const util = {
+  degreesToRadians: (degrees: number) => degrees * (Math.PI / 180)
+};
+
+interface FabricObject {
+  angle: number;
+  height: number;
+}
 
 export function drawVerticalLine(
   ctx: CanvasRenderingContext2D,

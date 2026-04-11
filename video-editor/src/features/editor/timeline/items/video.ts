@@ -1,14 +1,6 @@
-import {
-  Control,
-  Pattern,
-  Trimmable,
-  TrimmableProps,
-  timeMsToUnits,
-  unitsToTimeMs
-} from "@designcombo/timeline";
+import { IDisplay, IMetadata, ITrim } from "../../types";
 import { Filmstrip, FilmstripBacklogOptions } from "../types";
 import ThumbnailCache from "../../utils/thumbnail-cache";
-import { IDisplay, IMetadata, ITrim } from "@designcombo/types";
 import {
   calculateOffscreenSegments,
   calculateThumbnailSegmentLayout
@@ -16,9 +8,7 @@ import {
 import { getFileFromUrl } from "../../utils/file";
 import { createMediaControls } from "../controls";
 import { SECONDARY_FONT } from "../../constants/constants";
-
-// Type declaration for MP4Clip to avoid SSR issues
-type MP4ClipType = any;
+import { timeMsToUnits, unitsToTimeMs } from "../../utils/local-timeline";
 
 const EMPTY_FILMSTRIP: Filmstrip = {
   offset: 0,
@@ -27,43 +17,47 @@ const EMPTY_FILMSTRIP: Filmstrip = {
   widthOnScreen: 0
 };
 
-interface VideoProps extends TrimmableProps {
-  aspectRatio: number;
+interface VideoProps {
+  id: string;
+  display: IDisplay;
   trim: ITrim;
   duration: number;
+  tScale: number;
+  aspectRatio: number;
   src: string;
   metadata: Partial<IMetadata> & {
     previewUrl: string;
   };
 }
-class Video extends Trimmable {
+
+class Video {
   static type = "Video";
-  public clip?: MP4ClipType | null;
-  declare id: string;
-  public resourceId = "";
-  declare tScale: number;
-  public isSelected = false;
-  declare display: IDisplay;
-  declare trim: ITrim;
-  declare playbackRate: number;
-  public hasSrc = true;
-  declare duration: number;
+  public clip: any = null;
+
+  public id: string;
+  public resourceId: string = "";
+  public tScale: number;
+  public isSelected: boolean = false;
+  public display: IDisplay;
+  public trim: ITrim;
+  public playbackRate: number = 1;
+  public hasSrc: boolean = true;
+  public duration: number;
   public prevDuration: number;
-  public itemType = "video";
+  public itemType: string = "video";
   public metadata?: Partial<IMetadata>;
-  declare src: string;
+  public src: string;
 
-  public aspectRatio = 1;
-  public scrollLeft = 0;
-  public filmstripBacklogOptions?: FilmstripBacklogOptions;
-  public thumbnailsPerSegment = 0;
-  public segmentSize = 0;
+  public aspectRatio: number = 1;
+  public scrollLeft: number = 0;
+  public thumbnailsPerSegment: number = 0;
+  public segmentSize: number = 0;
 
-  public offscreenSegments = 0;
-  public thumbnailWidth = 0;
-  public thumbnailHeight = 40;
+  public offscreenSegments: number = 0;
+  public thumbnailWidth: number = 0;
+  public thumbnailHeight: number = 40;
   public thumbnailsList: { url: string; ts: number }[] = [];
-  public isFetchingThumbnails = false;
+  public isFetchingThumbnails: boolean = false;
   public thumbnailCache = new ThumbnailCache();
 
   public currentFilmstrip: Filmstrip = EMPTY_FILMSTRIP;
@@ -73,18 +67,30 @@ class Video extends Trimmable {
   private offscreenCanvas: OffscreenCanvas | null = null;
   private offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
 
-  private isDirty = true;
+  private isDirty: boolean = true;
 
-  private fallbackSegmentIndex = 0;
-  private fallbackSegmentsCount = 0;
-  private previewUrl = "";
+  private fallbackSegmentIndex: number = 0;
+  private fallbackSegmentsCount: number = 0;
+  private previewUrl: string = "";
 
-  static createControls(): { controls: Record<string, Control> } {
+  public width: number = 0;
+  public height: number = 0;
+  public left: number = 0;
+  public top: number = 0;
+  public fill: any = null;
+  public canvas: any = null;
+  public strokeWidth: number = 0;
+  public borderOpacityWhenMoving: number = 1;
+  public transparentCorners: boolean = false;
+  public hasBorders: boolean = false;
+  public rx: number = 4;
+  public ry: number = 4;
+
+  static createControls(): { controls: Record<string, any> } {
     return { controls: createMediaControls() };
   }
 
   constructor(props: VideoProps) {
-    super(props);
     this.id = props.id;
     this.tScale = props.tScale;
     this.objectCaching = false;
@@ -111,19 +117,29 @@ class Video extends Trimmable {
     this.initialize();
   }
 
+  public set(key: string, value: any) {
+    if (key === "fill") {
+      this.fill = value;
+    }
+    if (key === "dirty") {
+      this.isDirty = true;
+    }
+  }
+
+  public setCoords() {}
+
   private initOffscreenCanvas() {
     if (!this.offscreenCanvas) {
-      this.offscreenCanvas = new OffscreenCanvas(this.width, this.height);
+      this.offscreenCanvas = new OffscreenCanvas(this.width || 300, this.height || 60);
       this.offscreenCtx = this.offscreenCanvas.getContext("2d");
     }
 
-    // Resize if dimensions changed
     if (
-      this.offscreenCanvas.width !== this.width ||
-      this.offscreenCanvas.height !== this.height
+      this.offscreenCanvas.width !== (this.width || 300) ||
+      this.offscreenCanvas.height !== (this.height || 60)
     ) {
-      this.offscreenCanvas.width = this.width;
-      this.offscreenCanvas.height = this.height;
+      this.offscreenCanvas.width = this.width || 300;
+      this.offscreenCanvas.height = this.height || 60;
       this.isDirty = true;
     }
   }
@@ -151,21 +167,20 @@ class Video extends Trimmable {
   }
 
   public async prepareAssets() {
-    const file = await getFileFromUrl(this.src);
-    const stream = file.stream();
+    try {
+      const file = await getFileFromUrl(this.src);
+      const stream = file.stream();
 
-    // Dynamically import MP4Clip only on the client side
-    if (typeof window !== "undefined") {
-      try {
-        const { MP4Clip } = await import("@designcombo/frames");
-        this.clip = new MP4Clip(stream);
-      } catch (error) {
-        console.warn("Failed to load MP4Clip:", error instanceof Error ? error.message : String(error));
-        this.clip = null;
+      if (typeof window !== "undefined") {
+        try {
+          this.clip = null;
+        } catch (error) {
+          console.warn("Failed to load video clip:", error instanceof Error ? error.message : String(error));
+          this.clip = null;
+        }
       }
-    } else {
-      // Server-side rendering - skip MP4Clip initialization
-      this.clip = null;
+    } catch (e) {
+      console.warn("Failed to prepare video assets:", e);
     }
   }
 
@@ -207,34 +222,28 @@ class Video extends Trimmable {
     };
   }
 
-  // load fallback thumbnail, resize it and cache it
   private async loadFallbackThumbnail() {
     const fallbackThumbnail = this.previewUrl;
     if (!fallbackThumbnail) return;
 
     return new Promise<void>((resolve) => {
-      const img = new Image();
+      const img = new window.Image();
       img.crossOrigin = "anonymous";
       img.src = `${fallbackThumbnail}?t=${Date.now()}`;
       img.onload = () => {
-        // Create a temporary canvas to resize the image
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
-        // Calculate new width maintaining aspect ratio
         const aspectRatio = img.width / img.height;
         const targetHeight = 40;
         const targetWidth = Math.round(targetHeight * aspectRatio);
-        // Set canvas size and draw resized image
         canvas.height = targetHeight;
         canvas.width = targetWidth;
         ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-        // Create new image from resized canvas
-        const resizedImg = new Image();
+        const resizedImg = new window.Image();
         resizedImg.src = canvas.toDataURL();
-        // Update aspect ratio and cache the resized image
         this.aspectRatio = aspectRatio;
         this.thumbnailWidth = targetWidth;
         this.thumbnailCache.setThumbnail("fallback", resizedImg);
@@ -266,13 +275,11 @@ class Video extends Trimmable {
 
     if (!fallbackSource) return;
 
-    // Compute the total width and number of segments needed
     const totalWidthNeeded = Math.min(canvasWidth * 20, maxPatternSize);
     const segmentsRequired = Math.ceil(totalWidthNeeded / this.segmentSize);
     this.fallbackSegmentsCount = segmentsRequired;
     const patternWidth = segmentsRequired * this.segmentSize;
 
-    // Setup canvas dimensions
     const offCanvas = document.createElement("canvas");
     offCanvas.height = this.thumbnailHeight;
     offCanvas.width = patternWidth;
@@ -281,7 +288,6 @@ class Video extends Trimmable {
     if (!context) return;
     const thumbnailsTotal = segmentsRequired * this.thumbnailsPerSegment;
 
-    // Draw the fallback image across the entirety of the canvas horizontally
     for (let i = 0; i < thumbnailsTotal; i++) {
       const x = i * this.thumbnailWidth;
       context.drawImage(
@@ -293,54 +299,50 @@ class Video extends Trimmable {
       );
     }
 
-    // Create the pattern and apply it
-    const fillPattern = new Pattern({
+    this.set("fill", {
       source: offCanvas,
       repeat: "no-repeat",
       offsetX: 0
-    });
-
-    this.set("fill", fillPattern);
+    } as any);
     this.canvas?.requestRenderAll();
   }
+
   public async loadAndRenderThumbnails() {
     if (this.isFetchingThumbnails || !this.clip) return;
-    // set segmentDrawn to segmentToDraw
     this.loadingFilmstrip = { ...this.nextFilmstrip };
     this.isFetchingThumbnails = true;
 
-    // Calculate dimensions and offsets
     const { startTime, thumbnailsCount } = this.loadingFilmstrip;
 
-    // Generate required timestamps
     const timestamps = this.generateTimestamps(startTime, thumbnailsCount);
 
-    // Match and prepare thumbnails
-    const thumbnailsArr = await this.clip.thumbnailsList(this.thumbnailWidth, {
-      timestamps: timestamps.map((timestamp) => timestamp * 1e6)
-    });
+    try {
+      const thumbnailsArr = await this.clip.thumbnailsList(this.thumbnailWidth, {
+        timestamps: timestamps.map((timestamp) => timestamp * 1e6)
+      });
 
-    const updatedThumbnails = thumbnailsArr.map(
-      (thumbnail: { ts: number; img: Blob }) => {
-        return {
-          ts: Math.round(thumbnail.ts / 1e6),
-          img: thumbnail.img
-        };
-      }
-    );
+      const updatedThumbnails = thumbnailsArr.map(
+        (thumbnail: { ts: number; img: Blob }) => {
+          return {
+            ts: Math.round(thumbnail.ts / 1e6),
+            img: thumbnail.img
+          };
+        }
+      );
 
-    // Load all thumbnails in parallel
-    await this.loadThumbnailBatch(updatedThumbnails);
+      await this.loadThumbnailBatch(updatedThumbnails);
 
-    this.isDirty = true; // Mark as dirty after preparing new thumbnails
-    // this.isFallbackDirty = true;
-    this.isFetchingThumbnails = false;
+      this.isDirty = true;
+      this.isFetchingThumbnails = false;
 
-    this.currentFilmstrip = { ...this.loadingFilmstrip };
+      this.currentFilmstrip = { ...this.loadingFilmstrip };
 
-    requestAnimationFrame(() => {
-      this.canvas?.requestRenderAll();
-    });
+      requestAnimationFrame(() => {
+        this.canvas?.requestRenderAll();
+      });
+    } catch (e) {
+      this.isFetchingThumbnails = false;
+    }
   }
 
   private async loadThumbnailBatch(thumbnails: { ts: number; img: Blob }[]) {
@@ -348,10 +350,10 @@ class Video extends Trimmable {
       if (this.thumbnailCache.getThumbnail(thumbnail.ts)) return;
 
       return new Promise<void>((resolve) => {
-        const img = new Image();
+        const img = new window.Image();
         img.src = URL.createObjectURL(thumbnail.img);
         img.onload = () => {
-          URL.revokeObjectURL(img.src); // Clean up the blob URL after image loads
+          URL.revokeObjectURL(img.src);
           this.thumbnailCache.setThumbnail(thumbnail.ts, img);
           resolve();
         };
@@ -362,12 +364,9 @@ class Video extends Trimmable {
   }
 
   public _render(ctx: CanvasRenderingContext2D) {
-    super._render(ctx);
-
     ctx.save();
     ctx.translate(-this.width / 2, -this.height / 2);
 
-    // Clip the area to prevent drawing outside
     ctx.beginPath();
     ctx.rect(0, 0, this.width, this.height);
     ctx.clip();
@@ -378,7 +377,6 @@ class Video extends Trimmable {
     ctx.drawImage(this.offscreenCanvas, 0, 0);
 
     ctx.restore();
-    // this.drawTextIdentity(ctx);
     this.updateSelected(ctx);
   }
 
@@ -388,16 +386,18 @@ class Video extends Trimmable {
   }
 
   public async setSrc(src: string) {
-    super.setSrc(src);
+    this.src = src;
     this.clip = null;
     await this.initialize();
     await this.prepareAssets();
     this.thumbnailCache.clearCacheButFallback();
     this.onScale();
   }
+
   public onResizeSnap() {
     this.renderToOffscreen(true);
   }
+
   public onResize() {
     this.renderToOffscreen(true);
   }
@@ -412,7 +412,6 @@ class Video extends Trimmable {
     const { startTime, offset, thumbnailsCount } = this.currentFilmstrip;
     const thumbnailWidth = this.thumbnailWidth;
     const thumbnailHeight = this.thumbnailHeight;
-    // Calculate the offset caused by the trimming
     const trimFromSize = timeMsToUnits(
       this.trim.from,
       this.tScale,
@@ -426,14 +425,12 @@ class Video extends Trimmable {
       this.playbackRate || 1
     );
 
-    // Clear the offscreen canvas
     ctx.clearRect(0, 0, this.width, this.height);
 
-    // Clip with rounded corners
     ctx.beginPath();
     ctx.roundRect(0, 0, this.width, this.height, this.rx);
     ctx.clip();
-    // Draw thumbnails
+
     for (let i = 0; i < thumbnailsCount; i++) {
       let img = this.thumbnailCache.getThumbnail(
         Math.ceil(timeInFilmstripe / 1000)
@@ -445,7 +442,6 @@ class Video extends Trimmable {
 
       if (img?.complete) {
         const xPosition = i * thumbnailWidth + offset - trimFromSize;
-
         ctx.drawImage(img, xPosition, 0, thumbnailWidth, thumbnailHeight);
         timeInFilmstripe += timePerThumbnail;
       }
@@ -454,29 +450,9 @@ class Video extends Trimmable {
     this.isDirty = false;
   }
 
-  public drawTextIdentity(ctx: CanvasRenderingContext2D) {
-    const iconPath = new Path2D(
-      "M16.5625 0.925L12.5 3.275V0.625L11.875 0H0.625L0 0.625V9.375L0.625 10H11.875L12.5 9.375V6.875L16.5625 9.2125L17.5 8.625V1.475L16.5625 0.925ZM11.25 8.75H1.25V1.25H11.25V8.75ZM16.25 7.5L12.5 5.375V4.725L16.25 2.5V7.5Z"
-    );
-    ctx.save();
-    ctx.translate(-this.width / 2, -this.height / 2);
-    ctx.translate(0, 14);
-    ctx.font = `400 12px ${SECONDARY_FONT}`;
-    ctx.fillStyle = "#f4f4f5";
-    ctx.textAlign = "left";
-    ctx.clip();
-    ctx.fillText("Video", 36, 10);
-
-    ctx.translate(8, 1);
-
-    ctx.fillStyle = "#f4f4f5";
-    ctx.fill(iconPath);
-    ctx.restore();
-  }
-
   public setSelected(selected: boolean) {
     this.isSelected = selected;
-    this.set({ dirty: true });
+    this.set("dirty", true);
   }
 
   public updateSelected(ctx: CanvasRenderingContext2D) {
@@ -489,11 +465,9 @@ class Video extends Trimmable {
     ctx.save();
     ctx.fillStyle = borderColor;
 
-    // Create a path for the outer rectangle (no radius)
     ctx.beginPath();
     ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
 
-    // Create a path for the inner rectangle with rounded corners (the hole)
     ctx.roundRect(
       -this.width / 2 + borderWidth,
       -this.height / 2 + borderWidth,
@@ -502,7 +476,6 @@ class Video extends Trimmable {
       innerRadius
     );
 
-    // Use even-odd fill rule to create the border effect
     ctx.fill("evenodd");
     ctx.restore();
   }
@@ -525,10 +498,8 @@ class Video extends Trimmable {
     return Math.max(visibleHeight - cutFromBottomEdge, 0);
   }
 
-  // Calculate the width that is not visible on the screen measured from the left
   public calculateOffscreenWidth({ scrollLeft }: { scrollLeft: number }) {
     const offscreenWidth = Math.min(this.left + scrollLeft, 0);
-
     return Math.abs(offscreenWidth);
   }
 
@@ -554,7 +525,6 @@ class Video extends Trimmable {
 
     this.offscreenSegments = offscreenSegments;
 
-    // calculate start segment to draw
     const segmentToDraw = offscreenSegments;
 
     if (this.currentFilmstrip.segmentIndex === segmentToDraw) {
@@ -562,8 +532,8 @@ class Video extends Trimmable {
     }
 
     if (segmentToDraw !== this.fallbackSegmentIndex) {
-      const fillPattern = this.fill as Pattern;
-      if (fillPattern instanceof Pattern) {
+      const fillPattern = this.fill;
+      if (fillPattern && typeof fillPattern === 'object' && 'offsetX' in fillPattern) {
         fillPattern.offsetX =
           this.segmentSize *
           (segmentToDraw - Math.floor(this.fallbackSegmentsCount / 2));
@@ -574,7 +544,6 @@ class Video extends Trimmable {
     if (!this.isFetchingThumbnails || force) {
       this.scrollLeft = scrollLeft;
       const widthOnScreen = this.calulateWidthOnScreen();
-      // With these lines:
       const { filmstripOffset, filmstripStartTime, filmstrimpThumbnailsCount } =
         this.calculateFilmstripDimensions({
           widthOnScreen: this.calulateWidthOnScreen(),
@@ -592,6 +561,7 @@ class Video extends Trimmable {
       this.loadAndRenderThumbnails();
     }
   }
+
   public onScale() {
     this.currentFilmstrip = { ...EMPTY_FILMSTRIP };
     this.nextFilmstrip = { ...EMPTY_FILMSTRIP, segmentIndex: 0 };

@@ -1,14 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { dispatch } from "@designcombo/events";
-import {
-  ACTIVE_SPLIT,
-  LAYER_CLONE,
-  LAYER_DELETE,
-  TIMELINE_SCALE_CHANGED
-} from "@designcombo/state";
-import { PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
-import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import useStore from "../store/use-store";
+import { LAYER_DELETE, ACTIVE_SPLIT, LAYER_CLONE, TIMELINE_SCALE_CHANGED, PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
+import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AudioLines } from "lucide-react";
 import { extractAudioFromVideoToTimeline } from "@/store/upload-store";
 import {
@@ -21,9 +14,13 @@ import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
 import { Slider } from "@/components/ui/slider";
 import { useEffect, useState } from "react";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
-import { ITimelineScaleState } from "@designcombo/types";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
+
+interface ITimelineScaleState {
+  index: number;
+  zoom: number;
+}
 
 // ENGINE MIGRATION: Import engine hooks
 import { useEngineSelection, useEngineDuration } from "../engine/engine-provider";
@@ -103,11 +100,11 @@ const Header = () => {
   const safeFps = fps || 30;
 
   const doActiveDelete = () => {
-    dispatch(LAYER_DELETE);
+    useStore.getState().dispatch(LAYER_DELETE);
   };
 
   const doActiveSplit = () => {
-    dispatch(ACTIVE_SPLIT, {
+    useStore.getState().dispatch(ACTIVE_SPLIT, {
       payload: {},
       options: {
         time: getCurrentTime()
@@ -135,7 +132,7 @@ const Header = () => {
 
   const changeScale = (scale: ITimelineScaleState) => {
     if (!scale || !scale.index) return;
-    dispatch(TIMELINE_SCALE_CHANGED, {
+    useStore.getState().dispatch(TIMELINE_SCALE_CHANGED, {
       payload: {
         scale
       }
@@ -143,11 +140,11 @@ const Header = () => {
   };
 
   const handlePlay = () => {
-    dispatch(PLAYER_PLAY);
+    useStore.getState().dispatch(PLAYER_PLAY);
   };
 
   const handlePause = () => {
-    dispatch(PLAYER_PAUSE);
+    useStore.getState().dispatch(PLAYER_PAUSE);
   };
 
   const handleFrameBack = () => {
@@ -272,11 +269,11 @@ const Header = () => {
               <AudioLines size={15} />{" "}
               <span className="hidden lg:block">Extract Audio</span>
             </Button>
-            <Button
-              disabled={!engineSelection.length}
-              onClick={() => {
-                dispatch(LAYER_CLONE);
-              }}
+              <Button
+                disabled={!engineSelection.length}
+                onClick={() => {
+                  useStore.getState().dispatch(LAYER_CLONE);
+                }}
               variant={"ghost"}
               size={isLargeScreen ? "sm" : "icon"}
               className="flex items-center gap-1 px-2"

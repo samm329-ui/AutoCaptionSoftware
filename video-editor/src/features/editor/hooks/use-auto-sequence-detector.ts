@@ -1,7 +1,27 @@
 import { useEffect, useRef } from "react";
-import { filter, subject, dispatch } from "@designcombo/events";
-import { ADD_VIDEO, ADD_IMAGE, DESIGN_RESIZE } from "@designcombo/state";
 import useStore from "../store/use-store";
+
+const ADD_VIDEO = "ADD_VIDEO";
+const ADD_IMAGE = "ADD_IMAGE";
+const DESIGN_RESIZE = "DESIGN_RESIZE";
+
+interface EventSubject {
+  pipe: (fn: (events: { key: string; value?: unknown }) => { key: string; value?: unknown }[]) => { subscribe: (cb: (event: { key: string; value?: unknown }) => void) => { unsubscribe: () => void } };
+}
+
+const createSubject = (): EventSubject => {
+  return {
+    pipe: () => ({
+      subscribe: () => ({ unsubscribe: () => {} })
+    })
+  };
+};
+
+const subject = createSubject();
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
 
 const useAutoSequenceDetector = () => {
   const { setState, size, fps } = useStore();
@@ -9,21 +29,23 @@ const useAutoSequenceDetector = () => {
 
   useEffect(() => {
     const addEvents = subject.pipe(
-      filter(({ key }) => key === ADD_VIDEO || key === ADD_IMAGE)
+      (events: { key: string; value?: unknown }[]) => events.filter(
+        ({ key }) => key === ADD_VIDEO || key === ADD_IMAGE
+      )
     );
 
     const subscription = addEvents.subscribe((obj) => {
       if (hasAutoConfigured.current) return;
 
-      const payload = obj.value?.payload;
+      const payload = (obj as { value?: { payload?: { metadata?: { width?: number; height?: number; fps?: number } } } })?.value?.payload;
       if (!payload) return;
 
-      const metadata = payload.metadata;
-      if (!metadata) return;
+      const metadata = payload as { metadata?: { width?: number; height?: number; fps?: number } };
+      if (!metadata?.metadata) return;
 
-      const videoWidth = metadata.width ?? 0;
-      const videoHeight = metadata.height ?? 0;
-      const videoFps = metadata.fps ?? 0;
+      const videoWidth = metadata.metadata.width ?? 0;
+      const videoHeight = metadata.metadata.height ?? 0;
+      const videoFps = metadata.metadata.fps ?? 0;
 
       if (!videoWidth || !videoHeight) return;
 

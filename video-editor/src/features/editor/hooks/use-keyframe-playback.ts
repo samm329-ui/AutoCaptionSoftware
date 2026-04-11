@@ -15,12 +15,15 @@
  */
 
 import { useEffect, useRef } from "react";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
 import useStore from "../store/use-store";
 import { useKeyframeStore, AnimatableProperty } from "../store/use-keyframe-store";
 
-// Map from AnimatableProperty to the actual designcombo details key
+const EDIT_OBJECT = "EDIT_OBJECT";
+
+const dispatch = (key: string, payload: { payload?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
 const PROPERTY_TO_DETAILS_KEY: Partial<Record<AnimatableProperty, string>> = {
   opacity: "opacity",
   volume: "volume",
