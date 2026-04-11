@@ -26,15 +26,9 @@ import {
   engineStore,
   createEmptyProject,
   type Project,
-  type Clip,
-  type Track,
 } from "./engine/engine-core";
-import { fromTrack, fromTrackItem } from "./engine/mappers";
-import {
-  selectLegacyTrackItemIds,
-  selectLegacyTrackItemsMap,
-} from "./engine/migration-adapter";
 import { setPlayhead, setScroll, setSelection, setZoom } from "./engine/commands";
+import { LegacyStateAdapter, legacyStateAdapter } from "./engine/legacy-state-adapter";
 
 // Store + hooks
 import useStore from "./store/use-store";
@@ -102,463 +96,7 @@ function loadProjectFromStorage(): Project | null {
   }
 }
 
-function buildProjectFromLegacyPayload(payload: Record<string, unknown>): Project {
-  const current = engineStore.getState();
-  const seq = current.sequences[current.rootSequenceId];
-
-  const rawTracks = Array.isArray(payload.tracks) ? payload.tracks : [];
-  const rawItemsMap = (payload.trackItemsMap ?? {}) as Record<string, unknown>;
-
-  const tracks: Record<string, Track> = {};
-  const clips: Record<string, Clip> = {};
-
-  for (const raw of rawTracks) {
-    const track = fromTrack(raw);
-    if (!track) continue;
-    tracks[track.id] = { ...track, clipIds: [...track.clipIds] };
-  }
-
-  for (const [id, raw] of Object.entries(rawItemsMap)) {
-    const clip = fromTrackItem({ ...(raw as object), id }, current.clips[id]);
-    if (!clip) continue;
-    clips[clip.id] = {
-      ...clip,
-      appliedEffects: [...clip.appliedEffects],
-      effectIds: [...clip.effectIds],
-      keyframeIds: [...clip.keyframeIds],
-    };
-  }
-
-  for (const clip of Object.values(clips)) {
-    if (!tracks[clip.trackId]) {
-      tracks[clip.trackId] = {
-        id: clip.trackId,
-        type:
-          clip.type === "audio"
-            ? "audio"
-            : clip.type === "caption"
-              ? "caption"
-              : clip.type === "text"
-                ? "text"
-                : clip.type === "overlay"
-                  ? "overlay"
-                  : "video",
-        name: clip.trackId,
-        order: Object.keys(tracks).length,
-        locked: false,
-        muted: false,
-        hidden: false,
-        clipIds: [],
-      };
-    }
-    tracks[clip.trackId].clipIds.push(clip.id);
-  }
-
-  for (const track of Object.values(tracks)) {
-    track.clipIds.sort((a, b) => {
-      const ca = clips[a];
-      const cb = clips[b];
-      return (ca?.display.from ?? 0) - (cb?.display.from ?? 0);
-    });
-  }
-
-  const orderedTrackIds = Object.values(tracks)
-    .sort((a, b) => a.order - b.order)
-    .map((t) => t.id);
-
-  return {
-    ...current,
-    tracks,
-    clips,
-    sequences: {
-      ...current.sequences,
-      [current.rootSequenceId]: {
-        ...seq,
-        trackIds: orderedTrackIds.length > 0 ? orderedTrackIds : seq.trackIds,
-        canvas: (payload.size as any) ?? seq.canvas,
-        duration: typeof payload.duration === "number" ? payload.duration : seq.duration,
-        fps: typeof payload.fps === "number" ? payload.fps : seq.fps,
-        background: (payload.background as any) ?? seq.background,
-      },
-    },
-    ui: {
-      ...current.ui,
-      playheadTime: typeof payload.playheadTime === "number" ? payload.playheadTime : current.ui.playheadTime,
-      zoom: typeof payload.zoom === "number" ? payload.zoom : current.ui.zoom,
-      scrollX: typeof payload.scrollX === "number" ? payload.scrollX : current.ui.scrollX,
-      scrollY: typeof payload.scrollY === "number" ? payload.scrollY : current.ui.scrollY,
-    },
-  };
-}
-
-type LegacySnapshot = {
-  trackItemsMap: Record<string, unknown>;
-  tracks: Record<string, unknown>[];
-  trackItemIds: string[];
-  activeIds: string[];
-  duration: number;
-  fps: number;
-  size: { width: number; height: number };
-  background: { type: "color" | "image"; value: string };
-  scroll: { left: number; top: number };
-  zoom: number;
-  canUndo: boolean;
-  canRedo: boolean;
-  compositions: unknown[];
-};
-
-type LegacyStateListener = (state: LegacySnapshot) => void;
-
-/**
- * Engine-backed compatibility adapter.
- *
- * Temporary bridge for editor children that still expect a legacy state adapter-like
- * object. It reads from the engine and writes back to the engine only.
- */
-class LegacyStateAdapter {
-  private listeners = new Set<LegacyStateListener>();
-  public state!: any;
-
-  constructor() {
-    // Create state object with all needed subscriptions
-    this.state = this.createStateObject();
-    
-    engineStore.subscribe(() => {
-      const snap = this.getState();
-      for (const listener of this.listeners) {
-        try {
-          listener(snap);
-        } catch {
-          // ignore subscriber failures
-        }
-      }
-    });
-  }
-
-  private createStateObject() {
-    const self = this;
-    // Create a state object that handles ANY method call
-    const stateObj: any = {};
-    
-    // Generic handler that catches any subscribeTo* method
-    const mockSubscribe = () => ({ unsubscribe: () => {} });
-    
-    // Set up a proxy to handle any method call
-    return new Proxy(stateObj, {
-      get(target, prop) {
-        if (prop in target) return target[prop];
-        // For any property, return a function that returns unsubscribe mock
-        return mockSubscribe;
-      },
-      has(target, prop) {
-        return true; // Pretend we have any property
-      }
-    });
-  }
-
-  getState(): LegacySnapshot {
-    return snapshotLegacyState(engineStore.getState());
-  }
-
-  subscribeToState(listener: LegacyStateListener): () => void {
-    this.listeners.add(listener);
-    try {
-      listener(this.getState());
-    } catch {
-      // ignore initial emit failures
-    }
-    return () => this.listeners.delete(listener);
-  }
-
-  // Explicit method for state object
-  subscribeToActiveIds(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToTracks(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateTracks(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToTrackItems(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToItems(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToDuration(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToScale(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateStateDetails(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateTrackItem(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToTrackItemTiming(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToAddOrRemoveItems(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateItemDetails(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateAnimations(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToAnimations(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToTransitions(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateTransitions(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToProject(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToComposition(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateComposition(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToSize(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToBackground(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToRender(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToRuler(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToPlayhead(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToPreview(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToCanvas(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToClip(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToUpdateClip(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToTrackItemTiming(...args: any[]) { return { unsubscribe: () => {} }; }
-  subscribeToTrackItemCache(...args: any[]) { return { unsubscribe: () => {} }; }
-
-  updateState(
-    patch: Record<string, unknown>,
-    opts?: { updateHistory?: boolean; skipHistory?: boolean }
-  ): void {
-    if (!patch || typeof patch !== "object") return;
-
-    const state = engineStore.getState();
-
-    if (Array.isArray((patch as any).activeIds)) {
-      engineStore.dispatch(setSelection((patch as any).activeIds as string[]), {
-        skipHistory: !!opts?.skipHistory,
-      });
-      return;
-    }
-
-    if (Array.isArray((patch as any).selection)) {
-      engineStore.dispatch(setSelection((patch as any).selection as string[]), {
-        skipHistory: !!opts?.skipHistory,
-      });
-      return;
-    }
-
-    if (typeof (patch as any).scrollX === "number" || typeof (patch as any).scrollY === "number") {
-      engineStore.dispatch(
-        setScroll((patch as any).scrollX, (patch as any).scrollY),
-        { skipHistory: !!opts?.skipHistory }
-      );
-    }
-    if (typeof (patch as any).zoom === "number") {
-      engineStore.dispatch(setZoom((patch as any).zoom), { skipHistory: !!opts?.skipHistory });
-    }
-    if (typeof (patch as any).playheadTime === "number") {
-      engineStore.dispatch(setPlayhead((patch as any).playheadTime), { skipHistory: !!opts?.skipHistory });
-    }
-
-    if (
-      (patch as any).trackItemsMap ||
-      (patch as any).tracks ||
-      (patch as any).duration != null ||
-      (patch as any).fps != null ||
-      (patch as any).size ||
-      (patch as any).background
-    ) {
-      const next = buildProjectFromLegacyPayload({
-        trackItemsMap: (patch as any).trackItemsMap ?? selectLegacyTrackItemsMap(state),
-        tracks: (patch as any).tracks ?? Object.values(state.tracks),
-        duration: (patch as any).duration ?? state.sequences[state.rootSequenceId]?.duration,
-        fps: (patch as any).fps ?? state.sequences[state.rootSequenceId]?.fps,
-        size: (patch as any).size ?? state.sequences[state.rootSequenceId]?.canvas,
-        background: (patch as any).background ?? state.sequences[state.rootSequenceId]?.background,
-        scrollX: (patch as any).scrollX ?? state.ui.scrollX,
-        scrollY: (patch as any).scrollY ?? state.ui.scrollY,
-        zoom: (patch as any).zoom ?? state.ui.zoom,
-        playheadTime: (patch as any).playheadTime ?? state.ui.playheadTime,
-      });
-
-      engineStore.dispatch(
-        { type: "LOAD_PROJECT", payload: { project: next } },
-        { skipHistory: !!opts?.skipHistory }
-      );
-    }
-  }
-
-  dispatch(action: Record<string, unknown>, opts?: { updateHistory?: boolean; skipHistory?: boolean }): void {
-    this.updateState(action, opts);
-  }
-
-  // Compatibility method for CanvasTimeline
-  subscribeToActiveIds(callback: (ids: string[]) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.activeIds);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // NEW - subscribeToTracks directly (also needed) - returns mock
-  subscribeToTracks(callback?: (tracks: any[]) => void): any {
-    if (callback) {
-      const listener: LegacyStateListener = (state) => {
-        callback(state.tracks);
-      };
-      this.listeners.add(listener);
-      return { unsubscribe: () => this.listeners.delete(listener) };
-    }
-    return { unsubscribe: () => {} };
-  }
-
-  // NEW - subscribeToItems for state - returns mock
-  subscribeToItems(callback?: (items: any) => void): any {
-    if (callback) {
-      const listener: LegacyStateListener = (state) => {
-        callback(state.trackItemsMap);
-      };
-      this.listeners.add(listener);
-      return { unsubscribe: () => this.listeners.delete(listener) };
-    }
-    return { unsubscribe: () => {} };
-  }
-
-  // NEW - subscribeToState - alias for subscribeToState
-  subscribeToStateAlias(listener: LegacyStateListener): () => void {
-    this.listeners.add(listener);
-    try {
-      listener(this.getState());
-    } catch {}
-    return () => this.listeners.delete(listener);
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToTracks (not UpdateTracks)
-  subscribeToTracks(callback: (tracks: any[]) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.tracks);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToTrackItems
-  subscribeToTrackItems(callback: (items: any) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.trackItemsMap);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToUpdateTrackItem
-  subscribeToUpdateTrackItem(callback: () => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = () => {
-      callback();
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToUpdateTracks
-  subscribeToUpdateTracks(callback: (tracks: any[]) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.tracks);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToAddOrRemoveItems
-  subscribeToAddOrRemoveItems(callback: () => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = () => {
-      callback();
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToUpdateItemDetails
-  subscribeToUpdateItemDetails(callback: () => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = () => {
-      callback();
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToTrackItems
-  subscribeToTrackItems(callback: (items: any) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.trackItemsMap);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToItems
-  subscribeToItems(callback: (items: any[]) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.trackItemIds);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToDuration
-  subscribeToDuration(callback: (duration: number) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.duration);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToScale
-  subscribeToScale(callback: (scale: any) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state.scale);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToUpdateStateDetails
-  subscribeToUpdateStateDetails(callback: (state: any) => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback(state);
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToUpdateTrackItem
-  subscribeToUpdateTrackItem(callback: () => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback();
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToAddOrRemoveItems
-  subscribeToAddOrRemoveItems(callback: () => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback();
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-
-  // Compatibility method for CanvasTimeline - subscribeToUpdateItemDetails
-  subscribeToUpdateItemDetails(callback: () => void): { unsubscribe: () => void } {
-    const listener: LegacyStateListener = (state) => {
-      callback();
-    };
-    this.listeners.add(listener);
-    return { unsubscribe: () => this.listeners.delete(listener) };
-  }
-}
-
-function snapshotLegacyState(project: Project): LegacySnapshot {
-  const seq = project.sequences[project.rootSequenceId];
-
-  return {
-    trackItemsMap: selectLegacyTrackItemsMap(project),
-    tracks: Object.values(project.tracks).map((t) => ({ ...t, clipIds: [...t.clipIds] })),
-    trackItemIds: selectLegacyTrackItemIds(project),
-    activeIds: [...project.ui.selection],
-    duration: seq?.duration ?? 0,
-    fps: seq?.fps ?? 30,
-    size: seq?.canvas ?? { width: 1080, height: 1920 },
-    background: seq?.background ?? { type: "color", value: "#000000" },
-    scroll: { left: project.ui.scrollX, top: project.ui.scrollY },
-    zoom: project.ui.zoom,
-    canUndo: engineStore.canUndo,
-    canRedo: engineStore.canRedo,
-    compositions: [],
-  };
-}
-
-const legacyStateAdapter = new LegacyStateAdapter();
+// LegacyStateAdapter is now imported from engine/legacy-state-adapter.ts
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Fullscreen context
@@ -699,7 +237,7 @@ const SceneContainer = ({
             <div className="w-full h-full flex flex-col">
               <MediaToolbar />
               <div className="flex-1 min-h-0">
-                {playerRef && <Timeline stateManager={stateManager} />}
+                {playerRef && <Timeline />}
               </div>
             </div>
           </ResizablePanelWrapper>
@@ -713,7 +251,7 @@ const SceneContainer = ({
 // Editor shell
 
 function EditorShell() {
-  const { playerRef } = useStore();
+  const { playerRef, setTracks, setState } = useStore();
   const { setFonts, setCompactFonts } = useDataState();
   const { setTrackItem } = useLayoutStore();
   const sceneRef = useRef<SceneRef>(null);
@@ -721,6 +259,8 @@ function EditorShell() {
   const bootstrapped = useRef(false);
 
   const stateManager = useMemo(() => legacyStateAdapter, []);
+
+  // Legacy state adapter is still needed for panels - but timeline now uses engine directly
 
   // Engine-only hooks
   useTimelineEvents();
@@ -759,6 +299,29 @@ function EditorShell() {
     });
     return unsub;
   }, [setTrackItem]);
+
+  // Initialize state once on mount
+  useEffect(() => {
+    const state = engineStore.getState();
+    const tracks = Object.values(state.tracks);
+    setTracks(tracks);
+    
+    const seq = state.sequences[state.rootSequenceId];
+    setState({
+      size: seq?.canvas ?? { width: 1080, height: 1920 },
+      fps: seq?.fps ?? 30,
+      duration: seq?.duration ?? 1000,
+      trackItemsMap: {},
+      activeIds: state.ui.selection,
+    });
+    
+    // Sync selection only (not tracks to avoid loop)
+    const unsubSel = engineStore.subscribe((state) => {
+      setState({ activeIds: state.ui.selection });
+    });
+    
+    return unsubSel;
+  }, []);
 
   // Load fonts
   useEffect(() => {
