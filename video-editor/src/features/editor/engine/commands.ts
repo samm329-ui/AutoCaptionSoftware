@@ -243,3 +243,19 @@ export function updateTrack(
 ): EditorCommand {
   return { type: "UPDATE_TRACK", payload: { trackId, ...patch } };
 }
+
+// ─── Canvas commands ──────────────────────────────────────────────────────────
+
+export function setCanvas(width: number, height: number): EditorCommand {
+  return { type: "SET_CANVAS", payload: { width, height } };
+}
+
+// ─── History commands ─────────────────────────────────────────────────────────
+
+export function undo(): EditorCommand {
+  return { type: "UNDO" };
+}
+
+export function redo(): EditorCommand {
+  return { type: "REDO" };
+}
