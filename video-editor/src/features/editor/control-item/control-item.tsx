@@ -1,13 +1,4 @@
 import React, { useEffect, useState } from "react";
-import {
-  IAudio,
-  ICaption,
-  IImage,
-  IText,
-  ITrackItem,
-  ITrackItemAndDetails,
-  IVideo
-} from "@designcombo/types";
 import BasicText from "./basic-text";
 import BasicImage from "./basic-image";
 import BasicVideo from "./basic-video";
@@ -23,7 +14,7 @@ import { useEngineSelection, useEngineSelector, type Clip } from "../engine/engi
 const ActiveControlItem = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   if (!trackItem) {
     return null;
@@ -32,13 +23,13 @@ const ActiveControlItem = ({
     <>
       {
         {
-          text: <BasicText trackItem={trackItem as ITrackItem & IText} />,
+          text: <BasicText trackItem={trackItem} />,
           caption: (
-            <BasicCaption trackItem={trackItem as ITrackItem & ICaption} />
+            <BasicCaption trackItem={trackItem} />
           ),
-          image: <BasicImage trackItem={trackItem as ITrackItem & IImage} />,
-          video: <BasicVideo trackItem={trackItem as ITrackItem & IVideo} />,
-          audio: <BasicAudio trackItem={trackItem as ITrackItem & IAudio} />
+          image: <BasicImage trackItem={trackItem} />,
+          video: <BasicVideo trackItem={trackItem} />,
+          audio: <BasicAudio trackItem={trackItem} />
         }[trackItem.type as "text"]
       }
     </>
@@ -51,7 +42,7 @@ export const ControlItem = () => {
   
   // Fallback to Zustand for track items map
   const { activeIds, trackItemsMap, transitionsMap } = useStore();
-  const [trackItem, setTrackItem] = useState<ITrackItem | null>(null);
+  const [trackItem, setTrackItem] = useState<any>(null);
   const { setTrackItem: setLayoutTrackItem } = useLayoutStore();
 
   // Use engine selection if available

@@ -1,6 +1,5 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { IBoxShadow } from "@designcombo/types";
 import { useEffect, useState } from "react";
 import {
   Popover,
@@ -11,6 +10,13 @@ import ColorPicker from "@/components/color-picker";
 import { X } from "lucide-react";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import useLayoutStore from "../../store/use-layout-store";
+
+interface IBoxShadow {
+  color: string;
+  x: number;
+  y: number;
+  blur: number;
+}
 
 function Shadow({
   label,

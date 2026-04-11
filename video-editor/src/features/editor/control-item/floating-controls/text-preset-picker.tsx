@@ -1,7 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
-import { ITrackItem } from "@designcombo/types";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 import { CircleOff, XIcon } from "lucide-react";
 import useLayoutStore from "../../store/use-layout-store";
 import { useRef } from "react";
@@ -144,7 +143,7 @@ export const getTextShadow = (boxShadow?: IBoxShadow): string | undefined => {
     boxShadow.color
   }`;
 };
-export const applyPreset = (preset: any, trackItem: ITrackItem & any) => {
+export const applyPreset = (preset: any, trackItem: any) => {
   console.log(preset);
   const overrides: any = {};
   if (preset.boxShadow === undefined) {
@@ -162,7 +161,7 @@ export const applyPreset = (preset: any, trackItem: ITrackItem & any) => {
 export default function TextPresetPicker({
   trackItem
 }: {
-  trackItem: ITrackItem & any;
+  trackItem: any;
 }) {
   const { setFloatingControl } = useLayoutStore();
   const floatingRef = useRef<HTMLDivElement>(null);

@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ChevronDown, CircleOff } from "lucide-react";
 import { useEffect, useState } from "react";
-import { IText, ITrackItem } from "@designcombo/types";
 import { Label } from "@/components/ui/label";
 import useLayoutStore from "../../store/use-layout-store";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -14,7 +13,7 @@ import {
 } from "../floating-controls/text-preset-picker";
 
 interface PresetTextProps {
-  trackItem: ITrackItem & any;
+  trackItem: any;
   properties: any;
 }
 
@@ -27,7 +26,7 @@ export const PresetText = ({ properties, trackItem }: PresetTextProps) => {
   );
 };
 
-const SelectPreset = ({ trackItem }: { trackItem: ITrackItem & IText }) => {
+const SelectPreset = ({ trackItem }: { trackItem: any }) => {
   const { setFloatingControl } = useLayoutStore();
   const isLargeScreen = useIsLargeScreen();
 

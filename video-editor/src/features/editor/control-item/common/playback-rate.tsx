@@ -1,10 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
-import { ITrackItem } from "@designcombo/types";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 
-export default function PlaybackRate({ trackItem }: { trackItem: ITrackItem }) {
+export default function PlaybackRate({ trackItem }: { trackItem: any }) {
   const handleChangePlaybackRate = (value: number) => {
     dispatch(EDIT_OBJECT, {
       payload: {

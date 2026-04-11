@@ -1,8 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { dispatch } from "@designcombo/events";
-import { ADD_ITEMS, EDIT_OBJECT, LAYER_DELETE } from "@designcombo/state";
-import { ITrackItem, ITrackItemsMap } from "@designcombo/types";
+import { dispatch } from "../../utils/events";
+import { ADD_ITEMS, EDIT_OBJECT, LAYER_DELETE } from "../../store/use-store";
 import { CircleOff, XIcon } from "lucide-react";
 import useLayoutStore from "../../store/use-layout-store";
 import { useEffect, useRef, useState } from "react";
@@ -11,7 +10,7 @@ import useStore from "../../store/use-store";
 import { groupBy } from "lodash";
 import { loadFonts } from "../../utils/fonts";
 import { transformCaptions } from "../common/caption-words";
-import { generateId } from "@designcombo/timeline";
+import { generateId } from "../../store/use-store";
 import { PresetPicker } from "../common/preset-picker";
 interface IBoxShadow {
   color: string;

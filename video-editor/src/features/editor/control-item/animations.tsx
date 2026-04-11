@@ -1,7 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { dispatch } from "@designcombo/events";
-import { ADD_ANIMATION } from "@designcombo/state";
-import useStore from "../store/use-store";
+import { dispatch } from "../utils/events";
+import useStore, { ADD_ANIMATION } from "../store/use-store";
 import { presets } from "../player/animated";
 import { PresetName } from "../player/animated/presets";
 import React from "react";

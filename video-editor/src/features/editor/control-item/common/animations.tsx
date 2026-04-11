@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
-import { IText, ITrackItem } from "@designcombo/types";
 import { Label } from "@/components/ui/label";
 import useLayoutStore from "../../store/use-layout-store";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -9,8 +8,10 @@ import useStore from "../../store/use-store";
 import { createPresetButtons } from "../floating-controls/animation-picker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AnimationDuration } from "./animation-duration";
+import type { ITrackItem } from "../../store/use-store";
+
 interface PresetTextProps {
-  trackItem: ITrackItem & any;
+  trackItem: ITrackItem;
   properties: any;
 }
 
@@ -23,7 +24,7 @@ export const Animations = ({ properties, trackItem }: PresetTextProps) => {
   );
 };
 
-const SelectaAnimation = ({ trackItem }: { trackItem: ITrackItem & IText }) => {
+const SelectaAnimation = ({ trackItem }: { trackItem: ITrackItem }) => {
   const { setFloatingControl } = useLayoutStore();
   const isLargeScreen = useIsLargeScreen();
   const { activeIds, trackItemsMap } = useStore();

@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ADD_ANIMATION } from "@designcombo/state";
-import { dispatch } from "@designcombo/events";
+import { dispatch } from "../../utils/events";
+import { ADD_ANIMATION } from "../../store/use-store";
 import useStore from "../../store/use-store";
 import { Animation, presets } from "../../player/animated";
 import React, { useRef } from "react";
@@ -141,7 +141,7 @@ export default function AnimationPicker({
   animationType?: "text" | "media";
 }) {
   const { activeIds, trackItemsMap } = useStore();
-
+ 
   const presetInButtons = createPresetButtons(
     (key) => key.includes("In"),
     "in",

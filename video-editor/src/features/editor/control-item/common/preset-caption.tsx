@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
-import { IText, ITrackItem } from "@designcombo/types";
 import { Label } from "@/components/ui/label";
 import useLayoutStore from "../../store/use-layout-store";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -13,7 +12,7 @@ import useStore from "../../store/use-store";
 import { PresetPicker } from "./preset-picker";
 
 interface PresetTextProps {
-  trackItem: ITrackItem & any;
+  trackItem: any;
   properties: any;
 }
 
@@ -29,7 +28,7 @@ export const PresetCaption = ({ properties, trackItem }: PresetTextProps) => {
 const PresetCaptionContent = ({
   trackItem
 }: {
-  trackItem: ITrackItem & IText;
+  trackItem: any;
 }) => {
   const { setFloatingControl } = useLayoutStore();
   const [captionItemIds, setCaptionItemIds] = useState<string[]>([]);

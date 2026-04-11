@@ -5,10 +5,10 @@ import {
 } from "@/components/ui/popover";
 import ColorPicker from "@/components/color-picker";
 import { Input } from "@/components/ui/input";
-import { dispatch } from "@designcombo/events";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
-import { EDIT_OBJECT } from "@designcombo/state";
 import useLayoutStore from "../../store/use-layout-store";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { Switch } from "@/components/ui/switch";

@@ -10,13 +10,26 @@ import { ChevronDown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useLayoutStore from "../../store/use-layout-store";
-import { ICaption, ITrackItem } from "@designcombo/types";
 import useStore from "../../store/use-store";
 import { groupCaptionItems } from "../floating-controls/caption-preset-picker";
-import { dispatch } from "@designcombo/events";
-import { ADD_ITEMS, EDIT_OBJECT, LAYER_DELETE } from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
+import { dispatch } from "../../utils/events";
+import { ADD_ITEMS, EDIT_OBJECT, LAYER_DELETE } from "../../store/use-store";
+import { generateId } from "../../store/use-store";
 import { debounce } from "lodash";
+
+interface ICaption {
+  id: string;
+  type: string;
+  display: { from: number; to: number };
+  details: {
+    words?: Array<{
+      word: string;
+      start: number;
+      end: number;
+    }>;
+    [key: string]: any;
+  };
+}
 
 export function regroupCaptions(
   captions: ICaption[],
@@ -273,7 +286,7 @@ const CaptionWords = ({
 }: {
   id: string;
   handleModalAnimation: (newState?: boolean) => void;
-  trackItem: ITrackItem & any;
+  trackItem: any;
 }) => {
   const { setFloatingControl } = useLayoutStore();
   const { trackItemsMap, size } = useStore();

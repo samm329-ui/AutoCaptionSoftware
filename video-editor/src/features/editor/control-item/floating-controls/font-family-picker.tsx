@@ -7,13 +7,12 @@ import useLayoutStore from "../../store/use-layout-store";
 import useClickOutside from "../../hooks/useClickOutside";
 import { ICompactFont, IFont } from "../../interfaces/editor";
 import { loadFonts } from "../../utils/fonts";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
-import { ITrackItem } from "@designcombo/types";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 
 export const onChangeFontFamily = async (
   font: ICompactFont,
-  trackItem: ITrackItem
+  trackItem: any
 ) => {
   const fontName = font.default.postScriptName;
   const fontUrl = font.default.url;

@@ -6,13 +6,12 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import useDataState from "../../store/use-data-state";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 import { ChevronDown, Search, Strikethrough, Underline, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import Opacity from "./opacity";
 import { Input } from "@/components/ui/input";
-import { ITrackItem } from "@designcombo/types";
 import { Label } from "@/components/ui/label";
 import ColorPicker from "@/components/color-picker";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -23,7 +22,7 @@ import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { onChangeFontFamily } from "../floating-controls/font-family-picker";
 
 interface TextControlsProps {
-  trackItem: ITrackItem & any;
+  trackItem: any;
   properties: any;
   selectedFont: ICompactFont;
   onChangeFontFamily: (font: ICompactFont) => void;

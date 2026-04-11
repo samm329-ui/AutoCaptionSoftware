@@ -1,8 +1,8 @@
 import { Slider } from "@/components/ui/slider";
 import useStore from "../../store/use-store";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 
 function formatearNumero(num: number): number {
   return Number.isInteger(num) ? num : parseFloat(num.toFixed(2));

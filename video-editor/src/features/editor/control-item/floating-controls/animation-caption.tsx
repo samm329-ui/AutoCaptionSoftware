@@ -1,6 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
+import { dispatch } from "../../utils/events";
+import { EDIT_OBJECT } from "../../store/use-store";
 import { X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { Animation, presets } from "../../player/animated";
