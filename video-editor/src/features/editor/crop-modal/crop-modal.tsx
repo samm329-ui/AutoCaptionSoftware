@@ -9,19 +9,9 @@ import { useEffect, useState } from "react";
 import { ElementCrop } from "./element-crop";
 import { Button } from "@/components/ui/button";
 import useLayoutStore from "../store/use-layout-store";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
 import useCropStore from "../store/use-crop-store";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
-import { Label } from "@radix-ui/react-label";
+import { dispatch } from "../utils/events";
+import { EDIT_OBJECT } from "../constants/events";
 
 const CropModal = () => {
   const { cropTarget, setCropTarget } = useLayoutStore();

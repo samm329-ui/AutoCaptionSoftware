@@ -1,4 +1,4 @@
-import { IAudio } from "@designcombo/types";
+import { IAudio } from "../types";
 
 export const AUDIOS = [
   // https://ik.imagekit.io/pablituuu/like_a_player.mp3?updatedAt=1722278521488

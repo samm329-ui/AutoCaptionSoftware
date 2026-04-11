@@ -1,4 +1,4 @@
-import { generateId } from "@designcombo/timeline";
+import { generateId } from "../utils/local-timeline";
 import { DEFAULT_FONT } from "./font";
 
 export const TEXT_ADD_PAYLOAD = {
