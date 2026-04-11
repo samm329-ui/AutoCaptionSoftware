@@ -1,359 +1,116 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+/**
+ * timeline/timeline.tsx
+ * 
+ * SIMPLE NEW TIMELINE - uses Zustand store only
+ */
+
+import { useState, useCallback, useMemo } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
-import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
-import CanvasTimeline from "./items/timeline";
 import useStore from "../store/use-store";
 import Playhead from "./playhead";
-import { useTheme } from "next-themes";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import {
-  Audio,
-  Image,
-  Text,
-  Video,
-  Caption,
-  Helper,
-  Track,
-  LinealAudioBars,
-  RadialAudioBars,
-  WaveAudioBars,
-  HillAudioBars
-} from "./items";
-import {
-  TIMELINE_OFFSET_CANVAS_LEFT,
-  TIMELINE_OFFSET_CANVAS_RIGHT
-} from "../constants/constants";
-import PreviewTrackItem from "./items/preview-drag-item";
-import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
-import { useStateManagerEvents } from "../hooks/use-state-manager-events";
-import { useResizbleTimeline } from "../hooks/use-resizable-timeline";
 import TimelineToolbar from "../timeline-toolbar";
 import { TimelineVerticalScrollbar } from "./vertical-scrollbar";
 import TimelineMarkersLayer from "../panels/timeline-markers";
 import DecibelMeter from "./decibel-meter";
 import TrackHeaders from "./track-headers";
-import { useTrackOrdering } from "../hooks/use-track-ordering";
 
-import {
-  useEngineZoom,
-  useEnginePlayhead,
-  useEngineDuration,
-  useEngineSelector,
-} from "../engine/engine-provider";
+const TRACK_HEIGHT = 40;
 
-CanvasTimeline.registerItems({
-  Text,
-  Image,
-  Audio,
-  Video,
-  Caption,
-  Helper,
-  Track,
-  PreviewTrackItem,
-  LinealAudioBars,
-  RadialAudioBars,
-  WaveAudioBars,
-  HillAudioBars
-});
-
-const EMPTY_SIZE = { width: 0, height: 0 };
-const Timeline = ({ stateManager }: { stateManager: any }) => {
-  const canScrollRef = useRef(false);
+const Timeline = () => {
+  // Get everything from Zustand store
+  const { scale, playerRef, fps, tracks: storeTracks, activeIds: selection, trackItemsMap } = useStore();
+  
   const [scrollLeft, setScrollLeft] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasElRef = useRef<HTMLCanvasElement>(null);
-  const canvasRef = useRef<CanvasTimeline | null>(null);
-  const horizontalScrollbarVpRef = useRef<HTMLDivElement>(null);
+  const timelineHeight = 200;
+  const pixelsPerMs = scale.zoom * 100;
   
-  const { scale, playerRef, fps, duration, setState, timeline } = useStore();
+  // Handle ruler click
+  const onRulerClick = useCallback((units: number) => {
+    const timeMs = units * 1000 / scale.zoom;
+    playerRef?.current?.seekTo(Math.round((timeMs / 1000) * fps));
+  }, [playerRef, scale.zoom, fps]);
   
-  const engineZoom = useEngineZoom();
-  const enginePlayhead = useEnginePlayhead();
-  const engineDuration = useEngineDuration();
-  const engineFps = useEngineSelector((p) => p.sequences[p.rootSequenceId]?.fps ?? 30);
-  
-  const currentFrame = useCurrentPlayerFrame(playerRef);
-  const [canvasSize, setCanvasSize] = useState(EMPTY_SIZE);
-  const canvasSizeRef = useRef(EMPTY_SIZE);
-  const timelineOffsetX = useTimelineOffsetX();
-  const {
-    timelineContainerRef,
-    timelineHeight,
-    onMouseDown,
-    onMouseMove,
-    onMouseOut
-  } = useResizbleTimeline();
-  const { theme } = useTheme();
-  const { setTimeline } = useStore();
-
-  useStateManagerEvents(stateManager);
-  useTrackOrdering(canvasRef);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      timeline?.requestRenderAll();
-    }, 5);
-    return () => clearTimeout(timeout);
-  }, [theme, timeline]);
-
-  useEffect(() => {
-    if (playerRef?.current) {
-      canScrollRef.current = playerRef.current.isPlaying();
-    }
-  }, [playerRef?.current?.isPlaying()]);
-
-  const lastScrollFrameRef = useRef(0);
-
-  useEffect(() => {
-    const position = timeMsToUnits((currentFrame / fps) * 1000, scale.zoom);
-    const canvasEl = canvasElRef.current;
-    const horizontalScrollbar = horizontalScrollbarVpRef.current;
-
-    if (!canvasEl || !horizontalScrollbar) return;
-
-    const canvasRect = canvasEl.getBoundingClientRect();
-    if (!canvasRect || canvasRect.width === 0) return;
-    const canvasBoudingX = canvasRect.x + canvasEl.clientWidth;
-    const playHeadPos = position - scrollLeft + 40;
-    if (playHeadPos >= canvasBoudingX) {
-      const scrollDivWidth = horizontalScrollbar.clientWidth;
-      const totalScrollWidth = horizontalScrollbar.scrollWidth;
-      const currentPosScroll = horizontalScrollbar.scrollLeft;
-      const availableScroll =
-        totalScrollWidth - (scrollDivWidth + currentPosScroll);
-      const scaleScroll = availableScroll / scrollDivWidth;
-      if (scaleScroll >= 0) {
-        if (scaleScroll > 1)
-          horizontalScrollbar.scrollTo({
-            left: currentPosScroll + scrollDivWidth
-          });
-        else
-          horizontalScrollbar.scrollTo({
-            left: totalScrollWidth - scrollDivWidth
-          });
-      }
-    }
-    lastScrollFrameRef.current = currentFrame;
-  }, [currentFrame, fps, scale.zoom, scrollLeft]);
-
-  useEffect(() => {
-    canvasSizeRef.current = canvasSize;
-  }, [canvasSize]);
-
-  useEffect(() => {
-    const canvasEl = canvasElRef.current;
-    const timelineContainerEl = timelineContainerRef.current;
-
-    if (!canvasEl || !timelineContainerEl) return;
-
-    const TOOLBAR_WIDTH = 64;
-    const containerWidth =
-      (document.getElementById("timeline-header")?.clientWidth || 0) - TOOLBAR_WIDTH - 24;
-    const containerHeight =
-      (document.getElementById("playhead")?.clientHeight || 0) -
-      (document.getElementById("playhead-handle")?.clientHeight || 0) -
-      40;
-
-    const canvas = new CanvasTimeline(canvasEl, {
-      width: containerWidth,
-      height: containerHeight,
-      bounding: {
-        width: containerWidth,
-        height: 0
-      },
-      selectionColor: "rgba(0, 216, 214,0.1)",
-      selectionBorderColor: "rgba(0, 216, 214,1.0)",
-      onResizeCanvas: (payload: { width: number; height: number }) => {
-        canvasSizeRef.current = payload;
-      },
-      scale: scale,
-      state: stateManager,
-      duration,
-      spacing: {
-        left: TIMELINE_OFFSET_CANVAS_LEFT,
-        right: TIMELINE_OFFSET_CANVAS_RIGHT
-      },
-      sizesMap: {
-        caption: 32,
-        text: 32,
-        audio: 36,
-        customTrack: 40,
-        customTrack2: 40,
-        linealAudioBars: 40,
-        radialAudioBars: 40,
-        waveAudioBars: 40,
-        hillAudioBars: 40,
-        transition: 32
-      },
-      itemTypes: [
-        "text",
-        "image",
-        "audio",
-        "video",
-        "caption",
-        "helper",
-        "track",
-        "composition",
-        "template",
-        "linealAudioBars",
-        "radialAudioBars",
-        "progressFrame",
-        "progressBar",
-        "waveAudioBars",
-        "hillAudioBars",
-        "transition"
-      ],
-      acceptsMap: {
-        text: ["text", "caption"],
-        image: ["image", "video"],
-        video: ["video", "image", "transition"],
-        audio: ["audio"],
-        caption: ["caption", "text"],
-        template: ["template"],
-        customTrack: ["video", "image"],
-        customTrack2: ["video", "image"],
-        main: ["video", "image"],
-        linealAudioBars: ["audio", "linealAudioBars"],
-        radialAudioBars: ["audio", "radialAudioBars"],
-        waveAudioBars: ["audio", "waveAudioBars"],
-        hillAudioBars: ["audio", "hillAudioBars"],
-        transition: ["transition"]
-      },
-      guideLineColor: "#ffffff"
-    });
-
-    canvas.initScrollbars({
-      offsetX: 16,
-      offsetY: 0,
-      extraMarginX: 50,
-      extraMarginY: 0,
-      scrollbarWidth: 8,
-      scrollbarColor: "rgba(255, 255, 255, 1)"
-    });
-
-    canvas.onViewportChange((left: number) => {
-      setScrollLeft(left + 16);
-    });
-
-    canvasRef.current = canvas;
-    setCanvasSize({ width: containerWidth, height: containerHeight });
-    setTimeline(canvas);
-
-    return () => {
-      canvas.purge();
-    };
+  // Handle scroll
+  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setScrollLeft(e.currentTarget.scrollLeft);
   }, []);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    canvasRef.current.setScale(scale);
-    canvasRef.current.requestRenderAll();
-  }, [scale]);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const TOOLBAR_WIDTH = 64;
-    const containerWidth =
-      (document.getElementById("timeline-header")?.clientWidth || 0) - TOOLBAR_WIDTH - 24;
-    const containerHeight =
-      (document.getElementById("playhead")?.clientHeight || 0) -
-      (document.getElementById("playhead-handle")?.clientHeight || 0) -
-      40;
-
-    if (containerWidth > 0 && containerHeight > 0) {
-      canvasRef.current.resize({
-        width: containerWidth,
-        height: containerHeight
-      });
-      canvasRef.current.requestRenderAll();
-    }
-  }, [scale]);
-
-  const onClickRuler = (units: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const time = unitsToTimeMs(units, scale.zoom);
-    playerRef?.current?.seekTo(Math.round((time * fps) / 1000));
-  };
-
-  const onRulerScroll = (newScrollLeft: number) => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.scrollTo({ scrollLeft: newScrollLeft });
-    }
-
-    if (horizontalScrollbarVpRef.current) {
-      horizontalScrollbarVpRef.current.scrollLeft = newScrollLeft;
-    }
-
-    setScrollLeft(newScrollLeft);
-  };
-
-  useEffect(() => {
-    const availableScroll = horizontalScrollbarVpRef.current?.scrollWidth;
-    if (!availableScroll || !timeline) return;
-    const canvasWidth = timeline?.width ?? 0;
-    if (availableScroll < canvasWidth + scrollLeft) {
-      timeline?.scrollTo?.({ scrollLeft: availableScroll - canvasWidth });
-    }
-  }, [scale]);
 
   return (
     <div className="flex h-full">
       <TimelineToolbar className="w-16 shrink-0" />
-
       <div
-        ref={timelineContainerRef}
-        id="timeline-container"
         className="relative flex-1 overflow-hidden bg-card"
-        style={{
-          height: `${timelineHeight}px`,
-          borderTopWidth: "1px",
-          borderTopStyle: "solid",
-          borderTopColor: "transparent"
-        }}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseOut={onMouseOut}
+        style={{ height: `${timelineHeight}px` }}
       >
         <Header />
-        <Ruler
-          onClick={onClickRuler}
-          scrollLeft={scrollLeft}
-          onScroll={onRulerScroll}
-        />
+        <Ruler onClick={onRulerClick} scrollLeft={scrollLeft} onScroll={onScroll} />
         <TimelineMarkersLayer scrollLeft={scrollLeft} />
         <Playhead scrollLeft={scrollLeft} />
         <div className="flex">
-          <div
-            style={{
-              width: timelineOffsetX
-            }}
-            className="relative flex-none"
-          >
-            <TrackHeaders canvasRef={canvasRef} scrollLeft={scrollLeft} />
+          <div style={{ width: 150 }} className="relative flex-none">
+            <TrackHeaders scrollLeft={scrollLeft} />
           </div>
-          <div style={{ height: canvasSize.height }} className="relative flex-1">
-            <div
-              style={{ height: canvasSize.height }}
-              ref={containerRef}
-              className="absolute top-0 w-full"
-            >
-              <canvas id="designcombo-timeline-canvas" ref={canvasElRef} />
-            </div>
+          <div
+            className="relative flex-1 overflow-auto"
+            style={{ height: timelineHeight - 50 }}
+            onScroll={onScroll}
+          >
+            {/* Render tracks from store */}
+            {storeTracks.map((track: any) => (
+              <div
+                key={track?.id}
+                className="border-b border-border/30"
+                style={{ height: TRACK_HEIGHT }}
+              >
+                {(track?.clipIds || []).map((clipId: string) => {
+                  const clip = trackItemsMap[clipId];
+                  if (!clip) return null;
+                  
+                  const left = (clip.display?.from || 0) * pixelsPerMs - scrollLeft;
+                  const width = ((clip.display?.to || 0) - (clip.display?.from || 0)) * pixelsPerMs;
+                  const isSelected = selection.includes(clipId);
+                  
+                  if (left + width < -100 || left > 3000) return null;
+                  
+                  const getTypeColor = () => {
+                    switch (clip.type) {
+                      case "video": return "bg-blue-500/60 border-blue-400";
+                      case "audio": return "bg-green-500/60 border-green-400";
+                      case "text": return "bg-purple-500/60 border-purple-400";
+                      case "caption": return "bg-yellow-500/60 border-yellow-400";
+                      case "image": return "bg-orange-500/60 border-orange-400";
+                      default: return "bg-gray-500/60 border-gray-400";
+                    }
+                  };
+                  
+                  return (
+                    <div
+                      key={clipId}
+                      className={`absolute rounded border text-white select-none ${getTypeColor()} ${
+                        isSelected ? "ring-2 ring-cyan-400" : ""
+                      }`}
+                      style={{
+                        left: `${left}px`,
+                        width: `${Math.max(width || 20, 16)}px`,
+                        height: TRACK_HEIGHT - 8,
+                        top: "4px",
+                        cursor: "move",
+                      }}
+                    >
+                      <div className="px-2 py-1 text-[9px] truncate">
+                        {clip.name || clip.type}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
-
-        <div
-          className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-card/90 to-transparent pointer-events-none"
-          style={{ top: "50px" }}
-        />
-
         <TimelineVerticalScrollbar className="top-[50px]" />
       </div>
-
       <DecibelMeter />
     </div>
   );
