@@ -28,14 +28,12 @@ const snapDirections = {
 };
 
 interface SceneInteractionsProps {
-  stateManager: any;
   containerRef: React.RefObject<HTMLDivElement>;
   zoom: number;
   size: { width: number; height: number };
 }
 
 export function SceneInteractions({
-  stateManager,
   containerRef,
   zoom,
 }: SceneInteractionsProps) {
@@ -119,7 +117,6 @@ export function SceneInteractions({
         const ids = filtered.map((el) => getIdFromClassName(el.className));
         setTargets(filtered as HTMLDivElement[]);
         engineDispatch(setSelection(ids));
-        stateManager?.updateState({ activeIds: ids }, { updateHistory: false, kind: "layer:selection" });
       })
       .on("dragStart", (e) => {
         const target = e.inputEvent.target as HTMLDivElement;
@@ -143,7 +140,6 @@ export function SceneInteractions({
           ) as HTMLDivElement[];
           const ids = filtered.map((el) => getIdFromClassName(el.className));
           engineDispatch(setSelection(ids));
-          stateManager?.updateState({ activeIds: ids }, { updateHistory: false, kind: "layer:selection" });
           setTargets(filtered);
         }
       });
@@ -151,19 +147,6 @@ export function SceneInteractions({
     setSelectionState(sel);
     return () => sel.destroy();
   }, []);
-
-  useEffect(() => {
-    if (stateManager && stateManager.subscribeToState) {
-      const unsubscribe = stateManager.subscribeToState((newState: any) => {
-        setState(newState);
-      });
-      return () => {
-        if (typeof unsubscribe === 'function') {
-          unsubscribe();
-        }
-      };
-    }
-  }, [stateManager]);
 
   useEffect(() => {
     moveableRef.current?.moveable.updateRect();
@@ -183,15 +166,6 @@ export function SceneInteractions({
     const targetId = getIdFromClassName(target.className) as string;
     const currentLeft = parseFloat(target.style.left);
     const currentTop = parseFloat(target.style.top);
-    
-    stateManager?.updateState({
-      [targetId]: {
-        details: {
-          left: isNaN(currentLeft) ? 0 : currentLeft,
-          top: isNaN(currentTop) ? 0 : currentTop,
-        },
-      },
-    });
     
     engineDispatch(updateTransform(targetId, {
       x: isNaN(currentLeft) ? 0 : currentLeft,
@@ -240,16 +214,6 @@ export function SceneInteractions({
     const currentLeft = parseFloat(target.style.left);
     const currentTop = parseFloat(target.style.top);
     
-    stateManager?.updateState({
-      [targetId]: {
-        details: {
-          transform: target.style.transform,
-          left: isNaN(currentLeft) ? 0 : currentLeft,
-          top: isNaN(currentTop) ? 0 : currentTop,
-        },
-      },
-    });
-    
     engineDispatch(updateTransform(targetId, {
       x: isNaN(currentLeft) ? 0 : currentLeft,
       y: isNaN(currentTop) ? 0 : currentTop,
@@ -263,12 +227,6 @@ export function SceneInteractions({
   const handleRotateEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     if (!target.style.transform) return;
     const targetId = getIdFromClassName(target.className) as string;
-    
-    stateManager?.updateState({
-      [targetId]: {
-        details: { transform: target.style.transform },
-      },
-    });
     
     const rotateMatch = target.style.transform.match(/rotate\(([^)]+)/);
     if (rotateMatch) {
@@ -394,18 +352,6 @@ export function SceneInteractions({
       const selector = type === "text" ? `[data-text-id="${targetId}"]` : `#caption-${targetId}`;
       const textDiv = document.querySelector(selector) as HTMLDivElement;
       if (textDiv) {
-        const payload = {
-          [targetId]: {
-            details: {
-              ...trackItemsMap[targetId].details,
-              width: parseFloat(target.style.width),
-              height: parseFloat(target.style.height),
-              fontSize: parseFloat(textDiv.style.fontSize),
-            },
-          },
-        };
-        
-        stateManager?.updateState({ payload });
         engineDispatch({
           type: "UPDATE_CLIP",
           payload: buildPayload(),
@@ -413,18 +359,6 @@ export function SceneInteractions({
       }
     } else if (type === "progressSquare") {
       const currentLeft = parseFloat(target.style.left);
-      const payload = {
-        [targetId]: {
-          details: {
-            ...trackItemsMap[targetId].details,
-            width: parseFloat(target.style.width),
-            height: parseFloat(target.style.height),
-            left: isNaN(currentLeft) ? 0 : currentLeft,
-          },
-        },
-      };
-      
-      stateManager?.updateState({ payload });
       engineDispatch({
         type: "UPDATE_CLIP",
         payload: {
@@ -436,17 +370,6 @@ export function SceneInteractions({
         },
       });
     } else {
-      stateManager?.updateState({
-        payload: {
-          [targetId]: {
-            details: {
-              ...trackItemsMap[targetId].details,
-              width: parseFloat(target.style.width),
-              height: parseFloat(target.style.height),
-            },
-          },
-        },
-      });
       engineDispatch({ type: "UPDATE_CLIP", payload: buildPayload() });
     }
   };
@@ -469,14 +392,6 @@ export function SceneInteractions({
 
   const handleDragGroupEnd = () => {
     if (!holdGroupPosition) return;
-    const payload: Record<string, any> = {};
-    for (const id of Object.keys(holdGroupPosition)) {
-      const pos = holdGroupPosition[id];
-      payload[id] = {
-        details: { top: `${pos.top}px`, left: `${pos.left}px` },
-      };
-    }
-    stateManager?.updateState({ payload });
     holdGroupPosition = null;
   };
 
