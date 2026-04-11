@@ -207,6 +207,13 @@ export type EditorCommand =
   | { type: "SET_ZOOM";      payload: { zoom: number } }
   | { type: "SET_SCROLL";    payload: { scrollX?: number; scrollY?: number } }
 
+  // Canvas
+  | { type: "SET_CANVAS"; payload: { width: number; height: number } }
+
+  // History
+  | { type: "UNDO" }
+  | { type: "REDO" }
+
   // Bulk load
   | { type: "LOAD_PROJECT";  payload: { project: Project } };
 
@@ -546,6 +553,27 @@ function reducer(state: Project, command: EditorCommand): Project {
           scrollY: command.payload.scrollY ?? state.ui.scrollY,
         },
       };
+
+    // ── Canvas ─────────────────────────────────────────────────────────────────
+    case "SET_CANVAS": {
+      const seq = state.sequences[state.rootSequenceId];
+      if (!seq) return state;
+      return {
+        ...state,
+        sequences: {
+          ...state.sequences,
+          [state.rootSequenceId]: {
+            ...seq,
+            canvas: { width: command.payload.width, height: command.payload.height },
+          },
+        },
+      };
+    }
+
+    // ── History (handled by store, not reducer) ─────────────────────────────────
+    case "UNDO":
+    case "REDO":
+      return state;
 
     default: {
       const _exhaustive: never = command;
