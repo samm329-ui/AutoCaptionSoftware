@@ -1,5 +1,5 @@
 import React from "react";
-import {
+import type {
   IAudio,
   ICaption,
   IHillAudioBars,
@@ -14,7 +14,7 @@ import {
   IText,
   IVideo,
   IWaveAudioBars
-} from "@designcombo/types";
+} from "@/features/editor/types";
 import {
   Audio,
   Caption,

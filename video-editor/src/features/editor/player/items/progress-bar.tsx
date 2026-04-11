@@ -1,4 +1,4 @@
-import { IProgressBar } from "@designcombo/types";
+import type { IProgressBar } from "@/features/editor/types";
 import { calculateFrames } from "../../utils/frames";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
 
@@ -11,16 +11,16 @@ export default function ProgressBar({
 }) {
   const { fps, frame } = options;
   const { details } = item;
-  const playbackRate = item.playbackRate || 1;
+  const playbackRate = ((details as any).playbackRate || 1) as number;
   const { from, durationInFrames } = calculateFrames(
     {
-      from: item.display.from / playbackRate,
-      to: item.display.to / playbackRate
+      from: (item.display.from / 1000) / playbackRate,
+      to: (item.display.to / 1000) / playbackRate
     },
     fps
   );
   let progress: number;
-  if (details.inverted) {
+  if ((details as any).inverted) {
     const relativeFrame = Math.max((frame || 0) - from, 0);
     progress = 100 - Math.min((relativeFrame / durationInFrames) * 100, 100);
   } else {
@@ -34,11 +34,8 @@ export default function ProgressBar({
         style={{
           width: "100%",
           height: "100%",
-          WebkitMaskSize: "cover",
-          WebkitMaskPosition: "center",
-          WebkitMaskRepeat: "no-repeat",
           backgroundColor:
-            details.backgroundColors[0] || "rgba(128, 128, 128,0.5)"
+            ((details as any).backgroundColors?.[0]) || "rgba(128, 128, 128,0.5)"
         }}
       />
       <div
@@ -47,7 +44,7 @@ export default function ProgressBar({
           width: `${progress}%`,
           height: "100%",
           backgroundColor:
-            details.backgroundColors[1] || "rgba(128, 128, 128,1)"
+            ((details as any).backgroundColors?.[1]) || "rgba(128, 128, 128,1)"
         }}
       />
     </>

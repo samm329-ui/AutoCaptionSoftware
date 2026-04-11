@@ -1,8 +1,6 @@
-import { IVideo } from "@designcombo/types";
+import type { IVideo } from "@/features/editor/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
-import { BoxAnim, ContentAnim, MaskAnim } from "@designcombo/animations";
 import { calculateContainerStyles, calculateMediaStyles } from "../styles";
-import { getAnimations } from "../../utils/get-animations";
 import { calculateFrames } from "../../utils/frames";
 import { OffthreadVideo } from "remotion";
 
@@ -13,15 +11,10 @@ export const Video = ({
   item: IVideo;
   options: SequenceItemOptions;
 }) => {
-  const { fps, frame, mutedTrackIds, owningTrackId } = options;
-  const { details, animations } = item;
-  const playbackRate = item.playbackRate || 1;
-  const { animationIn, animationOut, animationTimed } = getAnimations(
-    animations!,
-    item,
-    frame,
-    fps
-  );
+  const { fps, mutedTrackIds, owningTrackId } = options;
+  const { details } = item;
+  const playbackRate = (details as any).playbackRate || 1;
+  
   const crop = details?.crop || {
     x: 0,
     y: 0,
@@ -29,44 +22,27 @@ export const Video = ({
     height: details.height
   };
   const { durationInFrames } = calculateFrames(item.display, fps);
-  const currentFrame = (frame || 0) - (item.display.from * fps) / 1000;
 
   const isTrackMuted = owningTrackId && mutedTrackIds?.has(owningTrackId);
-  const baseVolume = details.volume ?? 0;
+  const baseVolume = (details.volume ?? 100) as number;
   const effectiveVolume = isTrackMuted ? 0 : baseVolume;
 
   const children = (
-      <BoxAnim
-        style={calculateContainerStyles(details, crop, {
-          overflow: "hidden"
-        })}
-      animationIn={animationIn}
-      animationOut={animationOut}
-      frame={currentFrame}
-      durationInFrames={durationInFrames}
+    <div
+      style={calculateContainerStyles(details, crop, {
+        overflow: "hidden"
+      })}
     >
-      <ContentAnim
-        animationTimed={animationTimed}
-        durationInFrames={durationInFrames}
-        frame={currentFrame}
-      >
-        <MaskAnim
-          item={item}
-          keyframeAnimations={animationTimed}
-          frame={frame || 0}
-        >
-          <div style={calculateMediaStyles(details, crop)}>
-            <OffthreadVideo
-              startFrom={(item.trim?.from! / 1000) * fps}
-              endAt={(item.trim?.to! / 1000) * fps || 1 / fps}
-              playbackRate={playbackRate}
-              src={details.src}
-              volume={effectiveVolume / 100}
-            />
-          </div>
-        </MaskAnim>
-      </ContentAnim>
-    </BoxAnim>
+      <div style={calculateMediaStyles(details, crop)}>
+        <OffthreadVideo
+          startFrom={((item.trim?.from ?? 0) / 1000) * fps}
+          endAt={(item.trim?.to ?? 0) / 1000 * fps || 1 / fps}
+          playbackRate={playbackRate}
+          src={details.src as string}
+          volume={effectiveVolume / 100}
+        />
+      </div>
+    </div>
   );
 
   return BaseSequence({ item, options, children });

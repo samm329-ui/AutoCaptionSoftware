@@ -1,9 +1,6 @@
-import { IShape } from "@designcombo/types";
+import type { IShape } from "@/features/editor/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
-import { BoxAnim, ContentAnim, MaskAnim } from "@designcombo/animations";
 import { calculateContainerStyles } from "../styles";
-import { getAnimations } from "../../utils/get-animations";
-import { calculateFrames } from "../../utils/frames";
 
 export const Shape = ({
   item,
@@ -12,49 +9,17 @@ export const Shape = ({
   item: IShape;
   options: SequenceItemOptions;
 }) => {
-  const { fps, frame } = options;
-  const { details, animations } = item;
-  const { animationIn, animationOut, animationTimed } = getAnimations(
-    animations!,
-    item,
-    frame,
-    fps
-  );
-  const { durationInFrames } = calculateFrames(item.display, fps);
-  const currentFrame = (frame || 0) - (item.display.from * fps) / 1000;
+  const { details } = item;
+
   const children = (
-    <BoxAnim
-      style={calculateContainerStyles(details)}
-      animationIn={animationIn}
-      animationOut={animationOut}
-      frame={currentFrame}
-      durationInFrames={durationInFrames}
-    >
-      <ContentAnim
-        animationTimed={animationTimed}
-        durationInFrames={durationInFrames}
-        frame={currentFrame}
-        style={calculateContainerStyles(details)}
-      >
-        <MaskAnim
-          item={item}
-          keyframeAnimations={animationTimed}
-          frame={frame || 0}
-        >
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              WebkitMaskImage: `url(${details.src})`,
-              WebkitMaskSize: "cover",
-              WebkitMaskPosition: "center",
-              WebkitMaskRepeat: "no-repeat",
-              backgroundColor: details.backgroundColor || "#808080"
-            }}
-          />
-        </MaskAnim>
-      </ContentAnim>
-    </BoxAnim>
+    <div
+      style={{
+        ...calculateContainerStyles(details),
+        width: "100%",
+        height: "100%",
+        backgroundColor: (details.backgroundColor as string) || "#808080"
+      }}
+    />
   );
   return BaseSequence({ item, options, children });
 };
