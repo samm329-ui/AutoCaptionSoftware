@@ -1,4 +1,4 @@
-import { ITrackItemsMap, ITransition, ITrackItem } from "@designcombo/types";
+import { ITrackItemsMap, ITransition, ITrackItem } from "../types";
 
 type GroupElement = ITrackItem | ITransition;
 

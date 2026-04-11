@@ -4,7 +4,7 @@ import {
   PREVIEW_FRAME_WIDTH,
   TIMELINE_OFFSET_X
 } from "../constants/constants";
-import { ITimelineScaleState } from "@designcombo/types";
+import { ITimelineScaleState } from "../types";
 import { TIMELINE_ZOOM_LEVELS } from "../constants/scale";
 
 export function getPreviousZoomLevel(
