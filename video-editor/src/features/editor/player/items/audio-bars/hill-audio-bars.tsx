@@ -1,7 +1,15 @@
-import { IHillAudioBars } from "@designcombo/types";
 import { SequenceItemOptions } from "../../base-sequence";
 import { audioDataManager } from "../../lib/audio-data";
 import { HillsVisualization } from "./hill-visualization";
+
+interface IHillAudioBars {
+  id: string;
+  type: "hillAudioBars";
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+  playbackRate?: number;
+}
 
 export const HillBars = ({
   item,

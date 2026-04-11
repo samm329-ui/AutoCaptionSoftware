@@ -1,8 +1,16 @@
 import { Audio } from "remotion";
 import { RadialBarsVisualization } from "./radial-bars-visualization";
-import { IRadialAudioBars } from "@designcombo/types";
 import { SequenceItemOptions } from "../../base-sequence";
 import { audioDataManager } from "../../lib/audio-data";
+
+interface IRadialAudioBars {
+  id: string;
+  type: "radialAudioBars";
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+  playbackRate?: number;
+}
 
 export const RadialBars = ({
   item,

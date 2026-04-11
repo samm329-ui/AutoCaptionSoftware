@@ -1,6 +1,13 @@
-import { IRadialAudioBars } from "@designcombo/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
 import { RadialBars } from "./audio-bars/radial-audio-bars";
+
+interface IRadialAudioBars {
+  id: string;
+  type: "radialAudioBars";
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+}
 
 export default function RadialAudioBars({
   item,

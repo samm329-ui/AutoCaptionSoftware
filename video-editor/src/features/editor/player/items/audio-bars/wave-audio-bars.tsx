@@ -1,7 +1,14 @@
-import { IWaveAudioBars } from "@designcombo/types";
 import { SequenceItemOptions } from "../../base-sequence";
 import { audioDataManager } from "../../lib/audio-data";
 import { WaveVisualization } from "./wave-visualization";
+
+interface IWaveAudioBars {
+  id: string;
+  type: "waveAudioBars";
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+}
 
 export const WaveBars = ({
   item,

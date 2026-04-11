@@ -1,9 +1,5 @@
 import { SequenceItem } from "./sequence-item";
 import { useEffect, useState } from "react";
-import { dispatch, filter, subject } from "@designcombo/events";
-import { EDIT_OBJECT, ENTER_EDIT_MODE } from "@designcombo/state";
-import { groupTrackItems } from "../utils/track-items";
-import { TransitionSeries, Transitions } from "@designcombo/transitions";
 import { calculateTextHeight } from "../utils/text";
 import { useCurrentFrame } from "remotion";
 import useStore from "../store/use-store";
@@ -16,50 +12,27 @@ const Composition = () => {
     fps,
     sceneMoveableRef,
     size,
-    transitionsMap,
-    structure,
-    activeIds,
     tracks
   } = useStore();
   const frame = useCurrentFrame();
 
-  const hiddenTrackIds = new Set(
-    tracks.filter((t) => (t as any).hidden).map((t) => t.id)
-  );
+  const mutedTrackIds = new Set<string>();
 
-  const mutedTrackIds = new Set(
-    tracks.filter((t) => (t as any).muted).map((t) => t.id)
-  );
-
-  const trackForItem = (itemId: string) =>
-    tracks.find((t) => t.items.includes(itemId));
-
-  const visibleTrackItemIds = trackItemIds.filter((id) => {
-    const track = trackForItem(id);
-    if (track && hiddenTrackIds.has(track.id)) return false;
-    return true;
-  });
-
-  const visibleTrackItemsMap = Object.fromEntries(
-    Object.entries(trackItemsMap).filter(([id]) => visibleTrackItemIds.includes(id))
-  );
-
-  const groupedItems = groupTrackItems({
-    trackItemIds: visibleTrackItemIds,
-    transitionsMap,
-    trackItemsMap: visibleTrackItemsMap
-  });
-  const mediaItems = Object.values(trackItemsMap).filter((item) => {
-    return item.type === "video" || item.type === "audio";
-  });
+  const trackForItem = (itemId: string) => {
+    for (const track of tracks) {
+      if ((track as any).items?.includes(itemId)) {
+        return track;
+      }
+    }
+    return null;
+  };
 
   const handleTextChange = (id: string, _: string) => {
     const elRef = document.querySelector(`.id-${id}`) as HTMLDivElement;
-    const containerDiv = elRef.firstElementChild
-      ?.firstElementChild as HTMLDivElement;
-    const textDiv = elRef.firstElementChild?.firstElementChild
-      ?.firstElementChild?.firstElementChild
-      ?.firstElementChild as HTMLDivElement;
+    const containerDiv = elRef?.firstElementChild?.firstElementChild as HTMLDivElement;
+    const textDiv = elRef?.firstElementChild?.firstElementChild?.firstElementChild?.firstElementChild?.firstElementChild as HTMLDivElement;
+
+    if (!elRef || !textDiv) return;
 
     const {
       fontFamily,
@@ -73,14 +46,12 @@ const Composition = () => {
     } = textDiv.style;
     if (!elRef.innerText) return;
 
-    // Check if any word is wider than current container
     const words = elRef.innerText.split(/\s+/);
     const longestWord = words.reduce(
       (longest, word) => (word.length > longest.length ? word : longest),
       ""
     );
 
-    // Create temporary element to measure longest word width
     const tempDiv = document.createElement("div");
     tempDiv.style.visibility = "hidden";
     tempDiv.style.position = "absolute";
@@ -94,12 +65,11 @@ const Composition = () => {
     const wordWidth = tempDiv.offsetWidth;
     document.body.removeChild(tempDiv);
 
-    // Expand width if word is wider than current container
     const currentWidth = elRef.clientWidth;
     if (wordWidth > currentWidth) {
       elRef.style.width = `${wordWidth}px`;
       textDiv.style.width = `${wordWidth}px`;
-      containerDiv.style.width = `${wordWidth}px`;
+      if (containerDiv) containerDiv.style.width = `${wordWidth}px`;
     }
 
     const newHeight = calculateTextHeight({
@@ -126,8 +96,10 @@ const Composition = () => {
 
   const onTextBlur = (id: string, _: string) => {
     const elRef = document.querySelector(`.id-${id}`) as HTMLDivElement;
-    const textDiv = elRef.firstElementChild?.firstElementChild
-      ?.firstElementChild as HTMLDivElement;
+    const textDiv = elRef?.firstElementChild?.firstElementChild?.firstElementChild as HTMLDivElement;
+    
+    if (!elRef || !textDiv) return;
+
     const {
       fontFamily,
       fontSize,
@@ -153,108 +125,44 @@ const Composition = () => {
       id: id,
       textTransform
     });
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
-            height: newHeight
-          }
-        }
-      }
-    });
+
+    const store = useStore.getState();
+    const item = store.trackItemsMap[id];
+    if (item) {
+      store.setState({
+        trackItemsMap: {
+          ...store.trackItemsMap,
+          [id]: {
+            ...item,
+            details: {
+              ...item.details,
+              height: newHeight,
+              text: elRef.innerText,
+            },
+          },
+        },
+      } as any);
+    }
   };
-
-  //   handle track and track item events - updates
-  useEffect(() => {
-    const stateEvents = subject.pipe(
-      filter(({ key }) => key.startsWith(ENTER_EDIT_MODE))
-    );
-
-    const subscription = stateEvents.subscribe((obj) => {
-      if (obj.key === ENTER_EDIT_MODE) {
-        if (editableTextId) {
-          // get element by  data-text-id={id}
-          const element = document.querySelector(
-            `[data-text-id="${editableTextId}"]`
-          ) as HTMLDivElement;
-
-          let text = "";
-          if (element) {
-            for (let i = 0; i < element.childNodes.length; i++) {
-              const node = element.childNodes[i];
-              if (node.nodeType === Node.TEXT_NODE) {
-                const nodeText = node.textContent || "";
-                text += nodeText;
-              } else if (node.nodeType === Node.ELEMENT_NODE) {
-                const nodeText = node.textContent || "";
-                text += `\n${nodeText}`;
-              }
-            }
-          }
-
-          if (trackItemIds.includes(editableTextId)) {
-            dispatch(EDIT_OBJECT, {
-              payload: {
-                [editableTextId]: {
-                  details: {
-                    text: text || ""
-                  }
-                }
-              }
-            });
-          }
-        }
-        setEditableTextId(obj.value?.payload.id);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [editableTextId]);
 
   return (
     <>
-      {groupedItems.map((group, index) => {
-        if (group.length === 1) {
-          const item = trackItemsMap[group[0].id];
-          const owningTrack = trackForItem(item.id);
-          return SequenceItem[item.type](item, {
-            fps,
-            handleTextChange,
-            onTextBlur,
-            editableTextId,
-            frame,
-            size,
-            isTransition: false,
-            mutedTrackIds,
-            owningTrackId: owningTrack?.id,
-          });
-        }
-        const firstItem = trackItemsMap[group[0].id];
-        const from = (firstItem.display.from / 1000) * fps;
-        return (
-          <TransitionSeries from={from} key={index}>
-            {group.map((item) => {
-              if (item.type === "transition") {
-                const durationInFrames = (item.duration / 1000) * fps;
-                return Transitions[item.kind]({
-                  durationInFrames,
-                  ...size,
-                  id: item.id,
-                  direction: item.direction
-                });
-              }
-              const owningTrack = trackForItem(item.id);
-              return SequenceItem[item.type](trackItemsMap[item.id], {
-                fps,
-                handleTextChange,
-                editableTextId,
-                isTransition: true,
-                size,
-                mutedTrackIds,
-                owningTrackId: owningTrack?.id,
-              });
-            })}
-          </TransitionSeries>
-        );
+      {trackItemIds.map((id) => {
+        const item = trackItemsMap[id];
+        if (!item) return null;
+        const owningTrack = trackForItem(item.id);
+        const SequenceItemFn = SequenceItem[item.type];
+        if (!SequenceItemFn) return null;
+        return SequenceItemFn(item, {
+          fps,
+          handleTextChange,
+          onTextBlur,
+          editableTextId,
+          frame,
+          size,
+          mutedTrackIds,
+          owningTrackId: owningTrack?.id,
+        });
       })}
     </>
   );

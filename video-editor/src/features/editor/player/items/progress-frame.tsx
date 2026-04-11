@@ -1,6 +1,14 @@
-import { IProgressFrame } from "@designcombo/types";
 import { calculateFrames } from "../../utils/frames";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
+
+interface IProgressFrame {
+  id: string;
+  type: "progressFrame";
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+  playbackRate?: number;
+}
 
 export default function ProgressFrame({
   item,

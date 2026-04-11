@@ -1,7 +1,14 @@
-import { ILinealAudioBars } from "@designcombo/types";
 import { BarsVisualization } from "./bars-visualization";
 import { SequenceItemOptions } from "../../base-sequence";
 import { audioDataManager } from "../../lib/audio-data";
+
+interface ILinealAudioBars {
+  id: string;
+  type: "linealAudioBars";
+  details: Record<string, unknown>;
+  display: { from: number; to: number };
+  trim: { from: number; to: number };
+}
 
 export const LinealBars = ({
   item,
