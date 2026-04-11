@@ -53,6 +53,10 @@ interface IUIStore {
   activeIds: string[];
   trackItemIds: string[];
   trackItemsMap: Record<string, any>;
+  tracks: any[];
+  setTracks: (tracks: any[]) => void;
+  transitionsMap: Record<string, any>;
+  structure: Record<string, any>;
 }
 
 const useStore = create<IUIStore>((set) => ({
@@ -70,6 +74,9 @@ const useStore = create<IUIStore>((set) => ({
   activeIds:        [],
   trackItemIds:     [],
   trackItemsMap:    {},
+  tracks:           [],
+  transitionsMap:   {},
+  structure:        {},
 
   setPlayerRef:        (ref)         => set({ playerRef: ref }),
   setTimeline:         (timeline)    => set({ timeline }),
@@ -78,6 +85,7 @@ const useStore = create<IUIStore>((set) => ({
   setBackground:       (background)  => set({ background }),
   setCompositions:     (compositions) => set({ compositions }),
   setViewTimeline:     (viewTimeline) => set({ viewTimeline }),
+  setTracks:           (tracks)      => set({ tracks }),
   setState: async (patch) => {
     const resolved = typeof patch === "function" ? patch : patch;
     set(resolved as Partial<IUIStore>);
