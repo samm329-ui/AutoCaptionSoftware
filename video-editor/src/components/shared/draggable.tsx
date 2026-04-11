@@ -27,7 +27,7 @@ const Draggable: React.FC<DraggableProps> = ({
     // Set effect allowed
     e.dataTransfer.effectAllowed = "move";
     
-    // CRITICAL: @designcombo/timeline reads types[0] and tries to JSON.parse it
+    // CRITICAL: timeline reads types[0] and tries to JSON.parse it
     // Must ensure text/plain always contains valid JSON
     let jsonString = "{}";
     try {

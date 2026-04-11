@@ -1,13 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import useStore from "./store/use-store";
-import {
-  IAudio,
-  ICaption,
-  IImage,
-  ITrackItem,
-  ITrackItemAndDetails,
-  IVideo
-} from "@designcombo/types";
 import useLayoutStore from "./store/use-layout-store";
 import { Button } from "@/components/ui/button";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -19,15 +11,15 @@ import BasicVideo from "./control-item/basic-video";
 import BasicAudio from "./control-item/basic-audio";
 import { motion, PanInfo, useAnimation } from "framer-motion";
 import ColorPicker from "@/components/color-picker";
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
+import { dispatch } from "./utils/events";
+import { EDIT_OBJECT } from "./store/use-store";
 import { Label } from "@/components/ui/label";
 
 const ActiveControlItem = ({
   trackItem,
   handleMenuItemClick
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
   handleMenuItemClick: (menuItem: string, label: string) => void;
 }) => {
   return (
@@ -48,7 +40,7 @@ const ActiveControlItem = ({
 const ColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
   const [open, setOpen] = useState(false);
@@ -110,7 +102,7 @@ const ColorPickerControl = ({
 const StrokeColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#000000");
   const [open, setOpen] = useState(false);
@@ -163,7 +155,7 @@ const StrokeColorPickerControl = ({
 const ShadowColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#000000");
   const isLargeScreen = useIsLargeScreen();
@@ -219,7 +211,7 @@ const ShadowColorPickerControl = ({
 const BackgroundColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
   const isLargeScreen = useIsLargeScreen();
@@ -273,7 +265,7 @@ const BackgroundColorPickerControl = ({
 const CaptionAppearedColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
   const isLargeScreen = useIsLargeScreen();
@@ -325,7 +317,7 @@ const CaptionAppearedColorPickerControl = ({
 const CaptionActiveColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
   const isLargeScreen = useIsLargeScreen();
@@ -377,7 +369,7 @@ const CaptionActiveColorPickerControl = ({
 const CaptionActiveFillColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
   const isLargeScreen = useIsLargeScreen();
@@ -432,7 +424,7 @@ const CaptionActiveFillColorPickerControl = ({
 const CaptionEmphasizeColorPickerControl = ({
   trackItem
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
 
@@ -480,7 +472,7 @@ const ControlItem = ({
   trackItem,
   feature
 }: {
-  trackItem?: ITrackItemAndDetails;
+  trackItem?: any;
   feature: string;
 }) => {
   // First check if it's a custom feature (like strokeColor, color, shadowColor, backgroundColor, caption colors)

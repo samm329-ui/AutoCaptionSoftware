@@ -1,4 +1,3 @@
-import { ItemType } from "@designcombo/types";
 import { useCallback, useEffect, useState } from "react";
 import { Icons } from "@/components/shared/icons";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import useStore from "./store/use-store";
 
 export default function ControlList() {
   const { activeIds, trackItemsMap } = useStore();
-  const [controlType, setControlType] = useState<ItemType | null>(null);
+  const [controlType, setControlType] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeIds.length === 1) {
@@ -88,7 +87,7 @@ const ImageMenuList = ({
   activeToolboxItem
 }: {
   openToolboxItem: (type: string) => void;
-  type: ItemType;
+  type: string;
   activeToolboxItem: string;
 }) => {
   return (
@@ -116,7 +115,7 @@ const TextMenuList = ({
   activeToolboxItem
 }: {
   openToolboxItem: (type: string) => void;
-  type: ItemType;
+  type: string;
   activeToolboxItem: string;
 }) => {
   return (
@@ -149,7 +148,7 @@ const VideoMenuList = ({
   activeToolboxItem
 }: {
   openToolboxItem: (type: string) => void;
-  type: ItemType;
+  type: string;
   activeToolboxItem: string;
 }) => {
   return (
@@ -173,7 +172,7 @@ const AudioMenuList = ({
   activeToolboxItem
 }: {
   openToolboxItem: (type: string) => void;
-  type: ItemType;
+  type: string;
   activeToolboxItem: string;
 }) => {
   return (
@@ -197,7 +196,7 @@ const PresetsMenuListItem = ({
   activeToolboxItem
 }: {
   openToolboxItem: (type: string) => void;
-  type: ItemType;
+  type: string;
   activeToolboxItem: string;
 }) => {
   return (
