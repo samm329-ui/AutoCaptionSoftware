@@ -84,7 +84,7 @@ export function buildSnapPoints(
   return points.sort((a, b) => a.timeMs - b.timeMs);
 }
 
-// ─── Snap Query ───────────────────────────────────────────────────────────────
+// ─── Snap Query ─────────────────────────────────────────────────────────────
 
 /**
  * Given a dragged clip's proposed time, find the nearest snap point.
@@ -161,7 +161,7 @@ export function findSnap(
  * @param zoom - Timeline zoom factor (ms per pixel)
  */
 export function getSnapThresholdMs(pixelRadius: number = 12, zoom: number = 1): number {
-  // zoom is ms/pixel from @designcombo scale.zoom
+  // zoom is ms/pixel from scale.zoom
   // scale.zoom = 1/300 means 1px = 1/300 second = 3.33ms
   const msPerPixel = zoom > 0 ? 1 / zoom : 1;
   return Math.max(50, pixelRadius * msPerPixel);

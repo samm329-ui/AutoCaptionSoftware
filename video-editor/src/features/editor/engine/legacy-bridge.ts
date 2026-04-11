@@ -4,22 +4,21 @@
  *
  * ─── What this file does ─────────────────────────────────────────────────────
  *
- * During migration, DesignCombo (@designcombo/state + @designcombo/events) is
- * still the runtime that drives the existing UI — the timeline canvas, the
- * scene player, the inspector panels.  The new engine (engine-core.ts) runs in
- * parallel and needs to stay in sync.
+ * During migration, the local event system is the runtime that drives the
+ * existing UI — the timeline canvas, the scene player, the inspector panels.
+ * The new engine (engine-core.ts) runs in parallel and needs to stay in sync.
  *
  * This bridge:
- *   1. Subscribes to the @designcombo event bus
- *   2. Translates each DesignCombo event into an engine command
+ *   1. Subscribes to the local event bus
+ *   2. Translates each event into an engine command
  *   3. Dispatches that command to the engine store
  *
  * Direction of truth during migration:
  *
- *   DesignCombo (authoritative) ──→ legacy-bridge ──→ engine (mirror)
+ *   Local Events (authoritative) ──→ legacy-bridge ──→ engine (mirror)
  *
  * Once all panels have been migrated to read from the engine, the direction
- * flips: the engine becomes authoritative and DesignCombo is removed.
+ * flips: the engine becomes authoritative and local events are removed.
  *
  * ─── How to mount it ─────────────────────────────────────────────────────────
  *
@@ -37,19 +36,19 @@
  * through engine commands):
  *   1. Delete this file
  *   2. Remove useLegacyBridge() call from editor.tsx
- *   3. Remove @designcombo/* from package.json
+ *   3. Remove local events from package.json
  *   4. Remove the "engine is a mirror" comment blocks
  *
  * ─── What is NOT translated ──────────────────────────────────────────────────
  *
- * HISTORY_UNDO / HISTORY_REDO are handled by DesignCombo's own history stack
+ * HISTORY_UNDO / HISTORY_REDO are handled by the editor's own history stack
  * during migration.  The engine's undo/redo is separate.  When the engine
  * becomes authoritative, switch to engine.undo() / engine.redo() and remove
- * the DesignCombo history calls.
+ * the history calls.
  */
 
 import { useEffect } from "react";
-import { filter, subject } from "@designcombo/events";
+import { dispatch, subscribe } from "../utils/events";
 import {
   ADD_AUDIO,
   ADD_CAPTIONS,
@@ -65,7 +64,7 @@ import {
   LAYER_CLONE,
   LAYER_DELETE,
   LAYER_SELECTION,
-} from "@designcombo/state";
+} from "../constants/events";
 import { engineStore, type Project, type Clip, type Track } from "./engine-core";
 
 // ─── Event keys to intercept ─────────────────────────────────────────────────
@@ -107,10 +106,10 @@ function asArray<T>(v: unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : [];
 }
 
-// ─── Payload normalisation ────────────────────────────────────────────────────
+// ─── Payload normalisation ───────────────────────────────────────────────────
 
 /**
- * Convert a DesignCombo ITrackItem-shaped object to an engine Clip.
+ * Convert a ITrackItem-shaped object to an engine Clip.
  * Uses safe coercion throughout — never throws on malformed input.
  */
 function toEngineClip(raw: unknown, existingClip?: Clip): Clip {
@@ -165,8 +164,8 @@ function toEngineClip(raw: unknown, existingClip?: Clip): Clip {
 }
 
 /**
- * Deep-merge a partial DesignCombo EDIT_OBJECT patch into an existing engine clip.
- * Handles the nested details / display / trim merge that DesignCombo expects.
+ * Deep-merge a partial EDIT_OBJECT patch into an existing engine clip.
+ * Handles the nested details / display / trim merge.
  */
 function mergeClipPatch(existing: Clip, patch: Record<string, unknown>): Clip {
   return {
@@ -186,10 +185,10 @@ function mergeClipPatch(existing: Clip, patch: Record<string, unknown>): Clip {
   };
 }
 
-// ─── Translation layer ────────────────────────────────────────────────────────
+// ─── Translation layer ───────────────────────────────────────────────────────
 
 /**
- * Translate one DesignCombo event into zero or more engine store mutations.
+ * Translate one event into zero or more engine store mutations.
  * Returns true if any dispatch was made.
  */
 function translateEvent(key: BridgeKey, payload: unknown): boolean {
@@ -250,8 +249,6 @@ function translateEvent(key: BridgeKey, payload: unknown): boolean {
     }
 
     // Dispatch a LOAD_PROJECT snapshot update for this batch of clip edits.
-    // This is intentionally coarse during migration — once the engine is
-    // authoritative, these will become individual UPDATE_CLIP commands.
     engineStore.dispatch({
       type: "LOAD_PROJECT",
       payload: { project: { ...state, clips: newClips } },
@@ -259,7 +256,7 @@ function translateEvent(key: BridgeKey, payload: unknown): boolean {
     return true;
   }
 
-  // ── Add clip(s) ────────────────────────────────────────────────────────────
+  // ── Add clip(s) ────────────────────────────────────────────────────────���─���─
   if (
     key === ADD_VIDEO ||
     key === ADD_AUDIO ||
@@ -359,7 +356,7 @@ function translateEvent(key: BridgeKey, payload: unknown): boolean {
 }
 
 /**
- * Reconstruct a minimal Project from a DesignCombo DESIGN_LOAD payload.
+ * Reconstruct a minimal Project from a DESIGN_LOAD payload.
  * Handles both `trackItemsMap` (new) and flat item arrays (legacy).
  */
 function _loadDesignPayload(
@@ -388,7 +385,7 @@ function _loadDesignPayload(
       locked: Boolean(rt.locked),
       muted: Boolean(rt.muted),
       hidden: Boolean(rt.hidden),
-      // Support both clipIds (engine) and itemIds/items (DesignCombo legacy)
+      // Support both clipIds (engine) and itemIds/items (legacy)
       clipIds: asArray<string>(rt.clipIds ?? rt.itemIds ?? rt.items),
     };
     seqTrackIds.push(id);
@@ -466,18 +463,18 @@ function mountLegacyBridge(): () => void {
   }
   bridgeMounted = true;
 
-  const subscription = subject
-    .pipe(filter(({ key }: { key: string }) => (BRIDGE_KEYS as readonly string[]).includes(key)))
-    .subscribe((event: { key: string; value?: { payload?: unknown } }) => {
+  const cleanup = subscribe((key: string, data?: { payload?: unknown }) => {
+    if ((BRIDGE_KEYS as readonly string[]).includes(key)) {
       try {
-        translateEvent(event.key as BridgeKey, event.value?.payload);
+        translateEvent(key as BridgeKey, data?.payload);
       } catch (err) {
-        console.error("[LegacyBridge] Translation error for event", event.key, err);
+        console.error("[LegacyBridge] Translation error for event", key, err);
       }
-    });
+    }
+  });
 
   return () => {
-    subscription.unsubscribe();
+    cleanup();
     bridgeMounted = false;
   };
 }
@@ -485,7 +482,7 @@ function mountLegacyBridge(): () => void {
 // ─── React hook ───────────────────────────────────────────────────────────────
 
 /**
- * Mount the legacy DesignCombo → engine bridge.
+ * Mount the local events → engine bridge.
  *
  * Call this hook once inside the editor shell component (inside EngineProvider).
  * It sets up the subscription in useEffect and tears it down on unmount.
@@ -506,7 +503,7 @@ export function useLegacyBridge(): void {
 // ─── Direct API (for use outside React, e.g. event handlers) ─────────────────
 
 /**
- * Manually push a DesignCombo-shaped payload into the engine.
+ * Manually push a payload into the engine.
  * Use this in non-React code paths (e.g. page-level data loading)
  * when the bridge hook isn't available.
  *

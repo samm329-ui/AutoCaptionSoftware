@@ -1,6 +1,6 @@
 /**
  * engine-sync.ts
- * Synchronizes editor-engine state with @designcombo Zustand store.
+ * Synchronizes editor-engine state with Zustand store.
  * This enables gradual migration while maintaining backward compatibility.
  */
 
@@ -25,7 +25,7 @@ export function isEngineBridgeEnabled() {
 }
 
 /**
- * Sync @designcombo state to engine.
+ * Sync Zustand state to engine.
  */
 export function syncToEngine(design: Record<string, unknown>) {
   if (!syncEnabled) return;
@@ -62,7 +62,7 @@ export function syncToEngine(design: Record<string, unknown>) {
 }
 
 /**
- * Sync engine state back to @designcombo Zustand.
+ * Sync engine state back to Zustand.
  */
 export function syncFromEngine() {
   if (!syncEnabled) return;
@@ -211,7 +211,7 @@ export function setEngineSelection(clipIds: string[]) {
  */
 export function setEnginePlayhead(timeMs: number) {
   dispatchToEngine({
-    type: "SET_PLAYHEAD",
+    type: "SET_PLAY_HEAD",
     payload: { timeMs },
   });
 }

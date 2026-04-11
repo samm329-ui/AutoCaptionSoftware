@@ -11,9 +11,9 @@
  * Wire them up by dispatching EDIT_OBJECT with the returned mutations.
  */
 
-import { dispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
-import { ITrack, ITrackItem } from "@designcombo/types";
+import { dispatch } from "../utils/events";
+import { EDIT_OBJECT } from "../constants/events";
+import type { ITrack, ITrackItem } from "../types";
 
 export interface ClipBounds {
   id: string;
@@ -210,7 +210,7 @@ export function rollingEdit(
   };
 }
 
-// ─── Slip Edit ────────────────────────────────────────────────────────────────
+// ─── Slip Edit ────────────────────────────────────────────────────────���─��─────
 
 /**
  * Slip Tool: Move what part of the source media shows in the clip window.

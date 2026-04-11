@@ -12,8 +12,8 @@
  */
 
 import { create } from "zustand";
-import { dispatch as editorDispatch } from "@designcombo/events";
-import { EDIT_OBJECT } from "@designcombo/state";
+import { dispatch as editorDispatch } from "../utils/events";
+import { EDIT_OBJECT } from "../constants/events";
 
 // ─── Command Interface ────────────────────────────────────────────────────────
 
