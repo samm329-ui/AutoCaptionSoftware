@@ -1,11 +1,17 @@
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ADD_AUDIO, ADD_IMAGE, ADD_TEXT } from "@designcombo/state";
-import { dispatch } from "@designcombo/events";
 import { useIsDraggingOverTimeline } from "../hooks/is-dragging-over-timeline";
 import Draggable from "@/components/shared/draggable";
 import { TEXT_ADD_PAYLOAD } from "../constants/payload";
 import { cn } from "@/lib/utils";
 import { nanoid } from "nanoid";
+
+const ADD_AUDIO = "ADD_AUDIO";
+const ADD_IMAGE = "ADD_IMAGE";
+const ADD_TEXT = "ADD_TEXT";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
 
 export const Texts = () => {
   const isDraggingOverTimeline = useIsDraggingOverTimeline();

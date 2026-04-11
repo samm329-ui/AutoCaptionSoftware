@@ -9,17 +9,24 @@ import {
 import { useEffect, useState } from "react";
 import { generateCaptions } from "../utils/captions";
 import { loadFonts } from "../utils/fonts";
-import { dispatch } from "@designcombo/events";
-import { ADD_CAPTIONS, ADD_ITEMS } from "@designcombo/state";
-import { ITrackItem, ITrackItemsMap } from "@designcombo/types";
+import { ITrackItem, ITrackItemsMap } from "../types";
 import { millisecondsToHHMMSS } from "../utils/format";
 import useStore from "../store/use-store";
 import { groupBy } from "lodash";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PLAYER_SEEK } from "../constants/events";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import { generateId } from "@designcombo/timeline";
 import { Loader2 } from "lucide-react";
+
+const ADD_ITEMS = "ADD_ITEMS";
+const PLAYER_SEEK = "player:seek";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 export const Captions = () => {
   const { trackItemsMap } = useStore();

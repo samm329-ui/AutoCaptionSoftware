@@ -5,11 +5,25 @@ import { Search, Loader2, Music2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { debounce } from "lodash";
 import { Button } from "@/components/ui/button";
-import { generateId } from "@designcombo/timeline";
-import { dispatch } from "@designcombo/events";
-import { ADD_AUDIO } from "@designcombo/state";
-import { IAudio } from "@designcombo/types";
 import { Input } from "@/components/ui/input";
+
+const ADD_AUDIO = "ADD_AUDIO";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+interface IAudio {
+  id?: string;
+  type?: string;
+  name?: string;
+  details?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
 
 export function SFX() {
   const [playingId, setPlayingId] = useState<string | null>(null);

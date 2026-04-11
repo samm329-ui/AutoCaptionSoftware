@@ -14,9 +14,16 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { dispatch } from "@designcombo/events";
-import { ADD_TEXT } from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
+
+const ADD_TEXT = "ADD_TEXT";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 interface ToolButtonProps {
   icon: React.ReactNode;

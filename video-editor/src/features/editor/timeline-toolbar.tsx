@@ -15,16 +15,21 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { dispatch } from "@designcombo/events";
-import { 
-  ACTIVE_SPLIT, 
-  LAYER_DELETE, 
-  TIMELINE_SCALE_CHANGED,
-  ADD_TEXT,
-} from "@designcombo/state";
 import { getCurrentTime } from "./utils/time";
 import useStore from "./store/use-store";
-import { generateId } from "@designcombo/timeline";
+
+const ACTIVE_SPLIT = "ACTIVE_SPLIT";
+const LAYER_DELETE = "LAYER_DELETE";
+const TIMELINE_SCALE_CHANGED = "TIMELINE_SCALE_CHANGED";
+const ADD_TEXT = "ADD_TEXT";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 export type ToolType =
   | "select"

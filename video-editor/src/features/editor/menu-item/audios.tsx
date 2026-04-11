@@ -1,15 +1,30 @@
 import Draggable from "@/components/shared/draggable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { dispatch } from "@designcombo/events";
-import { ADD_AUDIO, ADD_ITEMS } from "@designcombo/state";
-import { IAudio } from "@designcombo/types";
-import { Loader2, Music, Music2, Search } from "lucide-react";
+import { Loader2, Music2, Search } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
-import { generateId } from "@designcombo/timeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { debounce } from "lodash";
 import { AudioItem } from "./audio-item";
+
+const ADD_AUDIO = "ADD_AUDIO";
+const ADD_ITEMS = "ADD_ITEMS";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+interface IAudio {
+  id?: string;
+  type?: string;
+  name?: string;
+  details?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
 
 export const Audios = () => {
   const [searchQuery, setSearchQuery] = useState("");

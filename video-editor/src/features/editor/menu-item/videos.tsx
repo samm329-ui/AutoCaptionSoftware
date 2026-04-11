@@ -1,9 +1,5 @@
 import Draggable from "@/components/shared/draggable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { dispatch } from "@designcombo/events";
-import { ADD_VIDEO } from "@designcombo/state";
-import { generateId } from "@designcombo/timeline";
-import { IVideo } from "@designcombo/types";
 import React, { useState, useEffect } from "react";
 import { useIsDraggingOverTimeline } from "../hooks/is-dragging-over-timeline";
 import { Input } from "@/components/ui/input";
@@ -11,6 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Search, Loader2, PlusIcon } from "lucide-react";
 import { usePexelsVideos } from "@/hooks/use-pexels-videos";
 import { ImageLoading } from "@/components/ui/image-loading";
+
+const ADD_VIDEO = "ADD_VIDEO";
+
+const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
+  console.log("dispatch", key, payload);
+};
+
+const generateId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+interface IVideo {
+  id?: string;
+  type?: string;
+  name?: string;
+  preview?: string;
+  details?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
 
 export const Videos = () => {
   const isDraggingOverTimeline = useIsDraggingOverTimeline();
