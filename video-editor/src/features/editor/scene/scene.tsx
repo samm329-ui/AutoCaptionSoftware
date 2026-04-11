@@ -73,7 +73,6 @@ const Scene = forwardRef<
         <Board size={size}>
           <Player />
           <SceneInteractions
-            stateManager={stateManager}
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
             zoom={zoom}
             size={size}
