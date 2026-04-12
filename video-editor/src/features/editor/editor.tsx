@@ -28,10 +28,8 @@ import {
 } from "./engine/engine-core";
 import { setPlayhead, setScroll, setSelection, setZoom } from "./engine/commands";
 import { LegacyStateAdapter, legacyStateAdapter } from "./engine/legacy-state-adapter";
-import { useLegacyBridge } from "./engine/legacy-bridge";
 
 // Store + hooks
-import useStore from "./store/use-store";
 import useDataState from "./store/use-data-state";
 import useLayoutStore from "./store/use-layout-store";
 import useTimelineEvents from "./hooks/use-timeline-events";
@@ -88,7 +86,18 @@ function loadProjectFromStorage(): Project | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Project>;
     if (parsed && typeof parsed === "object" && parsed.clips && parsed.tracks && parsed.sequences) {
-      return parsed as Project;
+      // Ensure required fields exist
+      return {
+        ...parsed,
+        ui: parsed.ui || {
+          selection: [],
+          playheadTime: 0,
+          zoom: 1 / 300,
+          scrollX: 0,
+          scrollY: 0,
+          timelineVisible: true,
+        },
+      } as Project;
     }
     return null;
   } catch {
@@ -213,11 +222,9 @@ const RightSidebar = () => (
 
 const SceneContainer = ({
   sceneRef,
-  playerRef,
   stateManager,
 }: {
   sceneRef: RefObject<SceneRef>;
-  playerRef: any;
   stateManager: LegacyStateAdapter;
 }) => (
   <div className="flex flex-col bg-background h-full">
@@ -237,7 +244,7 @@ const SceneContainer = ({
             <div className="w-full h-full flex flex-col">
               <MediaToolbar />
               <div className="flex-1 min-h-0">
-                {playerRef && <Timeline />}
+                <Timeline />
               </div>
             </div>
           </ResizablePanelWrapper>
@@ -251,7 +258,6 @@ const SceneContainer = ({
 // Editor shell
 
 function EditorShell() {
-  const { playerRef, setTracks, setState } = useStore();
   const { setFonts, setCompactFonts } = useDataState();
   const { setTrackItem } = useLayoutStore();
   const sceneRef = useRef<SceneRef>(null);
@@ -260,18 +266,13 @@ function EditorShell() {
 
   const stateManager = useMemo(() => legacyStateAdapter, []);
 
-  // Legacy state adapter is still needed for panels - but timeline now uses engine directly
-
   // Engine-only hooks
   useTimelineEvents();
   useKeyframePlayback();
   useMarkerShortcuts();
   useAutoSequenceDetector();
 
-  // Mount the legacy bridge (CRITICAL - this translates @designcombo events to engine)
-  useLegacyBridge();
-
-  // Project initialization
+  // Project initialization from engine only
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
@@ -289,7 +290,7 @@ function EditorShell() {
     return unsub;
   }, []);
 
-  // Sync active clip to layout store (properties panel)
+  // Sync active clip to layout store (properties panel needs it)
   useEffect(() => {
     const unsub = engineStore.subscribe((state) => {
       const id = state.ui.selection[0];
@@ -302,29 +303,6 @@ function EditorShell() {
     });
     return unsub;
   }, [setTrackItem]);
-
-  // Initialize state once on mount
-  useEffect(() => {
-    const state = engineStore.getState();
-    const tracks = Object.values(state.tracks);
-    setTracks(tracks);
-    
-    const seq = state.sequences[state.rootSequenceId];
-    setState({
-      size: seq?.canvas ?? { width: 1080, height: 1920 },
-      fps: seq?.fps ?? 30,
-      duration: seq?.duration ?? 1000,
-      trackItemsMap: {},
-      activeIds: state.ui.selection,
-    });
-    
-    // Sync selection only (not tracks to avoid loop)
-    const unsubSel = engineStore.subscribe((state) => {
-      setState({ activeIds: state.ui.selection });
-    });
-    
-    return unsubSel;
-  }, []);
 
   // Load fonts
   useEffect(() => {
@@ -356,7 +334,7 @@ function EditorShell() {
               </ResizablePanel>
               <ResizableHandle className="bg-border/60" />
               <ResizablePanel defaultSize={61} minSize={40}>
-                <SceneContainer sceneRef={sceneRef} playerRef={playerRef} stateManager={stateManager} />
+                <SceneContainer sceneRef={sceneRef} stateManager={stateManager} />
               </ResizablePanel>
               <ResizableHandle className="bg-border/60" />
               <ResizablePanel defaultSize={24} minSize={18} maxSize={36}>
@@ -376,7 +354,7 @@ function EditorShell() {
       <div className="flex h-screen flex-col overflow-hidden bg-background">
         <Navbar {...navbarProps} />
         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-          <SceneContainer sceneRef={sceneRef} playerRef={playerRef} stateManager={stateManager} />
+          <SceneContainer sceneRef={sceneRef} stateManager={stateManager} />
         </div>
         <div className="border-t border-border/60 overflow-y-auto max-h-64 bg-card">
           <ControlItemHorizontal />

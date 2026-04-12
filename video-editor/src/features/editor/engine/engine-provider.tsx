@@ -2,10 +2,11 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
-  useSyncExternalStore,
   useRef,
+  useState,
+  useEffect,
+  useCallback,
 } from "react";
 import type { ReactNode } from "react";
 
@@ -15,6 +16,7 @@ import {
   selectCanvasSize,
   selectClipCount,
   selectDuration,
+  selectFps,
   selectHasSelection,
   selectPlayheadTime,
   selectScroll,
@@ -23,7 +25,7 @@ import {
   selectZoom,
 } from "./selectors";
 
-const EngineContext = createContext(engineStore);
+const EngineContext = createContext<typeof engineStore | null>(null);
 
 export function EngineProvider({ children }: { children: ReactNode }) {
   return <EngineContext.Provider value={engineStore}>{children}</EngineContext.Provider>;
@@ -37,31 +39,46 @@ export function useEngineStore() {
   return useContext(EngineContext);
 }
 
-// Stable subscribe function created once
-const stableSubscribe = (store: typeof engineStore) => {
-  return (onChange: () => void) => store.subscribe(() => onChange());
-};
+export function useEngineSelector<T>(selector: (state: Project) => T): T {
+  const store = useContext(EngineContext);
+  const [value, setValue] = useState<T>(() => {
+    // Initial value
+    if (!store) return selector({} as Project);
+    try {
+      return selector(store.getState());
+    } catch {
+      return selector({} as Project);
+    }
+  });
 
-export function useEngineSelector<T>(
-  selector: (state: Project) => T,
-  _isEqual?: (a: T, b: T) => boolean
-): T {
-  const store = useEngine();
-  
-  // Cache the selector in a ref to maintain identity across renders
+  // Cache selector in ref
   const selectorRef = useRef(selector);
   selectorRef.current = selector;
 
-  // Use useSyncExternalStore with stable functions
-  return useSyncExternalStore(
-    stableSubscribe(store),
-    useCallback(() => selectorRef.current(store.getState()), [store]),
-    useCallback(() => selectorRef.current(store.getState()), [store])
-  );
+  // Subscribe to store changes
+  useEffect(() => {
+    if (!store) return;
+
+    const unsubscribe = store.subscribe(() => {
+      try {
+        const newValue = selectorRef.current(store.getState());
+        setValue(newValue);
+      } catch (e) {
+        // Ignore errors during state updates
+      }
+    });
+
+    return unsubscribe;
+  }, [store]);
+
+  return value;
 }
 
 export function useEngineDispatch() {
-  const store = useEngine();
+  const store = useContext(EngineContext);
+  if (!store) {
+    return (_command: EditorCommand) => {};
+  }
   return useCallback((command: EditorCommand, opts?: { skipHistory?: boolean }) => {
     store.dispatch(command, opts);
   }, [store]);
@@ -91,17 +108,21 @@ export function useEngineDuration() {
   return useEngineSelector(selectDuration);
 }
 
+export function useEngineFps() {
+  return useEngineSelector(selectFps);
+}
+
 export function useEngineCanvasSize() {
   return useEngineSelector(selectCanvasSize);
 }
 
 export function useEngineHistory() {
-  const store = useEngine();
+  const store = useContext(EngineContext);
   return useEngineSelector(() => ({
-    canUndo: store.canUndo,
-    canRedo: store.canRedo,
-    clipCount: selectClipCount(store.getState()),
-    hasSelection: selectHasSelection(store.getState()),
-    selectedClips: selectSelectedClips(store.getState()),
+    canUndo: store?.canUndo ?? false,
+    canRedo: store?.canRedo ?? false,
+    clipCount: selectClipCount(store?.getState() ?? {} as Project),
+    hasSelection: selectHasSelection(store?.getState() ?? {} as Project),
+    selectedClips: selectSelectedClips(store?.getState() ?? {} as Project),
   }));
 }

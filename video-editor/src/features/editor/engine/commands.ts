@@ -259,3 +259,9 @@ export function undo(): EditorCommand {
 export function redo(): EditorCommand {
   return { type: "REDO" };
 }
+
+// ─── Split clip ──────────────────────────────────────────────────────────────
+
+export function splitClip(clipId: string, splitTimeMs: number): EditorCommand {
+  return { type: "UPDATE_CLIP", payload: { clipId } };
+}

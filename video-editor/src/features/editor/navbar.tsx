@@ -181,9 +181,11 @@ const DownloadPopover = ({ stateManager }: { stateManager: LegacyStateAdapter })
   const [open, setOpen] = useState(false);
 
   const handleExport = () => {
+    // Serialize from the engine — single source of truth
+    const engineProject = engineStore.getState();
     const data = {
-      id: nanoid(),
-      ...stateManager.toJSON()
+      id: engineProject.id || nanoid(),
+      ...engineProject,
     };
 
     console.log({ data });
