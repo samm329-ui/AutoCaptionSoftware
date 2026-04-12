@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import useStore from "./store/use-store";
 import useLayoutStore from "./store/use-layout-store";
 import { Button } from "@/components/ui/button";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -11,9 +10,10 @@ import BasicVideo from "./control-item/basic-video";
 import BasicAudio from "./control-item/basic-audio";
 import { motion, PanInfo, useAnimation } from "framer-motion";
 import ColorPicker from "@/components/color-picker";
-import { dispatch } from "./utils/events";
-import { EDIT_OBJECT } from "./store/use-store";
 import { Label } from "@/components/ui/label";
+import { useEngineSelector, useEngineDispatch } from "./engine/engine-provider";
+import { selectActiveClip } from "./engine/selectors";
+import { updateDetails } from "./engine/commands";
 
 const ActiveControlItem = ({
   trackItem,
@@ -45,6 +45,7 @@ const ColorPickerControl = ({
   const [localValue, setLocalValue] = useState<string>("#ffffff");
   const [open, setOpen] = useState(false);
   const isLargeScreen = useIsLargeScreen();
+  const engineDispatch = useEngineDispatch();
 
   useEffect(() => {
     // Get the current color from track item details based on type
@@ -73,18 +74,12 @@ const ColorPickerControl = ({
       updatePayload.background = color;
     }
 
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: updatePayload
-        }
-      }
-    });
+    engineDispatch(updateDetails(trackItem?.id || "", updatePayload));
   };
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      ß<Label className="font-sans text-xs font-semibold">Color</Label>
+      <Label className="font-sans text-xs font-semibold">Color</Label>
       <div className="flex items-center pb-4 justify-center">
         <ColorPicker
           value={localValue}
@@ -105,6 +100,7 @@ const StrokeColorPickerControl = ({
   trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#000000");
+  const engineDispatch = useEngineDispatch();
   const [open, setOpen] = useState(false);
   const isLargeScreen = useIsLargeScreen();
   const { setControItemDrawerOpen } = useLayoutStore();
@@ -119,15 +115,9 @@ const StrokeColorPickerControl = ({
     setLocalValue(color);
 
     // Update the border color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
+    engineDispatch(updateDetails(trackItem?.id || "", {
             borderColor: color
-          }
-        }
-      }
-    });
+          }));
   };
 
   const handleClose = () => {
@@ -158,6 +148,7 @@ const ShadowColorPickerControl = ({
   trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#000000");
+  const engineDispatch = useEngineDispatch();
   const isLargeScreen = useIsLargeScreen();
   const { setControItemDrawerOpen } = useLayoutStore();
 
@@ -171,19 +162,13 @@ const ShadowColorPickerControl = ({
   const handleColorChange = (color: string) => {
     setLocalValue(color);
 
-    // Update the shadow color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
-            boxShadow: {
-              ...trackItem?.details?.boxShadow,
-              color: color
-            }
-          }
-        }
+    // Update the shadow color via engine command
+    engineDispatch(updateDetails(trackItem?.id || "", {
+      boxShadow: {
+        ...trackItem?.details?.boxShadow,
+        color: color
       }
-    });
+    }));
   };
 
   const handleClose = () => {
@@ -214,6 +199,7 @@ const BackgroundColorPickerControl = ({
   trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
+  const engineDispatch = useEngineDispatch();
   const isLargeScreen = useIsLargeScreen();
   const { setControItemDrawerOpen } = useLayoutStore();
 
@@ -227,15 +213,9 @@ const BackgroundColorPickerControl = ({
     setLocalValue(color);
 
     // Update the background color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
+    engineDispatch(updateDetails(trackItem?.id || "", {
             background: color
-          }
-        }
-      }
-    });
+          }));
   };
 
   const handleClose = () => {
@@ -268,6 +248,7 @@ const CaptionAppearedColorPickerControl = ({
   trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
+  const engineDispatch = useEngineDispatch();
   const isLargeScreen = useIsLargeScreen();
   const { setControItemDrawerOpen } = useLayoutStore();
 
@@ -281,15 +262,9 @@ const CaptionAppearedColorPickerControl = ({
     setLocalValue(color);
 
     // Update the appeared color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
+    engineDispatch(updateDetails(trackItem?.id || "", {
             appearedColor: color
-          }
-        }
-      }
-    });
+          }));
   };
 
   const handleClose = () => {
@@ -320,6 +295,7 @@ const CaptionActiveColorPickerControl = ({
   trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
+  const engineDispatch = useEngineDispatch();
   const isLargeScreen = useIsLargeScreen();
   const { setControItemDrawerOpen } = useLayoutStore();
 
@@ -333,15 +309,9 @@ const CaptionActiveColorPickerControl = ({
     setLocalValue(color);
 
     // Update the active color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
+    engineDispatch(updateDetails(trackItem?.id || "", {
             activeColor: color
-          }
-        }
-      }
-    });
+          }));
   };
 
   const handleClose = () => {
@@ -372,6 +342,7 @@ const CaptionActiveFillColorPickerControl = ({
   trackItem?: any;
 }) => {
   const [localValue, setLocalValue] = useState<string>("#ffffff");
+  const engineDispatch = useEngineDispatch();
   const isLargeScreen = useIsLargeScreen();
   const { setControItemDrawerOpen } = useLayoutStore();
 
@@ -386,15 +357,9 @@ const CaptionActiveFillColorPickerControl = ({
     setLocalValue(color);
 
     // Update the active fill color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
+    engineDispatch(updateDetails(trackItem?.id || "", {
             activeFillColor: color
-          }
-        }
-      }
-    });
+          }));
   };
 
   const handleClose = () => {
@@ -439,15 +404,9 @@ const CaptionEmphasizeColorPickerControl = ({
     setLocalValue(color);
 
     // Update the active fill color using the dispatch system
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem?.id || ""]: {
-          details: {
+    engineDispatch(updateDetails(trackItem?.id || "", {
             isKeywordColor: color
-          }
-        }
-      }
-    });
+          }));
   };
 
   return (
@@ -539,8 +498,9 @@ const ControlItem = ({
 };
 
 export default function ControlItemHorizontal() {
-  const { activeIds, trackItemsMap, transitionsMap } = useStore();
-  const [trackItem, setTrackItem] = useState<ITrackItem | null>(null);
+  // Engine is the single source of truth — no useStore for project data
+  const activeClip = useEngineSelector(selectActiveClip);
+  const engineDispatch = useEngineDispatch();
   const { setTrackItem: setLayoutTrackItem } = useLayoutStore();
   const isLargeScreen = useIsLargeScreen();
   const {
@@ -554,19 +514,17 @@ export default function ControlItemHorizontal() {
   // Framer Motion controls
   const controls = useAnimation();
 
+  // Keep layout store in sync with engine active clip (for panels that still read it)
   useEffect(() => {
-    if (activeIds.length === 1) {
-      const [id] = activeIds;
-      const trackItem = trackItemsMap[id];
-      if (trackItem) {
-        setTrackItem(trackItem);
-        setLayoutTrackItem(trackItem);
-      } else console.log(transitionsMap[id]);
+    if (activeClip) {
+      setLayoutTrackItem(activeClip as any);
     } else {
-      setTrackItem(null);
       setLayoutTrackItem(null);
     }
-  }, [activeIds, trackItemsMap]);
+  }, [activeClip, setLayoutTrackItem]);
+
+  // Use engine clip directly as trackItem
+  const trackItem = activeClip as any;
   const handleMenuItemClick = (menuItem: string, label: string) => {
     if (!isLargeScreen) {
       setControItemDrawerOpen(true);
@@ -640,7 +598,7 @@ export default function ControlItemHorizontal() {
         <div className="flex items-center overflow-x-auto px-4">
           {trackItem && (
             <ActiveControlItem
-              trackItem={trackItem as ITrackItem & any}
+              trackItem={trackItem as any}
               handleMenuItemClick={handleMenuItemClick}
             />
           )}
@@ -671,7 +629,7 @@ export default function ControlItemHorizontal() {
               </motion.div>
               <div className="flex-1 overflow-auto">
                 <ControlItem
-                  trackItem={trackItem as ITrackItem & any}
+                  trackItem={trackItem as any}
                   feature={typeControlItem}
                 />
               </div>
