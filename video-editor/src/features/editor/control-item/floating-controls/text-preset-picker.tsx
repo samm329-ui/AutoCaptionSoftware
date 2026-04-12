@@ -6,6 +6,9 @@ import useLayoutStore from "../../store/use-layout-store";
 import { useRef } from "react";
 import useClickOutside from "../../hooks/useClickOutside";
 import Draggable from "react-draggable";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 
 interface IBoxShadow {
   color: string;
@@ -150,13 +153,7 @@ export const applyPreset = (preset: any, trackItem: any) => {
     preset.boxShadow = { color: "transparent", x: 0, y: 0, blur: 0 };
   }
 
-  dispatch(EDIT_OBJECT, {
-    payload: {
-      [trackItem.id]: {
-        details: { ...preset, ...overrides }
-      }
-    }
-  });
+  engineStore.dispatch(updateDetails(trackItem.id, { ...preset, ...overrides }));
 };
 export default function TextPresetPicker({
   trackItem

@@ -6,6 +6,8 @@ import { CircleOff, XIcon } from "lucide-react";
 import useLayoutStore from "../../store/use-layout-store";
 import { useEffect, useRef, useState } from "react";
 import useClickOutside from "../../hooks/useClickOutside";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
 import useStore from "../../store/use-store";
 import { groupBy } from "lodash";
 import { loadFonts } from "../../utils/fonts";
@@ -4387,7 +4389,8 @@ export default function CaptionPresetPicker({
 }: {
   trackItem: ITrackItem & any;
 }) {
-  const { trackItemsMap } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
   const [captionItemIds, setCaptionItemIds] = useState<string[]>([]);
   const [captionsData, setCaptionsData] = useState<any[]>([]);
   const { setFloatingControl } = useLayoutStore();

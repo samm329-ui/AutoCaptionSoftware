@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import useLayoutStore from "../../store/use-layout-store";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 import { Switch } from "@/components/ui/switch";
 
 interface ICaptionColors {
@@ -51,66 +54,36 @@ const CaptionColors = ({
 
   const onChangeAppearedColor = (v: string) => {
     setLocalAppearedColor(v);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
+    engineStore.dispatch(updateDetails(id, {
             appearedColor: v
-          }
-        }
-      }
-    });
+          }));
   };
 
   const onChangeActiveColor = (v: string) => {
     setLocalActiveColor(v);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
+    engineStore.dispatch(updateDetails(id, {
             activeColor: v
-          }
-        }
-      }
-    });
+          }));
   };
 
   const onChangeActiveFillColor = (v: string) => {
     setLocalActiveFillColor(v);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
+    engineStore.dispatch(updateDetails(id, {
             activeFillColor: v
-          }
-        }
-      }
-    });
+          }));
   };
   const onChangeEmphasizeColor = (v: string) => {
     setLocalEmphasizeColor(v);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
+    engineStore.dispatch(updateDetails(id, {
             isKeywordColor: v
-          }
-        }
-      }
-    });
+          }));
   };
 
   const onChangePreservedColor = (v: boolean) => {
     setLocalPreservedColor(v);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
+    engineStore.dispatch(updateDetails(id, {
             preservedColorKeyWord: v
-          }
-        }
-      }
-    });
+          }));
   };
 
   useEffect(() => {

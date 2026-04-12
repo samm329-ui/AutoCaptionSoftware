@@ -3,6 +3,9 @@ import { Label } from "@/components/ui/label";
 import { dispatch } from "../../utils/events";
 import { EDIT_OBJECT } from "../../store/use-store";
 import { useState } from "react";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 
 export default function Flip({
   trackItem
@@ -16,26 +19,14 @@ export default function Flip({
 
   const handleFlip = (value: string) => {
     if (value === "x") {
-      dispatch(EDIT_OBJECT, {
-        payload: {
-          [trackItem.id]: {
-            details: {
+      engineStore.dispatch(updateDetails(trackItem.id, {
               flipX: !flip.flipX
-            }
-          }
-        }
-      });
+            }));
       setFlip({ ...flip, flipX: !flip.flipX });
     } else if (value === "y") {
-      dispatch(EDIT_OBJECT, {
-        payload: {
-          [trackItem.id]: {
-            details: {
+      engineStore.dispatch(updateDetails(trackItem.id, {
               flipY: !flip.flipY
-            }
-          }
-        }
-      });
+            }));
       setFlip({ ...flip, flipY: !flip.flipY });
     }
   };

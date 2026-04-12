@@ -8,6 +8,8 @@ import {
   applyPreset,
   groupCaptionItems
 } from "../floating-controls/caption-preset-picker";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
 import useStore from "../../store/use-store";
 import { PresetPicker } from "./preset-picker";
 
@@ -33,7 +35,8 @@ const PresetCaptionContent = ({
   const { setFloatingControl } = useLayoutStore();
   const [captionItemIds, setCaptionItemIds] = useState<string[]>([]);
   const [captionsData, setCaptionsData] = useState<any[]>([]);
-  const { trackItemsMap } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
   const isLargeScreen = useIsLargeScreen();
 
   useEffect(() => {

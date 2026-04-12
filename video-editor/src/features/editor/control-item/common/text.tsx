@@ -11,6 +11,9 @@ import { EDIT_OBJECT } from "../../store/use-store";
 import { ChevronDown, Search, Strikethrough, Underline, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import Opacity from "./opacity";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ColorPicker from "@/components/color-picker";
@@ -611,15 +614,9 @@ const FontCase = ({ id }: { id: string }) => {
   const [value, setValue] = useState("none");
   const onChangeFontCase = (value: string) => {
     setValue(value);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [id]: {
-          details: {
+    engineStore.dispatch(updateDetails(id, {
             textTransform: value
-          }
-        }
-      }
-    });
+          }));
   };
   return (
     <div className="flex gap-2">

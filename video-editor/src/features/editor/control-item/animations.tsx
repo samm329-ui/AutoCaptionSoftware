@@ -1,12 +1,15 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dispatch } from "../utils/events";
+import { useEngineSelector } from "../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../engine/selectors";
 import useStore, { ADD_ANIMATION } from "../store/use-store";
 import { presets } from "../player/animated";
 import { PresetName } from "../player/animated/presets";
 import React from "react";
 
 const Animations = () => {
-  const { activeIds } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const activeIds = activeClip ? [activeClip.id] : [];
 
   const applyAnimation = (presetName: PresetName, type: "in" | "out") => {
     if (!activeIds.length) {

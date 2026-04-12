@@ -1,13 +1,7 @@
 import { PlayerRef } from "@remotion/player";
-import { RefObject, useEffect } from "react";
-import useStore from "../store/use-store";
+import { RefObject, useEffect, useRef } from "react";
+import { useEngineSelector } from "../engine/engine-provider";
 import { getTargetById, getTypeFromClassName } from "../utils/target";
-
-const ENTER_EDIT_MODE = "ENTER_EDIT_MODE";
-
-const dispatch = (key: string, payload: { payload?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
 
 export default function useUpdateAnsestors({
   playing,
@@ -16,13 +10,23 @@ export default function useUpdateAnsestors({
   playing: boolean;
   playerRef: RefObject<PlayerRef> | null;
 }) {
-  const { trackItemIds, activeIds } = useStore();
+  // Use stable selection array
+  const selectionRef = useRef<string[]>([]);
+  const engineSelection = useEngineSelector((state) => {
+    const sel = state.ui.selection;
+    selectionRef.current = sel ?? [];
+    return sel ?? [];
+  });
+  
+  // Ensure we have an array
+  const safeSelection = engineSelection ?? [];
+  const selectionLength = safeSelection.length;
 
   useEffect(() => {
     if (!playing) {
       updateAnsestorsPointerEvents();
     }
-  }, [playing, trackItemIds, activeIds]);
+  }, [playing, selectionLength]);
 
   useEffect(() => {
     if (playerRef && playerRef.current) {
@@ -42,24 +46,17 @@ export default function useUpdateAnsestors({
   }, [playerRef]);
 
   useEffect(() => {
-    if (activeIds.length !== 1) {
-      dispatch(ENTER_EDIT_MODE, {
-        payload: {
-          id: null
-        }
-      });
+    if (selectionLength !== 1) {
       return;
     }
-    const element = getTargetById(activeIds[0]);
+    const clipId = safeSelection[0];
+    if (!clipId) return;
+    
+    const element = getTargetById(clipId);
     if (!element) return;
     const handleDoubleClick = (e: MouseEvent) => {
       const type = getTypeFromClassName(element.className);
       if (type === "text") {
-        dispatch(ENTER_EDIT_MODE, {
-          payload: {
-            id: activeIds[0]
-          }
-        });
         e.stopPropagation();
       }
     };
@@ -67,7 +64,7 @@ export default function useUpdateAnsestors({
     return () => {
       element.removeEventListener("dblclick", handleDoubleClick);
     };
-  }, [activeIds]);
+  }, [safeSelection, selectionLength]);
 
   const updateAnsestorsPointerEvents = () => {
     const elements = document.querySelectorAll(
@@ -76,15 +73,11 @@ export default function useUpdateAnsestors({
 
     elements.forEach((element) => {
       let currentElement = element;
-      // Traverse up the DOM tree and collect the ancestors
       while (currentElement.parentElement?.className !== "__remotion-player") {
         const parentElement = currentElement.parentElement;
         if (parentElement) {
           currentElement = parentElement;
           parentElement.style.pointerEvents = "none";
-          // if (parentElement.parentElement?.className !== "__remotion-player") {
-          //   console.log("parentElement", parentElement);
-          // }
         }
       }
     });

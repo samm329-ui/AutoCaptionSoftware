@@ -4,6 +4,8 @@ import { Label } from "@/components/ui/label";
 import useLayoutStore from "../../store/use-layout-store";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
 import useStore from "../../store/use-store";
 import { createPresetButtons } from "../floating-controls/animation-picker";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,7 +29,9 @@ export const Animations = ({ properties, trackItem }: PresetTextProps) => {
 const SelectaAnimation = ({ trackItem }: { trackItem: ITrackItem }) => {
   const { setFloatingControl } = useLayoutStore();
   const isLargeScreen = useIsLargeScreen();
-  const { activeIds, trackItemsMap } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const activeIds = activeClip ? [activeClip.id] : [];
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
 
   const presetInButtons = createPresetButtons(
     (key) => key.includes("In"),

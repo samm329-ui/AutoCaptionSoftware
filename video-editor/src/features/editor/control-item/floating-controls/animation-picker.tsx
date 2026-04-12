@@ -2,6 +2,8 @@ import { X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dispatch } from "../../utils/events";
 import { ADD_ANIMATION } from "../../store/use-store";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
 import useStore from "../../store/use-store";
 import { Animation, presets } from "../../player/animated";
 import React, { useRef } from "react";
@@ -140,7 +142,9 @@ export default function AnimationPicker({
 }: {
   animationType?: "text" | "media";
 }) {
-  const { activeIds, trackItemsMap } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const activeIds = activeClip ? [activeClip.id] : [];
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
  
   const presetInButtons = createPresetButtons(
     (key) => key.includes("In"),

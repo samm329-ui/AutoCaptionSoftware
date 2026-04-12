@@ -10,6 +10,11 @@ import { ChevronDown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useLayoutStore from "../../store/use-layout-store";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 import useStore from "../../store/use-store";
 import { groupCaptionItems } from "../floating-controls/caption-preset-picker";
 import { dispatch } from "../../utils/events";
@@ -289,7 +294,8 @@ const CaptionWords = ({
   trackItem: any;
 }) => {
   const { setFloatingControl } = useLayoutStore();
-  const { trackItemsMap, size } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
   const [captionsData, setCaptionsData] = useState<any[]>([]);
   const [captionItemIds, setCaptionItemIds] = useState<string[]>([]);
   const [topPosition, setTopPosition] = useState<string>(() => {
@@ -397,7 +403,11 @@ const CaptionWords = ({
         {}
       );
 
-      dispatch(EDIT_OBJECT, { payload: updates });
+      Object.entries(updates).forEach(([clipId, update]) => {
+      if ((update as any)?.details) {
+        engineStore.dispatch(updateDetails(clipId, (update as any).details));
+      }
+    });
     }, 200),
     [captionsData]
   );
@@ -487,8 +497,10 @@ const CaptionWords = ({
         }
       };
     }, {});
-    dispatch(EDIT_OBJECT, {
-      payload
+    Object.entries(payload).forEach(([clipId, update]) => {
+      if ((update as any)?.details) {
+        engineStore.dispatch(updateDetails(clipId, (update as any).details));
+      }
     });
   };
 

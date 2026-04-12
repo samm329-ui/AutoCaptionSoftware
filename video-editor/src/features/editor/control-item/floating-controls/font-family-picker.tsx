@@ -8,6 +8,9 @@ import useClickOutside from "../../hooks/useClickOutside";
 import { ICompactFont, IFont } from "../../interfaces/editor";
 import { loadFonts } from "../../utils/fonts";
 import { dispatch } from "../../utils/events";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 import { EDIT_OBJECT } from "../../store/use-store";
 
 export const onChangeFontFamily = async (
@@ -24,16 +27,10 @@ export const onChangeFontFamily = async (
     }
   ]);
 
-  dispatch(EDIT_OBJECT, {
-    payload: {
-      [trackItem?.id as string]: {
-        details: {
+  engineStore.dispatch(updateDetails(trackItem?.id as string, {
           fontFamily: fontName,
           fontUrl: fontUrl
-        }
-      }
-    }
-  });
+        }));
 };
 export default function FontFamilyPicker() {
   const { compactFonts } = useDataState();

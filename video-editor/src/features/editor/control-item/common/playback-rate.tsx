@@ -2,16 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { dispatch } from "../../utils/events";
 import { EDIT_OBJECT } from "../../store/use-store";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 
 export default function PlaybackRate({ trackItem }: { trackItem: any }) {
   const handleChangePlaybackRate = (value: number) => {
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [trackItem.id]: {
-          playbackRate: value
-        }
-      }
-    });
+    engineStore.dispatch(updateDetails(trackItem.id, { playbackRate: value }));
   };
   return (
     <div className="flex flex-col gap-2 py-4">

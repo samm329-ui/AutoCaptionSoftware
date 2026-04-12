@@ -8,11 +8,17 @@ import useLayoutStore from "../../store/use-layout-store";
 import useClickOutside from "../../hooks/useClickOutside";
 import { PresetName } from "../../player/animated/presets";
 import { groupCaptionItems } from "./caption-preset-picker";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
 import useStore from "../../store/use-store";
 
 const AnimationCaption = () => {
   const { setFloatingControl, trackItem } = useLayoutStore();
-  const { trackItemsMap } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
   const [captionItemIds, setCaptionItemIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -58,7 +64,12 @@ const AnimationCaption = () => {
       };
     }, {});
 
-    dispatch(EDIT_OBJECT, { payload });
+    // Route through engine: payload shape is { [clipId]: { details: {...} } }
+    Object.entries(payload).forEach(([clipId, update]) => {
+      if ((update as any)?.details) {
+        engineStore.dispatch(updateDetails(clipId, (update as any).details));
+      }
+    });
   };
 
   const createPresetButtons = (

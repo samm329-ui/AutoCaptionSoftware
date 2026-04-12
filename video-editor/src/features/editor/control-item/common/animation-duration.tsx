@@ -1,15 +1,22 @@
 import { Slider } from "@/components/ui/slider";
+import { useEngineSelector } from "../../engine/engine-provider";
+import { selectActiveClip, selectCanvasSize } from "../../engine/selectors";
 import useStore from "../../store/use-store";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { dispatch } from "../../utils/events";
 import { EDIT_OBJECT } from "../../store/use-store";
+import { useEngineDispatch } from "../../engine/engine-provider";
+import { updateDetails, updateTransform } from "../../engine/commands";
+import { engineStore } from "../../engine/engine-core";
 
 function formatearNumero(num: number): number {
   return Number.isInteger(num) ? num : parseFloat(num.toFixed(2));
 }
 
 export const AnimationDuration = () => {
-  const { activeIds, trackItemsMap } = useStore();
+  const activeClip = useEngineSelector(selectActiveClip);
+  const activeIds = activeClip ? [activeClip.id] : [];
+  const trackItemsMap: Record<string, any> = activeClip ? { [activeClip.id]: activeClip } : {};
   const item = trackItemsMap[activeIds[0]];
 
   const [itemDuration, setItemDuration] = useState(0);
@@ -37,9 +44,7 @@ export const AnimationDuration = () => {
     (type: "in" | "out" | "loop", duration: number) => {
       if (!item) return;
 
-      dispatch(EDIT_OBJECT, {
-        payload: {
-          [activeIds[0]]: {
+      engineStore.dispatch(updateDetails(activeIds[0], {
             animations: {
               [type]: {
                 name: item.animations?.[type]?.name,
@@ -51,9 +56,7 @@ export const AnimationDuration = () => {
                 ]
               }
             }
-          }
-        }
-      });
+          }));
     },
     [activeIds, item]
   );
