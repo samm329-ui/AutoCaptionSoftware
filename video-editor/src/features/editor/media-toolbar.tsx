@@ -14,16 +14,10 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const ADD_TEXT = "ADD_TEXT";
-
-const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
-
-const generateId = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
+import { engineStore, createTrack, type Clip } from "./engine/engine-core";
+import { addTrack, addClip, selectClip } from "./engine/commands";
+import { selectOrderedTracks } from "./engine/selectors";
+import { nanoid } from "nanoid";
 
 interface ToolButtonProps {
   icon: React.ReactNode;
@@ -85,27 +79,45 @@ function MediaToolbar() {
   }, []);
 
   const handleAddText = () => {
-    dispatch(ADD_TEXT, {
-      payload: {
-        id: generateId(),
-        type: "text",
-        name: "Text",
-        details: { text: "New Text" },
-      },
-      options: {},
-    });
+    const state = engineStore.getState();
+    const ordered = selectOrderedTracks(state);
+    let track = ordered.find(t => t.type === "text");
+    if (!track) {
+      track = createTrack("text", { order: ordered.length });
+      engineStore.dispatch(addTrack(track));
+    }
+    const clipId = nanoid();
+    const clip: Clip = {
+      id: clipId, trackId: track.id, type: "text", name: "Text",
+      display: { from: 0, to: 5000 },
+      trim: { from: 0, to: 5000 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
+      details: { text: "New Text", fontSize: 80, color: "#ffffff", fontFamily: "Inter", textAlign: "center" },
+      appliedEffects: [], effectIds: [], keyframeIds: [],
+    };
+    engineStore.dispatch(addClip(clip, track.id));
+    engineStore.dispatch(selectClip(clipId));
   };
 
   const handleAddCaption = () => {
-    dispatch(ADD_TEXT, {
-      payload: {
-        id: generateId(),
-        type: "caption",
-        name: "Caption",
-        details: { text: "Caption" },
-      },
-      options: {},
-    });
+    const state = engineStore.getState();
+    const ordered = selectOrderedTracks(state);
+    let track = ordered.find(t => t.type === "caption");
+    if (!track) {
+      track = createTrack("caption", { order: ordered.length });
+      engineStore.dispatch(addTrack(track));
+    }
+    const clipId = nanoid();
+    const clip: Clip = {
+      id: clipId, trackId: track.id, type: "caption", name: "Caption",
+      display: { from: 0, to: 5000 },
+      trim: { from: 0, to: 5000 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
+      details: { text: "Caption", fontSize: 60, color: "#ffffff", textAlign: "center" },
+      appliedEffects: [], effectIds: [], keyframeIds: [],
+    };
+    engineStore.dispatch(addClip(clip, track.id));
+    engineStore.dispatch(selectClip(clipId));
   };
 
   const videoUploads = uploads.filter((u) => u.type === "video");

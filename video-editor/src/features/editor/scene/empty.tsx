@@ -1,15 +1,16 @@
-import useStore from "../store/use-store";
 import { useEffect, useRef, useState } from "react";
 import { Droppable } from "@/components/ui/droppable";
 import { Loader2, PlusIcon } from "lucide-react";
 import { DroppableArea } from "./droppable";
+import { useEngineSelector } from "../engine/engine-provider";
+import { selectCanvasSize } from "../engine/selectors";
 
 const SceneEmpty = () => {
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [desiredSize, setDesiredSize] = useState({ width: 0, height: 0 });
-  const { size } = useStore();
+  const size = useEngineSelector(selectCanvasSize);
 
   useEffect(() => {
     const container = containerRef.current!;

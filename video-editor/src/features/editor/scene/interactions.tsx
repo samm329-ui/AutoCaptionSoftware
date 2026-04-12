@@ -13,7 +13,9 @@ import {
   calculateTextHeight,
 } from "../utils/text";
 import { useEngineDispatch, useEngineSelector } from "../engine/engine-provider";
-import { setSelection, updateTransform } from "../engine/commands";
+import { setSelection, updateTransform, updateDetails } from "../engine/commands";
+import { engineStore } from "../engine/engine-core";
+import { selectAllClips, selectFps } from "../engine/selectors";
 
 let holdGroupPosition: Record<string, { left: number; top: number }> | null = null;
 let dragStartEnd = false;
@@ -40,22 +42,29 @@ export function SceneInteractions({
   const [targets, setTargets] = useState<HTMLDivElement[]>([]);
   const [selection, setSelectionState] = useState<Selection>();
   const {
-    activeIds,
-    setState,
-    trackItemsMap,
     playerRef,
     setSceneMoveableRef,
-    trackItemIds,
   } = useStore();
   const moveableRef = useRef<Moveable>(null);
   const [selectionInfo, setSelectionInfo] = useState<SelectionInfo>(emptySelection);
   
   const engineDispatch = useEngineDispatch();
-  const engineSelection = useEngineSelector((p) => p.ui.selection);
+  const engineSelection = useEngineSelector((p) => p.ui?.selection ?? []);
+  const engineClips = useEngineSelector(selectAllClips);
+  const engineFps = useEngineSelector(selectFps);
+
+  // Build clips map for lookups (replaces legacy trackItemsMap)
+  const clipsMap = useMemo(() => {
+    const map: Record<string, (typeof engineClips)[0]> = {};
+    for (const c of engineClips) map[c.id] = c;
+    return map;
+  }, [engineClips]);
+
+  const clipIds = useMemo(() => engineClips.map((c) => c.id), [engineClips]);
 
   const elementGuidelines = useMemo(
     () =>
-      ["artboard", ...trackItemIds.filter((id) => !activeIds.includes(id))].map(
+      ["artboard", ...clipIds.filter((id) => !engineSelection.includes(id))].map(
         (id) =>
           `#${
             typeof window !== "undefined" && window.CSS
@@ -63,16 +72,16 @@ export function SceneInteractions({
               : id
           }`
       ),
-    [trackItemIds, activeIds]
+    [clipIds, engineSelection]
   );
 
   useEffect(() => {
     const updateTargets = (time?: number) => {
       const currentTime = time ?? getCurrentTime();
-      const currentIds = engineSelection.length > 0 ? engineSelection : activeIds;
+      const currentIds = engineSelection;
       const targetIds = currentIds.filter((id: string) => {
-        const item = trackItemsMap[id];
-        return item?.display.from <= currentTime && item?.display.to >= currentTime;
+        const clip = clipsMap[id];
+        return clip?.display.from <= currentTime && clip?.display.to >= currentTime;
       });
       const domTargets = targetIds
         .map((id) => getTargetById(id) as HTMLDivElement)
@@ -87,8 +96,7 @@ export function SceneInteractions({
 
     const onSeeked = (v: any) => {
       setTimeout(() => {
-        const { fps } = useStore.getState();
-        const seekedTime = (v.detail.frame / fps) * 1000;
+        const seekedTime = (v.detail.frame / engineFps) * 1000;
         updateTargets(seekedTime);
       });
     };
@@ -98,7 +106,7 @@ export function SceneInteractions({
       playerRef?.current?.removeEventListener("seeked", onSeeked);
       clearTimeout(timer);
     };
-  }, [engineSelection, activeIds, playerRef, trackItemsMap]);
+  }, [engineSelection, playerRef, clipsMap, engineFps]);
 
   useEffect(() => {
     const sel = new Selection({
@@ -150,7 +158,7 @@ export function SceneInteractions({
 
   useEffect(() => {
     moveableRef.current?.moveable.updateRect();
-  }, [trackItemsMap]);
+  }, [clipsMap]);
 
   useEffect(() => {
     setSceneMoveableRef(moveableRef as React.RefObject<Moveable>);
@@ -249,8 +257,8 @@ export function SceneInteractions({
     direction: number[];
   }) => {
     const id = getIdFromClassName(target.className);
-    if (!id || !trackItemsMap[id]) return;
-    const type = trackItemsMap[id].type;
+    if (!id || !clipsMap[id]) return;
+    const type = clipsMap[id].type;
 
     if (type === "progressSquare") {
       const diffH = nextHeight - parseFloat(target.style.height);
@@ -267,11 +275,7 @@ export function SceneInteractions({
       }
       target.style.width = `${nextWidth}px`;
       target.style.height = `${nextHeight}px`;
-      setState({
-        trackItemsMap: {
-          [id]: { ...trackItemsMap[id], details: { ...trackItemsMap[id].details, ...updateData } as any },
-        },
-      });
+      engineDispatch(updateDetails(id, updateData));
       return;
     }
 
@@ -305,14 +309,7 @@ export function SceneInteractions({
             textDiv.style.height = `${finalH}px`;
           }
         }
-        setState({
-          trackItemsMap: {
-            [id]: {
-              ...trackItemsMap[id],
-              details: { ...trackItemsMap[id].details, width: nextWidth, height: finalH } as any,
-            },
-          },
-        });
+        engineDispatch(updateDetails(id, { width: nextWidth, height: finalH }));
         return;
       }
     }
@@ -324,25 +321,18 @@ export function SceneInteractions({
       animDiv.style.width = `${nextWidth}px`;
       animDiv.style.height = `${nextHeight}px`;
     }
-    setState({
-      trackItemsMap: {
-        [id]: {
-          ...trackItemsMap[id],
-          details: { ...trackItemsMap[id].details, width: nextWidth, height: nextHeight },
-        },
-      },
-    });
+    engineDispatch(updateDetails(id, { width: nextWidth, height: nextHeight }));
   };
 
   const handleResizeEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     const targetId = getIdFromClassName(target.className) as string;
-    if (!targetId || !trackItemsMap[targetId]) return;
-    const type = trackItemsMap[targetId].type;
+    if (!targetId || !clipsMap[targetId]) return;
+    const type = clipsMap[targetId].type;
 
     const buildPayload = () => ({
       clipId: targetId,
       details: {
-        ...trackItemsMap[targetId].details,
+        ...clipsMap[targetId].details,
         width: parseFloat(target.style.width),
         height: parseFloat(target.style.height),
       },
@@ -378,7 +368,7 @@ export function SceneInteractions({
     holdGroupPosition = {};
     for (const event of events) {
       const id = getIdFromClassName(event.target.className);
-      const item = trackItemsMap[id];
+      const item = clipsMap[id];
       if (!item?.details) continue;
       const currentLeft = parseFloat(item.details.left as string) || 0;
       const currentTop = parseFloat(item.details.top as string) || 0;
