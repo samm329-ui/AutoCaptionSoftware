@@ -7,16 +7,8 @@ import { Input } from "@/components/ui/input";
 import { debounce } from "lodash";
 import { AudioItem } from "./audio-item";
 
-const ADD_AUDIO = "ADD_AUDIO";
-const ADD_ITEMS = "ADD_ITEMS";
-
-const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
-
-const generateId = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
+import { addFileToTimeline } from "@/store/upload-store";
+import { nanoid } from "nanoid";
 
 interface IAudio {
   id?: string;
@@ -103,11 +95,19 @@ export const Audios = () => {
     fetchMusic("");
   }, []);
   const handleAddAudio = (payload: Partial<IAudio>) => {
-    payload.id = generateId();
-    console.log(payload);
-    dispatch(ADD_AUDIO, {
-      payload,
-      options: {}
+    const src = (payload.details?.src as string) || "";
+    addFileToTimeline({
+      id: nanoid(),
+      fileName: (payload.name as string) || "Audio",
+      filePath: src,
+      fileSize: 0,
+      contentType: "audio/mp3",
+      type: "audio",
+      objectUrl: src,
+      status: "completed",
+      progress: 100,
+      createdAt: Date.now(),
+      duration: (payload.metadata?.duration as number) ?? 10,
     });
   };
 

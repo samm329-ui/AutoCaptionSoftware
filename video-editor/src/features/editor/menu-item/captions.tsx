@@ -12,6 +12,9 @@ import { loadFonts } from "../utils/fonts";
 import { ITrackItem, ITrackItemsMap } from "../types";
 import { millisecondsToHHMMSS } from "../utils/format";
 import useStore from "../store/use-store";
+import { useEngineSelector } from "../engine/engine-provider";
+import { selectAllClips } from "../engine/selectors";
+import { engineStore } from "../engine/engine-core";
 import { groupBy } from "lodash";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
@@ -29,7 +32,8 @@ const generateId = () => {
 };
 
 export const Captions = () => {
-  const { trackItemsMap } = useStore();
+  const engineClips = useEngineSelector(selectAllClips);
+  const trackItemsMap: Record<string, any> = Object.fromEntries(engineClips.map(c => [c.id, c]));
   const [selectMediaItems, setSelectMediaItems] = useState<
     { label: string; value: string }[]
   >([]);
