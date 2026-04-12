@@ -1,27 +1,8 @@
 "use client";
 
-/**
- * Effect Controls Panel
- * ─────────────────────
- * 
- * MIGRATION STATUS: Partially migrated to use engine
- * 
- * WHAT USES ENGINE:
- *   - Selection (useEngineSelection)
- *   - Clip data (useEngineSelector)
- *   - Clip mutations (engineDispatch with UPDATE_CLIP)
- * 
- * WHAT STILL USES ZUSTAND (infrastructure):
- *   - fps (for playhead calculation)
- *   - playerRef (for Remotion player control)
- * 
- * All other panels should migrate to engine hooks following this pattern.
- */
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
   ChevronDown,
   ChevronRight,
@@ -37,13 +18,10 @@ import useStore from "../store/use-store";
 import {
   useKeyframeStore,
   AnimatableProperty,
-  PROPERTY_LABELS,
-  PROPERTY_RANGES,
   PROPERTY_DEFAULTS,
 } from "../store/use-keyframe-store";
 import { getCurrentTime } from "../utils/time";
 import {
-  VIDEO_EFFECTS,
   getEffectDef,
   AppliedEffect,
 } from "../data/video-effects";
@@ -53,14 +31,7 @@ import {
   useEngineDispatch,
   type Clip,
 } from "../engine/engine-provider";
-
-const EDIT_OBJECT = "EDIT_OBJECT";
-
-const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
-
-// ─── Property Row ─────────────────────────────────────────────────────────────
+import { selectFps } from "../engine/selectors";
 
 interface PropertyRowProps {
   clipId: string;
@@ -92,9 +63,6 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   const rawKfValue = isAnimated ? getValue(clipId, property, currentTimeMs) : value;
   const safeKfValue = Number.isFinite(rawKfValue) ? rawKfValue : (PROPERTY_DEFAULTS[property] ?? value);
 
-  // FIXED: localValue stays in sync with the live store value via useEffect.
-  // Previously it was initialized once and never updated, so moving a clip via
-  // drag and then opening the panel showed stale values.
   const [localValue, setLocalValue] = useState(safeKfValue);
   useEffect(() => {
     setLocalValue(safeKfValue);
@@ -168,8 +136,6 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   );
 };
 
-// ─── Applied Effect Row ───────────────────────────────────────────────────────
-
 interface AppliedEffectRowProps {
   effect: AppliedEffect;
   clipId: string;
@@ -177,39 +143,28 @@ interface AppliedEffectRowProps {
 }
 
 const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onRemove }) => {
+  const engineDispatch = useEngineDispatch();
   const effectDef = getEffectDef(effect.kind);
   const [isMuted, setIsMuted] = useState(effect.params?.__muted || false);
 
-  // FIXED: handleParamChange dispatches through EDIT_OBJECT so the preview,
-  // timeline, and panel all get the update from one source.
   const handleParamChange = useCallback(
     (key: string, value: number | string | boolean) => {
-      dispatch(EDIT_OBJECT, {
-        payload: {
-          [clipId]: {
-            details: {
-              appliedEffects: [{ ...effect, params: { ...effect.params, [key]: value } }],
-            },
-          },
-        },
+      engineDispatch({ 
+        type: "UPDATE_EFFECT", 
+        payload: { clipId, effectId: effect.id, params: { ...effect.params, [key]: value } } 
       });
     },
-    [clipId, effect]
+    [clipId, effect, engineDispatch]
   );
 
   const handleToggleMute = useCallback(() => {
     const newMuted = !isMuted;
     setIsMuted(newMuted);
-    dispatch(EDIT_OBJECT, {
-      payload: {
-        [clipId]: {
-          details: {
-            appliedEffects: [{ ...effect, params: { ...effect.params, __muted: newMuted } }],
-          },
-        },
-      },
+    engineDispatch({ 
+      type: "UPDATE_EFFECT", 
+      payload: { clipId, effectId: effect.id, params: { ...effect.params, __muted: newMuted } } 
     });
-  }, [clipId, effect, isMuted]);
+  }, [clipId, effect, isMuted, engineDispatch]);
 
   if (!effectDef) return null;
 
@@ -294,8 +249,6 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onR
   );
 };
 
-// ─── Collapsible Section ──────────────────────────────────────────────────────
-
 const EffectSection: React.FC<{
   title: string;
   children: React.ReactNode;
@@ -316,31 +269,16 @@ const EffectSection: React.FC<{
   );
 };
 
-// ─── Main Panel ───────────────────────────────────────────────────────────────
-
 const EffectControlsPanel: React.FC = () => {
-  // Read selection from ENGINE
+  const { playerRef } = useStore();
   const engineSelection = useEngineSelection();
   const clipId = engineSelection[0] ?? null;
+  const engineDispatch = useEngineDispatch();
+  const fps = useEngineSelector(selectFps);
 
-  // Read clip data from ENGINE, fall back to Zustand if not found
-  const engineClip = useEngineSelector<Clip | null>(
+  const clip = useEngineSelector<Clip | null>(
     (p) => (clipId ? (p.clips[clipId] ?? null) : null)
   );
-
-  // Fallback to Zustand for clip data (during migration)
-  const { activeIds, trackItemsMap, fps, playerRef } = useStore();
-  const zustandClipId = activeIds[0];
-  const zustandClip = zustandClipId ? (trackItemsMap[zustandClipId] as any) : null;
-
-  // Use engine clip if available, otherwise fall back to Zustand
-  const clip = engineClip ?? zustandClip;
-
-  // All hooks MUST be called before any conditional returns
-  // This is REQUIRED by React Rules of Hooks
-
-  // MIGRATED: Dispatch to ENGINE instead of DesignCombo
-  const engineDispatch = useEngineDispatch();
 
   const getCurrentTimeMs = useCallback(() => {
     try {
@@ -353,58 +291,41 @@ const EffectControlsPanel: React.FC = () => {
 
   const dispatchEdit = useCallback(
     (property: string, value: any) => {
-      const targetClipId = clipId ?? zustandClipId;
-      if (!targetClipId) return;
+      if (!clipId) return;
       const safeValue = Number.isFinite(value) ? value : 0;
-      
-      // Dispatch to ENGINE
       engineDispatch({
         type: "UPDATE_CLIP",
         payload: {
-          clipId: targetClipId,
+          clipId,
           details: { [property]: safeValue }
         },
       });
-      
-      // Keep DesignCombo dispatch for timeline sync during migration
-      dispatch(EDIT_OBJECT, {
-        payload: { [targetClipId]: { details: { [property]: safeValue } } },
-      });
     },
-    [clipId, zustandClipId, engineDispatch]
+    [clipId, engineDispatch]
   );
 
   const removeEffect = useCallback(
     (index: number, appliedEffects: AppliedEffect[]) => {
-      const targetClipId = clipId ?? zustandClipId;
-      if (!targetClipId) return;
+      if (!clipId) return;
       const newEffects = [...appliedEffects];
       newEffects.splice(index, 1);
-      
-      // Dispatch to ENGINE
       engineDispatch({
         type: "UPDATE_CLIP",
         payload: {
-          clipId: targetClipId,
+          clipId,
           details: { appliedEffects: newEffects }
         },
       });
-      
-      // Keep DesignCombo dispatch for timeline sync during migration
-      dispatch(EDIT_OBJECT, {
-        payload: { [targetClipId]: { details: { appliedEffects: newEffects } } },
-      });
     },
-    [clipId, zustandClipId, engineDispatch]
+    [clipId, engineDispatch]
   );
 
   const currentTimeMs = getCurrentTimeMs();
   const details = (clip?.details ?? {}) as Record<string, any>;
   const from = clip?.display?.from ?? 0;
   const clipLocalTime = Math.max(0, currentTimeMs - from);
-  const appliedEffects: AppliedEffect[] = details.appliedEffects || [];
+  const appliedEffects: AppliedEffect[] = clip?.appliedEffects || [];
 
-  // NOW we can do conditional rendering - all hooks called above
   if (!clip) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs gap-2 px-4 text-center">
@@ -416,7 +337,6 @@ const EffectControlsPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Clip header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
         <span
           className="text-xs font-medium truncate max-w-[160px]"
@@ -428,7 +348,6 @@ const EffectControlsPanel: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Motion */}
         <EffectSection title="Motion" defaultOpen>
           <PropertyRow
             clipId={clipId}
@@ -489,7 +408,6 @@ const EffectControlsPanel: React.FC = () => {
           />
         </EffectSection>
 
-        {/* Opacity */}
         <EffectSection title="Opacity" defaultOpen>
           <PropertyRow
             clipId={clipId}
@@ -505,7 +423,6 @@ const EffectControlsPanel: React.FC = () => {
           />
         </EffectSection>
 
-        {/* Adjustments */}
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title="Adjustments" defaultOpen={false}>
             <PropertyRow
@@ -558,7 +475,6 @@ const EffectControlsPanel: React.FC = () => {
           </EffectSection>
         )}
 
-        {/* Audio */}
         {(clip.type === "video" || clip.type === "audio") && (
           <EffectSection title="Audio" defaultOpen>
             <PropertyRow
@@ -576,7 +492,6 @@ const EffectControlsPanel: React.FC = () => {
           </EffectSection>
         )}
 
-        {/* Crop */}
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title="Crop" defaultOpen={false}>
             <PropertyRow
@@ -630,7 +545,6 @@ const EffectControlsPanel: React.FC = () => {
           </EffectSection>
         )}
 
-        {/* Applied Effects */}
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title={`Applied Effects (${appliedEffects.length})`} defaultOpen>
             {appliedEffects.length === 0 ? (
@@ -650,7 +564,6 @@ const EffectControlsPanel: React.FC = () => {
           </EffectSection>
         )}
 
-        {/* Clip Info */}
         <EffectSection title="Clip Info" defaultOpen={false}>
           <div className="px-3 py-2 space-y-1 text-xs text-muted-foreground">
             <div className="flex justify-between">

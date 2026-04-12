@@ -25,7 +25,6 @@ import {
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { bridgePush } from "../engine/legacy-bridge";
 
 const ADD_VIDEO = "ADD_VIDEO";
 const ADD_AUDIO = "ADD_AUDIO";

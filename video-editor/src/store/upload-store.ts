@@ -1,6 +1,18 @@
 import { create } from "zustand";
 import { probeMediaFile, type MediaAsset } from "@/features/editor/utils/media-probe";
-import useStore from "@/features/editor/store/use-store";
+import {
+  engineStore,
+  createTrack,
+  nanoid,
+  type Clip,
+} from "@/features/editor/engine/engine-core";
+import {
+  addTrack,
+  addClip,
+  selectClip,
+  setCanvas,
+} from "@/features/editor/engine/commands";
+import { selectOrderedTracks } from "@/features/editor/engine/selectors";
 
 export interface UploadedFile {
   id: string;
@@ -97,48 +109,82 @@ export const useUploadStore = create<IUploadStore>((set) => ({
   setShowUploadModal: (show) => set({ showUploadModal: show })
 }));
 
-function generateId(): string {
-  return `item_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
+/**
+ * addFileToTimeline — engine-first
+ *
+ * 1. Find or create a track of the correct type.
+ * 2. Dispatch ADD_CLIP with a proper engine Clip shape.
+ * 3. Update canvas / fps / duration through engine commands.
+ * 4. Select the new clip.
+ *
+ * Never writes to Zustand trackItemsMap / trackItemIds.
+ */
 export function addFileToTimeline(upload: UploadedFile): void {
-  const store = useStore.getState();
+  const state = engineStore.getState();
+  const durationMs = (upload.duration ?? 5) * 1000;
 
-  const videoWidth = upload.width ?? 1920;
-  const videoHeight = upload.height ?? 1080;
-  const videoFps = upload.fps ?? 30;
+  // ── 1. Determine clip type ────────────────────────────────────────────────
+  type ClipType = Clip["type"];
+  const clipType: ClipType =
+    upload.type === "audio"
+      ? "audio"
+      : upload.type === "image"
+      ? "image"
+      : "video";
 
-  if (videoWidth && videoHeight) {
-    store.setState({
-      size: { width: videoWidth, height: videoHeight },
+  type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
+  const trackType: TrackType = upload.type === "audio" ? "audio" : "video";
+
+  // ── 2. Find existing track of matching type or create one ─────────────────
+  const existingTracks = selectOrderedTracks(state);
+  let track = existingTracks.find((t) => t.type === trackType);
+
+  if (!track) {
+    track = createTrack(trackType, {
+      name: trackType === "audio" ? "Audio" : "Video",
+      order: existingTracks.length,
     });
+    engineStore.dispatch(addTrack(track));
   }
 
-  if (videoFps > 0) {
-    store.setState({ fps: videoFps });
-  }
+  // ── 3. Calculate non-overlapping placement ────────────────────────────────
+  // For now, always start at 0 for simplicity - first clip goes at beginning
+  const trackClips = Object.values(engineStore.getState().clips).filter(
+    (c) => c && c.trackId === track!.id
+  );
+  const startMs = 0; // Always start at 0 for now
 
-  const itemId = upload.id || generateId();
-  const duration = upload.duration ?? 5;
-
-  const newItem = {
-    id: itemId,
-    type: upload.type,
+  // ── 4. Build the clip ─────────────────────────────────────────────────────
+  const clipId = upload.id || nanoid();
+  const clip: Clip = {
+    id: clipId,
+    type: clipType,
+    trackId: track.id,
+    assetId: upload.id,
     name: upload.fileName,
-    display: {
-      from: 0,
-      to: duration * 1000,
-    },
-    trim: {
-      from: 0,
-      to: duration * 1000,
+    display: { from: startMs, to: startMs + durationMs },
+    trim: { from: 0, to: durationMs },
+    transform: {
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+      rotate: 0,
+      opacity: 1,
+      flipX: false,
+      flipY: false,
     },
     details: {
       src: upload.objectUrl,
-      width: videoWidth,
-      height: videoHeight,
+      width: upload.width ?? 1920,
+      height: upload.height ?? 1080,
       name: upload.fileName,
+      volume: 100,
+      playbackRate: 1,
     },
+    appliedEffects: [],
+    effectIds: [],
+    keyframeIds: [],
     metadata: {
       previewUrl: upload.type === "video" ? upload.objectUrl : undefined,
       duration: upload.duration,
@@ -148,17 +194,41 @@ export function addFileToTimeline(upload: UploadedFile): void {
     },
   };
 
-  const newTrackItemIds = [...store.trackItemIds, itemId];
-  const newTrackItemsMap = {
-    ...store.trackItemsMap,
-    [itemId]: newItem,
-  };
+  engineStore.dispatch(addClip(clip, track.id));
 
-  store.setState({
-    trackItemIds: newTrackItemIds,
-    trackItemsMap: newTrackItemsMap,
-    duration: Math.max(store.duration, duration * 1000),
-  });
+  // ── 5. Update canvas size for first video/image clip ─────────────────────
+  if (
+    (clipType === "video" || clipType === "image") &&
+    upload.width &&
+    upload.height
+  ) {
+    const seq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
+    if (seq && Object.keys(engineStore.getState().clips).length === 1) {
+      engineStore.dispatch(setCanvas(upload.width, upload.height));
+    }
+  }
+
+  // ── 6. Extend sequence duration if needed ────────────────────────────────
+  const newEndMs = startMs + durationMs;
+  const currentSeq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
+  if (currentSeq && newEndMs > currentSeq.duration) {
+    const updatedSeq = { ...currentSeq, duration: newEndMs + 2000 };
+    engineStore.dispatch({
+      type: "LOAD_PROJECT",
+      payload: {
+        project: {
+          ...engineStore.getState(),
+          sequences: {
+            ...engineStore.getState().sequences,
+            [engineStore.getState().rootSequenceId]: updatedSeq,
+          },
+        },
+      },
+    });
+  }
+
+  // ── 7. Select the new clip ────────────────────────────────────────────────
+  engineStore.dispatch(selectClip(clipId));
 }
 
 export async function handleFileUpload(files: File[]): Promise<UploadedFile[]> {

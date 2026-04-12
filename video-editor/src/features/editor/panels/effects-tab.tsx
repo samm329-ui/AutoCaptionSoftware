@@ -54,8 +54,8 @@ import {
   getTransitionsByCategory,
 } from "../data/video-transitions";
 import { setDragData } from "@/components/shared/drag-data";
-import useStore from "../store/use-store";
-import { useEngineSelection, useEngineDispatch } from "../engine/engine-provider";
+import { useEngineSelection, useEngineDispatch, useEngineSelector } from "../engine/engine-provider";
+import { selectActiveClip } from "../engine/selectors";
 
 const EDIT_OBJECT = "EDIT_OBJECT";
 
@@ -210,7 +210,8 @@ const CategorySection: React.FC<{
 
 const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
   const engineSelection = useEngineSelection();
-  const legacyActiveIds = useStore((s) => s.activeIds);
+  const activeClip = useEngineSelector(selectActiveClip);
+  const legacyActiveIds = activeClip ? [activeClip.id] : [];
   const activeIds = engineSelection.length > 0 ? engineSelection : legacyActiveIds;
   const engineDispatch = useEngineDispatch();
 
@@ -224,17 +225,16 @@ const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
         params[ctrl.key] = ctrl.default;
       });
 
-      const current = useStore.getState();
-      const existingItem = current.trackItemsMap[clipId];
-      const existingEffects = ((existingItem as any)?.details?.appliedEffects) || [];
-      const newEffects = [...existingEffects, { kind: effect.kind, params }];
-
-      dispatch(EDIT_OBJECT, {
+      // Use engine APPLY_EFFECT command — reads/writes engine state only
+      engineDispatch({
+        type: "APPLY_EFFECT",
         payload: {
-          [clipId]: {
-            details: {
-              appliedEffects: newEffects,
-            },
+          clipId,
+          effect: {
+            id: `${effect.kind}_${Date.now()}`,
+            kind: effect.kind,
+            params,
+            enabled: true,
           },
         },
       });
@@ -290,7 +290,8 @@ const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
 
 const TransitionsSubTab: React.FC<{ search: string }> = ({ search }) => {
   const engineSelection = useEngineSelection();
-  const legacyActiveIds = useStore((s) => s.activeIds);
+  const activeClip = useEngineSelector(selectActiveClip);
+  const legacyActiveIds = activeClip ? [activeClip.id] : [];
   const activeIds = engineSelection.length > 0 ? engineSelection : legacyActiveIds;
   const engineDispatch = useEngineDispatch();
 
@@ -304,19 +305,7 @@ const TransitionsSubTab: React.FC<{ search: string }> = ({ search }) => {
         params[ctrl.key] = ctrl.default;
       });
 
-      dispatch(EDIT_OBJECT, {
-        payload: {
-          [clipId]: {
-            details: {
-              pendingTransition: {
-                kind: transition.kind,
-                duration: transition.defaultDuration * 1000,
-                params,
-              },
-            },
-          },
-        },
-      });
+      engineDispatch(updateDetails(clipId, { pendingTransition: { kind: transition.kind, duration: transition.defaultDuration * 1000, params } }));
     },
     [activeIds, engineDispatch]
   );

@@ -34,7 +34,6 @@ import { Input } from "@/components/ui/input";
 import { useUploadStore, addFileToTimeline, UploadedFile, handleFileUpload, ProjectFolder } from "@/store/upload-store";
 import { setDragData } from "@/components/shared/drag-data";
 import EffectsTab from "./effects-tab";
-import { bridgePush } from "../engine/legacy-bridge";
 
 const ADD_VIDEO = "ADD_VIDEO";
 const ADD_IMAGE = "ADD_IMAGE";
@@ -647,32 +646,9 @@ const ProjectPanel: React.FC = () => {
   );
 
   const handleAddToTimeline = useCallback((file: UploadedFile) => {
-    const id = generateId();
-    const dur = (file.duration || 5) * 1000;
-
-    if (file.type === "colormatte") {
-      const payload = {
-        id,
-        type: "image",
-        details: { src: file.objectUrl },
-        metadata: { previewUrl: file.objectUrl, duration: dur, color: file.color, isColorMatte: true },
-        display: { from: 0, to: dur },
-      };
-      dispatch(ADD_IMAGE, { payload, options: {} });
-      bridgePush(ADD_IMAGE, payload);
-    } else if (file.type === "adjustment") {
-      const payload = {
-        id,
-        details: { src: file.objectUrl },
-        metadata: { previewUrl: file.objectUrl, duration: dur, isAdjustment: true },
-        display: { from: 0, to: dur },
-      };
-      dispatch(ADD_VIDEO, { payload, options: { resourceId: "main", scaleMode: "fit" } });
-      bridgePush(ADD_VIDEO, payload);
-    } else {
-      addFileToTimeline(file);
-    }
-  }, [addFileToTimeline]);
+    // All insertions go through the engine via addFileToTimeline
+    addFileToTimeline(file);
+  }, []);
 
   const handleCreateFolder = useCallback(() => {
     const name = prompt("Folder name:");
