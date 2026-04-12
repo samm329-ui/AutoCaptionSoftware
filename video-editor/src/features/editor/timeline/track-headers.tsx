@@ -1,52 +1,32 @@
 "use client";
 
 /**
- * TrackHeaders
- * ────────────
- * Renders track labels (V1, V2... / A1, A2...) in the left offset area
- * of the timeline.
+ * TrackHeaders — ENGINE-FIRST
+ * Reads track data from engine selectors. Updates via engine commands.
  */
 
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
-import {
-  Lock,
-  Unlock,
-  Eye,
-  EyeOff,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
-import useStore from "../store/use-store";
+import { Lock, Unlock, Eye, EyeOff, Volume2, VolumeX } from "lucide-react";
+import { useEngineDispatch } from "../engine/engine-provider";
+import { updateTrack } from "../engine/commands";
+import type { Track } from "../engine/engine-core";
 
-const VIDEO_TYPES = new Set(["video", "image", "main", "customTrack", "customTrack2"]);
-const AUDIO_TYPES = new Set(["audio", "linealAudioBars", "radialAudioBars", "waveAudioBars", "hillAudioBars"]);
+const VIDEO_TYPES = new Set(["video", "image", "overlay"]);
+const AUDIO_TYPES = new Set(["audio"]);
 
-function isVideoTrack(t: any) {
-  return VIDEO_TYPES.has(t.type);
-}
-
-function isAudioTrack(t: any) {
-  return AUDIO_TYPES.has(t.type);
-}
-
-function assignLabels(
-  tracks: any[]
-): Map<string, { label: string; isVideo: boolean; isAudio: boolean }> {
+function assignLabels(tracks: Track[]) {
   const labels = new Map<string, { label: string; isVideo: boolean; isAudio: boolean }>();
-
-  const videoTracks = tracks.filter(isVideoTrack);
-  const audioTracks = tracks.filter(isAudioTrack);
+  const videoTracks = tracks.filter((t) => VIDEO_TYPES.has(t.type));
+  const audioTracks = tracks.filter((t) => AUDIO_TYPES.has(t.type));
 
   for (let i = 0; i < videoTracks.length; i++) {
-    const num = videoTracks.length - i;
     labels.set(videoTracks[i].id, {
-      label: `V${num}`,
+      label: `V${videoTracks.length - i}`,
       isVideo: true,
       isAudio: false,
     });
   }
-
   for (let i = 0; i < audioTracks.length; i++) {
     labels.set(audioTracks[i].id, {
       label: `A${i + 1}`,
@@ -54,158 +34,95 @@ function assignLabels(
       isAudio: true,
     });
   }
-
-  let otherCount = 1;
+  let other = 1;
   for (const t of tracks) {
     if (!labels.has(t.id)) {
-      labels.set(t.id, {
-        label: `T${otherCount++}`,
-        isVideo: false,
-        isAudio: false,
-      });
+      labels.set(t.id, { label: `T${other++}`, isVideo: false, isAudio: false });
     }
   }
-
   return labels;
 }
 
-export default function TrackHeaders({ scrollLeft }: { scrollLeft?: number }) {
-  const tracks = useStore().tracks;
-  
+interface TrackHeadersProps {
+  scrollLeft?: number;
+  tracks: Track[];
+}
+
+export default function TrackHeaders({ tracks }: TrackHeadersProps) {
+  const dispatch = useEngineDispatch();
   const labels = assignLabels(tracks);
 
-  const handleToggleLock = useCallback(
-    (trackId: string) => {
-      const track = tracks.find((t) => t.id === trackId);
-      if (!track) return;
-      const isLocked = (track as any).locked ?? false;
-      useStore.getState().setTracks(
-        tracks.map((t) =>
-          t.id === trackId ? { ...t, locked: !isLocked } : t
-        )
-      );
-    },
-    [tracks]
+  const toggleLock = useCallback(
+    (trackId: string, locked: boolean) => dispatch(updateTrack(trackId, { locked: !locked })),
+    [dispatch]
   );
-
-  const handleToggleMute = useCallback(
-    (trackId: string) => {
-      const track = tracks.find((t) => t.id === trackId);
-      if (!track) return;
-      const isMuted = (track as any).muted ?? false;
-      useStore.getState().setTracks(
-        tracks.map((t) =>
-          t.id === trackId ? { ...t, muted: !isMuted } : t
-        )
-      );
-    },
-    [tracks]
+  const toggleMute = useCallback(
+    (trackId: string, muted: boolean) => dispatch(updateTrack(trackId, { muted: !muted })),
+    [dispatch]
   );
-
-  const handleToggleHide = useCallback(
-    (trackId: string) => {
-      const track = tracks.find((t) => t.id === trackId);
-      if (!track) return;
-      const isHidden = (track as any).hidden ?? false;
-      useStore.getState().setTracks(
-        tracks.map((t) =>
-          t.id === trackId ? { ...t, hidden: !isHidden } : t
-        )
-      );
-    },
-    [tracks]
+  const toggleHide = useCallback(
+    (trackId: string, hidden: boolean) => dispatch(updateTrack(trackId, { hidden: !hidden })),
+    [dispatch]
   );
 
   return (
-    <div
-      className="absolute left-0 right-0 bottom-0 pointer-events-none"
-      style={{
-        top: "50px",
-        width: "100%",
-      }}
-    >
+    <div className="w-full">
       {tracks.map((track, index) => {
-        const labelInfo = labels.get(track.id);
-        if (!labelInfo) return null;
-
-        const { label, isVideo, isAudio } = labelInfo;
-        const isLocked = (track as any).locked ?? false;
-        const isMuted = (track as any).muted ?? false;
-        const isHidden = (track as any).hidden ?? false;
+        const info = labels.get(track.id);
+        if (!info) return null;
+        const { label, isVideo, isAudio } = info;
 
         return (
           <div
             key={track.id}
             className={cn(
-              "flex items-center justify-between px-1 border-b border-border/30",
-              isLocked && "opacity-50"
+              "flex items-center justify-between px-2 border-b border-border/30 h-[50px]",
+              track.locked && "opacity-50"
             )}
-            style={{
-              height: 40,
-              marginTop: index > 0 ? 0 : index * 40,
-            }}
           >
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-medium text-muted-foreground">
-                {label}
-              </span>
-            </div>
+            <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
 
             <div className="flex items-center gap-0.5">
               {isVideo && (
-                <>
-                  <button
-                    onClick={() => handleToggleHide(track.id)}
-                    className={cn(
-                      "p-0.5 rounded transition-colors",
-                      isHidden
-                        ? "text-red-400 hover:bg-white/10"
-                        : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5"
-                    )}
-                    title={isHidden ? "Show track" : "Hide track"}
-                  >
-                    {isHidden ? (
-                      <EyeOff className="w-3 h-3" />
-                    ) : (
-                      <Eye className="w-3 h-3" />
-                    )}
-                  </button>
-                </>
+                <button
+                  onClick={() => toggleHide(track.id, track.hidden)}
+                  className={cn(
+                    "p-0.5 rounded transition-colors",
+                    track.hidden
+                      ? "text-red-400 hover:bg-white/10"
+                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5"
+                  )}
+                  title={track.hidden ? "Show track" : "Hide track"}
+                >
+                  {track.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                </button>
               )}
 
               {isAudio && (
                 <>
                   <button
-                    onClick={() => handleToggleLock(track.id)}
+                    onClick={() => toggleLock(track.id, track.locked)}
                     className={cn(
                       "p-0.5 rounded transition-colors",
-                      isLocked
+                      track.locked
                         ? "text-amber-400 hover:bg-white/10"
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5"
                     )}
-                    title={isLocked ? "Unlock track" : "Lock track"}
+                    title={track.locked ? "Unlock track" : "Lock track"}
                   >
-                    {isLocked ? (
-                      <Lock className="w-3 h-3" />
-                    ) : (
-                      <Unlock className="w-3 h-3" />
-                    )}
+                    {track.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
                   </button>
                   <button
-                    onClick={() => handleToggleMute(track.id)}
+                    onClick={() => toggleMute(track.id, track.muted)}
                     className={cn(
                       "p-0.5 rounded transition-colors",
-                      isMuted
+                      track.muted
                         ? "text-red-400 hover:bg-white/10"
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5"
                     )}
-                    title={isMuted ? "Unmute track" : "Mute track"}
+                    title={track.muted ? "Unmute track" : "Mute track"}
                   >
-                    {isMuted ? (
-                      <VolumeX className="w-3 h-3" />
-                    ) : (
-                      <Volume2 className="w-3 h-3" />
-                    )}
+                    {track.muted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                   </button>
                 </>
               )}

@@ -6,101 +6,100 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
 } from "react";
-import { timeMsToUnits, unitsToTimeMs } from "../utils/timeline";
-import { TIMELINE_OFFSET_CANVAS_LEFT } from "../constants/constants";
-import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useTheme } from "next-themes";
-import { useEngineZoom } from "../engine/engine-provider";
-const Playhead = ({ scrollLeft }: { scrollLeft: number }) => {
+
+interface PlayheadProps {
+  scrollLeft: number;
+  pixelsPerMs: number;
+}
+
+const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   const playheadRef = useRef<HTMLDivElement>(null);
-  const { playerRef, fps, scale } = useStore();
-  const engineZoom = useEngineZoom();
+  const { playerRef } = useStore();
+  
   const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
   
-  const safeFps = fps || 30;
-  const safeScaleZoom = engineZoom || scale?.zoom || (1 / 300);
-  const safeScrollLeft = scrollLeft || 0;
+  // Calculate position from frame number
+  // frame / fps = seconds, * 1000 = ms, * pixelsPerMs = position
+  const position = useMemo(() => {
+    // Default to 30fps if not available
+    const fps = 30;
+    const msPerFrame = 1000 / fps;
+    const timeMs = currentFrame * msPerFrame;
+    return timeMs * pixelsPerMs - scrollLeft;
+  }, [currentFrame, pixelsPerMs, scrollLeft]);
   
-  const position =
-    timeMsToUnits((currentFrame / safeFps) * 1000, safeScaleZoom) - safeScrollLeft;
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragStartPosition, setDragStartPosition] = useState(0);
-  const timelineOffsetX = useTimelineOffsetX();
+  const dragStartRef = useRef({ x: 0, scrollLeft: 0 });
 
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  
   useEffect(() => {
     setMounted(true);
   }, []);
-  const currentTheme = useMemo(() => {
-    if (!mounted) return "light";
-    return (theme === "system" ? resolvedTheme : theme) as "dark" | "light";
+  
+  const color = useMemo(() => {
+    if (!mounted) return "#ffffff";
+    return (theme === "system" ? resolvedTheme : theme) === "dark" ? "#ffffff" : "#000000";
   }, [mounted, theme, resolvedTheme]);
 
-  const color = useMemo(() => {
-    return currentTheme === "dark" ? "#ffffff" : "#000000";
-  }, [currentTheme]);
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
   const handleMouseDown = (
-    e:
-      | MouseEvent<HTMLDivElement, globalThis.MouseEvent>
-      | TouchEvent<HTMLDivElement>
+    e: MouseEvent<HTMLDivElement> | TouchEvent<HTMLDivElement>
   ) => {
-    e.preventDefault(); // Prevent default drag behavior
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    setDragStartX(clientX);
-    setDragStartPosition(isNaN(position) ? 0 : position);
-  };
-
-  const handleMouseMove = (
-    e: globalThis.MouseEvent | globalThis.TouchEvent
-  ) => {
-    if (isDragging) {
-      e.preventDefault(); // Prevent default drag behavior
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const delta = clientX - dragStartX + scrollLeft;
-      const newPosition = dragStartPosition + delta;
-
-      const time = unitsToTimeMs(newPosition, scale.zoom);
-      playerRef?.current?.seekTo(Math.round((time * fps) / 1000));
-    }
+    dragStartRef.current = { x: clientX, scrollLeft };
   };
 
   useEffect(() => {
-    const preventDefaultDrag = (e: Event) => {
-      e.preventDefault();
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !playerRef?.current) return;
+      
+      const deltaX = e.clientX - dragStartRef.current.x;
+      const newTimeMs = (dragStartRef.current.scrollLeft + deltaX) / pixelsPerMs;
+      const newFrame = Math.round(newTimeMs * (30 / 1000)); // Assume 30fps
+      
+      playerRef.current.seekTo(newFrame);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isDragging || !playerRef?.current) return;
+      
+      const deltaX = e.touches[0].clientX - dragStartRef.current.x;
+      const newTimeMs = (dragStartRef.current.scrollLeft + deltaX) / pixelsPerMs;
+      const newFrame = Math.round(newTimeMs * (30 / 1000));
+      
+      playerRef.current.seekTo(newFrame);
     };
 
     if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mousemove", handleMouseMove as any);
       document.addEventListener("mouseup", handleMouseUp);
-      document.addEventListener("touchmove", handleMouseMove);
+      document.addEventListener("touchmove", handleTouchMove as any);
       document.addEventListener("touchend", handleMouseUp);
-      document.addEventListener("dragstart", preventDefaultDrag);
-    } else {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("touchmove", handleMouseMove);
-      document.removeEventListener("touchend", handleMouseUp);
-      document.removeEventListener("dragstart", preventDefaultDrag);
     }
 
-    // Cleanup event listeners on component unmount
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mousemove", handleMouseMove as any);
       document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("touchmove", handleMouseMove);
+      document.removeEventListener("touchmove", handleTouchMove as any);
       document.removeEventListener("touchend", handleMouseUp);
-      document.removeEventListener("dragstart", preventDefaultDrag);
     };
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, [isDragging, pixelsPerMs, playerRef]);
+
+  // Only render if in visible range
+  if (position < -10 || position > 3000) {
+    return null;
+  }
 
   return (
     <div
@@ -109,32 +108,22 @@ const Playhead = ({ scrollLeft }: { scrollLeft: number }) => {
       onTouchStart={handleMouseDown}
       onDragStart={(e) => e.preventDefault()}
       id="playhead"
+      className="absolute top-0 z-50 pointer-events-auto"
       style={{
-        position: "absolute",
-        left: timelineOffsetX + TIMELINE_OFFSET_CANVAS_LEFT + (isNaN(position) ? 0 : position),
-        top: 50,
-        width: 1,
-        height: "calc(100% - 40px)",
-        zIndex: 10,
-        cursor: "pointer",
-        touchAction: "none" // Prevent default touch actions
+        left: `${position}px`,
+        width: "2px",
+        height: "100%",
+        cursor: "col-resize",
       }}
     >
       <div
-        id="playhead-handle"
-        style={{
-          borderRadius: "0 0 4px 4px",
-          backgroundColor: color
-        }}
-        className="absolute top-0 h-4 w-2 -translate-x-1/2 transform text-xs font-semibold text-zinc-800"
+        className="absolute -top-1 -left-1 w-3 h-3 rounded-sm"
+        style={{ backgroundColor: color }}
       />
-      <div className="relative h-full">
-        <div className="absolute top-0 h-full w-3 -translate-x-1/2 transform" />
-        <div
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 transform"
-          style={{ backgroundColor: color }}
-        />
-      </div>
+      <div 
+        className="w-px h-full" 
+        style={{ backgroundColor: color }}
+      />
     </div>
   );
 };

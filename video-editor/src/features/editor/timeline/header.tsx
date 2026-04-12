@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import useStore from "../store/use-store";
-import { LAYER_DELETE, ACTIVE_SPLIT, LAYER_CLONE, TIMELINE_SCALE_CHANGED, PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
+import { LAYER_DELETE, ACTIVE_SPLIT, LAYER_CLONE, PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
 import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AudioLines } from "lucide-react";
 import { extractAudioFromVideoToTimeline } from "@/store/upload-store";
@@ -11,19 +11,19 @@ import {
   getZoomByIndex
 } from "../utils/timeline";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import { Slider } from "@/components/ui/slider";
 import { useEffect, useState } from "react";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
+import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom } from "../engine/engine-provider";
+import { selectDuration, selectFps } from "../engine/selectors";
+import { deleteClip, splitClip, setZoom } from "../engine/commands";
+import { engineStore } from "../engine/engine-core";
 
 interface ITimelineScaleState {
   index: number;
   zoom: number;
 }
-
-// ENGINE MIGRATION: Import engine hooks
-import { useEngineSelection, useEngineDuration } from "../engine/engine-provider";
 
 const IconPlayerPlayFilled = ({ size }: { size: number }) => (
   <svg
@@ -87,64 +87,80 @@ const IconPlayerSkipForward = ({ size }: { size: number }) => (
 const Header = () => {
   const [playing, setPlaying] = useState(false);
   
-  // MIGRATION: Get values from Zustand for infrastructure
-  const { duration, fps, scale, playerRef } = useStore();
-  
-  // ENGINE MIGRATION: Get selection from engine
+  const { scale, playerRef } = useStore();
   const engineSelection = useEngineSelection();
+  const engineDispatch = useEngineDispatch();
+  const engineZoom = useEngineZoom();
+  const duration = useEngineSelector(selectDuration);
+  const fps = useEngineSelector(selectFps);
+  
+  // Sync engine zoom to Zustand scale on mount
+  useEffect(() => {
+    if (scale && engineZoom && scale.zoom !== engineZoom) {
+      useStore.getState().setScale({ ...scale, zoom: engineZoom });
+    }
+  }, [engineZoom]);
   
   const isLargeScreen = useIsLargeScreen();
   useUpdateAnsestors({ playing, playerRef });
 
   const currentFrame = useCurrentPlayerFrame(playerRef);
   const safeFps = fps || 30;
+  const safeDuration = duration || 10000;
 
   const doActiveDelete = () => {
-    useStore.getState().dispatch(LAYER_DELETE);
+    if (engineSelection.length === 0) return;
+    engineDispatch(deleteClip(engineSelection));
   };
 
   const doActiveSplit = () => {
-    useStore.getState().dispatch(ACTIVE_SPLIT, {
-      payload: {},
-      options: {
-        time: getCurrentTime()
-      }
-    });
+    if (engineSelection.length === 0) return;
+    const clipId = engineSelection[0];
+    const currentTime = getCurrentTime();
+    engineDispatch(splitClip(clipId, currentTime));
   };
 
   const doExtractAudio = async () => {
-    // MIGRATION: Use engine selection
     if (engineSelection.length === 0) return;
 
-    const { trackItemsMap } = useStore.getState();
-    const firstActiveId = engineSelection[0];
-    const trackItem = trackItemsMap[firstActiveId];
-    if (!trackItem) return;
+    const clipId = engineSelection[0];
+    const state = engineStore.getState();
+    const clip = state.clips[clipId];
+    if (!clip) return;
 
-    const src = (trackItem.details as any)?.src;
+    const src = clip.details?.src as string;
     if (!src) return;
 
-    const displayFrom = (trackItem.display as any)?.from ?? 0;
-    const fileName = (trackItem.details as any)?.name ?? firstActiveId;
+    const displayFrom = clip.display?.from ?? 0;
+    const fileName = clip.details?.name as string ?? clipId;
 
-    await extractAudioFromVideoToTimeline(src, firstActiveId, fileName, displayFrom);
+    await extractAudioFromVideoToTimeline(src, clipId, fileName, displayFrom);
   };
 
-  const changeScale = (scale: ITimelineScaleState) => {
-    if (!scale || !scale.index) return;
-    useStore.getState().dispatch(TIMELINE_SCALE_CHANGED, {
-      payload: {
-        scale
-      }
+  const doClone = () => {
+    if (engineSelection.length === 0) return;
+    // Clone is not yet implemented - placeholder
+    console.log("Clone not yet implemented");
+  };
+
+  const changeScale = (newScale: ITimelineScaleState) => {
+    if (!newScale || !newScale.index) return;
+    useStore.getState().setScale({
+      index: newScale.index,
+      unit: 300,
+      zoom: newScale.zoom,
+      segments: 5
     });
+    // Also dispatch to engine
+    engineDispatch(setZoom(newScale.zoom));
   };
 
   const handlePlay = () => {
-    useStore.getState().dispatch(PLAYER_PLAY);
+    playerRef?.current?.play();
   };
 
   const handlePause = () => {
-    useStore.getState().dispatch(PLAYER_PAUSE);
+    playerRef?.current?.pause();
   };
 
   const handleFrameBack = () => {
@@ -245,7 +261,7 @@ const Header = () => {
               size={isLargeScreen ? "sm" : "icon"}
               className="flex items-center gap-1 px-2"
             >
-              <Trash size={14} />{" "}
+              <Trash size={14} />
               <span className="hidden lg:block">Delete</span>
             </Button>
 
@@ -256,7 +272,7 @@ const Header = () => {
               size={isLargeScreen ? "sm" : "icon"}
               className="flex items-center gap-1 px-2"
             >
-              <SquareSplitHorizontal size={15} />{" "}
+              <SquareSplitHorizontal size={15} />
               <span className="hidden lg:block">Split</span>
             </Button>
             <Button
@@ -266,19 +282,17 @@ const Header = () => {
               size={isLargeScreen ? "sm" : "icon"}
               className="flex items-center gap-1 px-2"
             >
-              <AudioLines size={15} />{" "}
+              <AudioLines size={15} />
               <span className="hidden lg:block">Extract Audio</span>
             </Button>
               <Button
                 disabled={!engineSelection.length}
-                onClick={() => {
-                  useStore.getState().dispatch(LAYER_CLONE);
-                }}
+                onClick={doClone}
               variant={"ghost"}
               size={isLargeScreen ? "sm" : "icon"}
               className="flex items-center gap-1 px-2"
             >
-              <SquareSplitHorizontal size={15} />{" "}
+              <SquareSplitHorizontal size={15} />
               <span className="hidden lg:block">Clone</span>
             </Button>
           </div>
@@ -352,7 +366,7 @@ const Header = () => {
                   minWidth: "60px"
                 }}
               >
-                {timeToString({ time: duration })}
+                {timeToString({ time: safeDuration })}
               </div>
               <span className="px-1 text-muted-foreground text-[10px] ml-1">
                 F:{currentFrame}
@@ -363,7 +377,7 @@ const Header = () => {
           <ZoomControl
             scale={scale}
             onChangeTimelineScale={changeScale}
-            duration={duration}
+            duration={safeDuration}
           />
         </div>
       </div>
@@ -376,7 +390,7 @@ const ZoomControl = ({
   onChangeTimelineScale,
   duration
 }: {
-  scale: ITimelineScaleState;
+  scale: { index: number; unit: number; zoom: number; segments: number };
   onChangeTimelineScale: (scale: ITimelineScaleState) => void;
   duration: number;
 }) => {

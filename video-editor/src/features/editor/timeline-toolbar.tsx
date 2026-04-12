@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
   MousePointer2,
@@ -12,24 +12,21 @@ import {
   Square,
   Hand,
   Type,
-  ZoomIn,
-  ZoomOut,
+  Trash2,
 } from "lucide-react";
 import { getCurrentTime } from "./utils/time";
-import useStore from "./store/use-store";
+import { useEngineSelection, useEngineDispatch } from "./engine/engine-provider";
+import { deleteClip, splitClip } from "./engine/commands";
+import { createTrack, type Clip } from "./engine/engine-core";
+import { addTrack, addClip, selectClip } from "./engine/commands";
+import { selectOrderedTracks } from "./engine/selectors";
+import { engineStore } from "./engine/engine-core";
+import { nanoid } from "nanoid";
 
 const ACTIVE_SPLIT = "ACTIVE_SPLIT";
 const LAYER_DELETE = "LAYER_DELETE";
 const TIMELINE_SCALE_CHANGED = "TIMELINE_SCALE_CHANGED";
 const ADD_TEXT = "ADD_TEXT";
-
-const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
-
-const generateId = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
 
 export type ToolType =
   | "select"
@@ -68,50 +65,55 @@ interface TimelineToolbarProps {
   className?: string;
 }
 
+export { TimelineToolbar as default };
 export function TimelineToolbar({ onToolChange, className }: TimelineToolbarProps) {
   const [activeTool, setActiveTool] = useState<ToolType>("select");
-  const { scale, activeIds } = useStore();
+  const engineSelection = useEngineSelection();
+  const engineDispatch = useEngineDispatch();
 
-  const doSplit = () => {
-    dispatch(ACTIVE_SPLIT, {
-      payload: {},
-      options: { time: getCurrentTime() }
-    });
-  };
+  const safeSelection = engineSelection ?? [];
+  const selectionLength = safeSelection.length;
 
-  const doAddText = () => {
-    dispatch(ADD_TEXT, {
-      payload: {
-        id: generateId(),
-        type: "text",
-        name: "Text",
-        details: { text: "New Text" },
-      },
-      options: {},
-    });
-  };
+  const doSplit = useCallback(() => {
+    if (selectionLength === 0) return;
+    const clipId = safeSelection[0];
+    const currentTime = getCurrentTime();
+    engineDispatch(splitClip(clipId, currentTime));
+  }, [selectionLength, safeSelection, engineDispatch]);
 
-  const doDelete = () => {
-    if (activeIds.length > 0) {
-      dispatch(LAYER_DELETE);
+  const doDelete = useCallback(() => {
+    if (selectionLength === 0) return;
+    engineDispatch(deleteClip(safeSelection));
+  }, [selectionLength, safeSelection, engineDispatch]);
+
+  const doAddText = useCallback(() => {
+    const state = engineStore.getState();
+    const ordered = selectOrderedTracks(state);
+    let track = ordered.find(t => t.type === "text");
+    if (!track) {
+      track = createTrack("text", { order: ordered.length });
+      engineDispatch(addTrack(track));
     }
-  };
-
-  const handleZoom = (direction: "in" | "out") => {
-    const newIndex = direction === "in" 
-      ? Math.min(scale.index + 1, 20) 
-      : Math.max(scale.index - 1, 0);
-    
-    dispatch(TIMELINE_SCALE_CHANGED, {
-      payload: { scale: { ...scale, index: newIndex } }
-    });
-  };
+    const trackClips = Object.values(engineStore.getState().clips).filter(c => c?.trackId === track!.id);
+    const startMs = trackClips.reduce((max, c) => Math.max(max, c ? c.display.to : 0), 0);
+    const clipId = nanoid();
+    const clip: Clip = {
+      id: clipId, trackId: track.id, type: "text", name: "Text",
+      display: { from: startMs, to: startMs + 5000 },
+      trim: { from: 0, to: 5000 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
+      details: { text: "New Text", fontSize: 80, color: "#ffffff", fontFamily: "Inter", textAlign: "center" },
+      appliedEffects: [], effectIds: [], keyframeIds: [],
+    };
+    engineDispatch(addClip(clip, track.id));
+    engineDispatch(selectClip(clipId));
+  }, [engineDispatch]);
 
   const handleToolClick = (toolId: ToolType) => {
     setActiveTool(toolId);
     onToolChange?.(toolId);
     
-    if (toolId === "cut" && activeIds.length > 0) {
+    if (toolId === "cut" && selectionLength > 0) {
       doSplit();
     } else if (toolId === "text") {
       doAddText();
@@ -140,7 +142,7 @@ export function TimelineToolbar({ onToolChange, className }: TimelineToolbarProp
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIds, onToolChange, scale]);
+  }, [onToolChange, doSplit, doDelete, doAddText]);
 
   return (
     <div className={cn("flex bg-card border-r border-border/80 h-full overflow-hidden", className)}>
@@ -150,34 +152,33 @@ export function TimelineToolbar({ onToolChange, className }: TimelineToolbarProp
             key={tool.id}
             onClick={() => handleToolClick(tool.id)}
             className={cn(
-              "flex items-center justify-center flex-none h-7.5 w-7.5 cursor-pointer rounded-sm transition-all duration-200",
-              activeTool === tool.id ? "bg-white/10 text-white" : "text-muted-foreground hover:bg-white/5 hover:text-white"
+              "w-8 h-8 flex items-center justify-center rounded transition-colors",
+              activeTool === tool.id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
             title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ""}`}
           >
             {tool.icon}
           </button>
         ))}
-      </div>
-      
-      <div className="flex flex-col items-center py-2 px-0.5 gap-0.5 border-l">
+        
+        <div className="w-6 h-px bg-border my-1" />
+        
         <button
-          onClick={() => handleZoom("in")}
-          className="flex items-center justify-center flex-none h-7.5 w-7.5 cursor-pointer rounded-sm transition-all duration-200 text-muted-foreground hover:bg-white/5 hover:text-white"
-          title="Zoom In (+)"
+          onClick={doDelete}
+          disabled={selectionLength === 0}
+          className={cn(
+            "w-8 h-8 flex items-center justify-center rounded transition-colors",
+            selectionLength > 0
+              ? "text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+              : "text-muted-foreground/30 cursor-not-allowed"
+          )}
+          title="Delete (Del)"
         >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => handleZoom("out")}
-          className="flex items-center justify-center flex-none h-7.5 w-7.5 cursor-pointer rounded-sm transition-all duration-200 text-muted-foreground hover:bg-white/5 hover:text-white"
-          title="Zoom Out (-)"
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>
   );
 }
-
-export default TimelineToolbar;
