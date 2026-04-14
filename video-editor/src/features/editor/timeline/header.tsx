@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import useStore from "../store/use-store";
 import { LAYER_DELETE, ACTIVE_SPLIT, LAYER_CLONE, PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
 import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
-import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AudioLines } from "lucide-react";
+import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AudioLines, XCircle } from "lucide-react";
 import { extractAudioFromVideoToTimeline } from "@/store/upload-store";
 import {
   getFitZoomLevel,
@@ -15,9 +15,9 @@ import { useEffect, useState } from "react";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
-import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom } from "../engine/engine-provider";
-import { selectDuration, selectFps } from "../engine/selectors";
-import { deleteClip, splitClip, setZoom } from "../engine/commands";
+import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom, useEnginePlayhead } from "../engine/engine-provider";
+import { selectDuration, selectFps, selectAllClips } from "../engine/selectors";
+import { deleteClip, splitClip, setZoom, clearAll } from "../engine/commands";
 import { engineStore } from "../engine/engine-core";
 
 interface ITimelineScaleState {
@@ -91,26 +91,37 @@ const Header = () => {
   const engineSelection = useEngineSelection();
   const engineDispatch = useEngineDispatch();
   const engineZoom = useEngineZoom();
-  const duration = useEngineSelector(selectDuration);
   const fps = useEngineSelector(selectFps);
+  const clips = useEngineSelector(selectAllClips);
   
-  // Sync engine zoom to Zustand scale on mount
-  useEffect(() => {
-    if (scale && engineZoom && scale.zoom !== engineZoom) {
-      useStore.getState().setScale({ ...scale, zoom: engineZoom });
-    }
-  }, [engineZoom]);
+  // Use actual clip duration - fall back to 10s if no clips
+  const clipDuration = clips.length > 0 
+    ? Math.max(...clips.map(c => c.display.to)) + 2000  // add 2s buffer
+    : 10000;
   
   const isLargeScreen = useIsLargeScreen();
   useUpdateAnsestors({ playing, playerRef });
 
   const currentFrame = useCurrentPlayerFrame(playerRef);
+  const playheadTime = useEnginePlayhead(); // Get playhead time from engine
   const safeFps = fps || 30;
-  const safeDuration = duration || 10000;
+  const safeDuration = clipDuration;
+  
+  // Force reactivity by reading clips directly in render
+  const allClips = useEngineSelector(selectAllClips);
+  const computedDuration = allClips.length > 0 
+    ? Math.max(...allClips.map(c => c.display.to)) + 2000 
+    : 10000;
 
   const doActiveDelete = () => {
     if (engineSelection.length === 0) return;
     engineDispatch(deleteClip(engineSelection));
+  };
+
+  const doClearAll = () => {
+    if (confirm("Clear all tracks and clips from timeline?")) {
+      engineDispatch(clearAll());
+    }
   };
 
   const doActiveSplit = () => {
@@ -145,13 +156,7 @@ const Header = () => {
 
   const changeScale = (newScale: ITimelineScaleState) => {
     if (!newScale || !newScale.index) return;
-    useStore.getState().setScale({
-      index: newScale.index,
-      unit: 300,
-      zoom: newScale.zoom,
-      segments: 5
-    });
-    // Also dispatch to engine
+    // Only dispatch to engine (not the old store)
     engineDispatch(setZoom(newScale.zoom));
   };
 
@@ -255,6 +260,17 @@ const Header = () => {
         >
           <div className="flex px-2">
             <Button
+              onClick={doClearAll}
+              variant={"ghost"}
+              size={isLargeScreen ? "sm" : "icon"}
+              className="flex items-center gap-1 px-2 text-orange-500 hover:text-orange-600"
+              title="Clear all"
+            >
+              <XCircle size={14} />
+              <span className="hidden lg:block">Clear</span>
+            </Button>
+
+            <Button
               disabled={!engineSelection.length}
               onClick={doActiveDelete}
               variant={"ghost"}
@@ -355,7 +371,7 @@ const Header = () => {
                 }}
                 id="video-current-time"
               >
-                {frameToTimeString({ frame: currentFrame }, { fps: safeFps })}
+                {timeToString({ time: playheadTime || 0 })}
               </div>
               <span className="px-1 text-muted-foreground">|</span>
               <div
@@ -366,7 +382,7 @@ const Header = () => {
                   minWidth: "60px"
                 }}
               >
-                {timeToString({ time: safeDuration })}
+                {timeToString({ time: computedDuration })}
               </div>
               <span className="px-1 text-muted-foreground text-[10px] ml-1">
                 F:{currentFrame}
@@ -375,9 +391,9 @@ const Header = () => {
           </div>
 
           <ZoomControl
-            scale={scale}
+            scale={{ index: 7, zoom: engineZoom, segments: 5, unit: 300 }}
             onChangeTimelineScale={changeScale}
-            duration={safeDuration}
+            duration={clipDuration}
           />
         </div>
       </div>
