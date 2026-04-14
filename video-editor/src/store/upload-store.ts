@@ -147,12 +147,16 @@ export function addFileToTimeline(upload: UploadedFile): void {
     engineStore.dispatch(addTrack(track));
   }
 
-  // ── 3. Calculate non-overlapping placement ────────────────────────────────
-  // For now, always start at 0 for simplicity - first clip goes at beginning
+  // ── 3. Calculate placement ────────────────────────────────
+  // Place after last clip on this track to avoid overlap
   const trackClips = Object.values(engineStore.getState().clips).filter(
     (c) => c && c.trackId === track!.id
   );
-  const startMs = 0; // Always start at 0 for now
+  let startMs = 0;
+  if (trackClips.length > 0) {
+    const maxEnd = Math.max(...trackClips.map(c => c.display.to));
+    startMs = maxEnd + 100; // 100ms gap
+  }
 
   // ── 4. Build the clip ─────────────────────────────────────────────────────
   const clipId = upload.id || nanoid();
