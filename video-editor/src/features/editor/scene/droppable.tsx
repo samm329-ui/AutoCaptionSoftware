@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useRef } from "react";
 import { getDragData, clearDragData } from "@/components/shared/drag-data";
-import { useEngineDispatch } from "../engine/engine-provider";
+import { useEngineDispatch, useEngineZoom } from "../engine/engine-provider";
 import { addClip, createTrack, nanoid } from "../engine/engine-core";
 import type { Clip } from "../engine/engine-core";
 
@@ -28,8 +28,9 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
   const [isPointerInside, setIsPointerInside] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const engineDispatch = useEngineDispatch();
+  const zoom = useEngineZoom();
 
-  const handleDrop = useCallback((draggedData: DraggedData) => {
+  const handleDrop = useCallback((draggedData: DraggedData, dropTimeMs: number = 0) => {
     const clipId = nanoid();
     const clipType = draggedData.type === "audio" ? "audio" 
       : draggedData.type === "image" ? "image"
@@ -38,13 +39,17 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
     
     const track = createTrack(clipType as Clip["type"]);
     
+    const metadata = draggedData.metadata || {};
+    const durationSec = typeof metadata.duration === 'number' ? metadata.duration : 5;
+    const durationMs = durationSec * 1000;
+    
     const clip: Clip = {
       id: clipId,
       type: clipType as Clip["type"],
       trackId: track.id,
       name: draggedData.name || clipType,
-      display: { from: 0, to: 5000 },
-      trim: { from: 0, to: 5000 },
+      display: { from: dropTimeMs, to: dropTimeMs + durationMs },
+      trim: { from: 0, to: durationMs },
       transform: {
         x: 0,
         y: 0,
@@ -145,10 +150,15 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
         return;
       }
       
-      handleDrop(draggedData);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dropX = e.clientX - rect.left;
+      const pixelsPerMs = zoom * 100;
+      const dropTimeMs = dropX / pixelsPerMs;
+      
+      handleDrop(draggedData, Math.max(0, dropTimeMs));
       clearDragData();
     },
-    [isDraggingOver, onDragStateChange, handleDrop]
+    [isDraggingOver, onDragStateChange, handleDrop, zoom]
   );
 
   const onDragLeave = useCallback(
