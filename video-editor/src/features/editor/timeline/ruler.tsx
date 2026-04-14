@@ -12,7 +12,7 @@ import { debounce } from "lodash";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 
 // ENGINE MIGRATION: Import engine hooks
-import { useEngineZoom, useEngineDuration } from "../engine/engine-provider";
+import { useEngineZoom, useTimelineDuration } from "../engine/engine-provider";
 
 interface RulerProps {
   height?: number;
@@ -43,8 +43,9 @@ const Ruler = (props: RulerProps) => {
   // MIGRATION: Get scale from Zustand (needed for canvas drawing)
   const { scale } = useStore();
   
-  // ENGINE MIGRATION: Get duration from engine
-  const engineDuration = useEngineDuration();
+  // ENGINE: Get zoom and duration
+  const engineZoom = useEngineZoom();
+  const timelineDuration = useTimelineDuration();
   
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [canvasContext, setCanvasContext] =
@@ -90,7 +91,7 @@ const Ruler = (props: RulerProps) => {
     if (canvasContext) {
       resize(canvasRef.current, canvasContext, scrollLeft);
     }
-  }, [canvasContext, scrollLeft, scale, timelineOffsetX]);
+  }, [canvasContext, scrollLeft, engineZoom, timelineDuration]);
 
   const resize = (
     canvas: HTMLCanvasElement | null,
@@ -116,9 +117,11 @@ const Ruler = (props: RulerProps) => {
     width: number,
     height: number
   ) => {
-    const zoom = scale.zoom;
-    const unit = scale.unit;
-    const segments = scale.segments;
+    // Use engine zoom instead of old scale
+    const zoom = engineZoom > 0 ? engineZoom : 0.1;
+    const unit = 300; // milliseconds per unit
+    const segments = 5;
+    
     context.clearRect(0, 0, width, height);
     context.save();
     context.strokeStyle = "#71717a";
@@ -130,71 +133,35 @@ const Ruler = (props: RulerProps) => {
     context.translate(0.5, 0);
     context.beginPath();
 
-    const zoomUnit = unit * zoom * PREVIEW_FRAME_WIDTH;
-    const minRange = Math.floor(scrollLeft / zoomUnit);
-    const maxRange = Math.ceil((scrollLeft + width) / zoomUnit);
-    const length = maxRange - minRange;
-
-    // Draw text before drawing the lines
-    for (let i = 0; i <= length; ++i) {
-      const value = i + minRange;
-
-      if (value < 0) continue;
-
-      const startValue = (value * zoomUnit) / zoom;
-      const startPos = (startValue - scrollLeft / zoom) * zoom;
-
-      if (startPos < -zoomUnit || startPos >= width + zoomUnit) continue;
-      const text = textFormat(startValue);
-
-      // Calculate the textOffsetX value
+    // Draw based on timelineDuration (clips end + buffer)
+    const totalMs = timelineDuration;
+    const pixelsPerMs = zoom;
+    const totalPixels = totalMs * pixelsPerMs;
+    
+    // Draw marks every second (1000ms)
+    const secondMarks = Math.ceil(totalMs / 1000);
+    
+    for (let i = 0; i <= secondMarks; i++) {
+      const timeMs = i * 1000;
+      const pos = timeMs * pixelsPerMs - scrollLeft;
+      
+      if (pos < -50 || pos > width + 50) continue;
+      
+      // Draw second number
+      const text = `${i}s`;
       const textWidth = context.measureText(text).width;
-      const textOffsetX = -textWidth / 2;
-
-      // Adjust textOffsetY so it stays inside the canvas but above the lines
-      context.fillText(text, startPos + textOffsetX + offsetX, textOffsetY);
-    }
-
-    // Draw long and short lines after the text
-    for (let i = 0; i <= length; ++i) {
-      const value = i + minRange;
-
-      if (value < 0) continue;
-
-      const startValue = value * zoomUnit;
-      const startPos = startValue - scrollLeft + offsetX;
-
-      for (let j = 0; j < segments; ++j) {
-        const pos = startPos + (j / segments) * zoomUnit;
-
-        if (pos < 0 || pos >= width) continue;
-
-        const lineSize = j % segments ? shortLineSize : longLineSize;
-
-        // Set color based on line size
-        if (lineSize === shortLineSize) {
-          context.strokeStyle = "#52525b"; // Yellow for short lines
-        } else {
-          context.strokeStyle = "#18181b"; // Red for long lines
-        }
-
-        const origin = 18; // Increase the origin to start lines lower, below the text
-
-        const [x1, y1] = [pos, origin];
-        const [x2, y2] = [x1, y1 + lineSize];
-
-        context.beginPath(); // Begin a new path for each line
-        context.moveTo(x1, y1);
-        context.lineTo(x2, y2);
-
-        // Set color based on line size
-        if (lineSize === shortLineSize) {
-          context.stroke(); // Draw the line
-        }
-      }
+      context.fillText(text, pos - textWidth/2, 2);
+      
+      // Draw line
+      context.strokeStyle = "#71717a";
+      context.beginPath();
+      context.moveTo(pos, 18);
+      context.lineTo(pos, 28);
+      context.stroke();
     }
 
     context.restore();
+    setCanvasSize({ width, height });
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
