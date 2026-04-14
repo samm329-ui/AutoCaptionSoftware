@@ -141,7 +141,7 @@ export function createEmptyProject(overrides?: Partial<Project>): Project {
     ui: {
       selection: [],
       playheadTime: 0,
-      zoom: 1 / 300,
+      zoom: 0.1,  // 100 pixels per second - reasonable for editing
       scrollX: 0,
       scrollY: 0,
       timelineVisible: true,
@@ -178,6 +178,7 @@ export type EditorCommand =
   | { type: "ADD_CLIP";    payload: { clip: Clip; trackId?: string } }
   | { type: "DELETE_CLIP"; payload: { clipIds: string[] } }
   | { type: "MOVE_CLIP";   payload: { clipId: string; newStart: number; newTrackId?: string } }
+  | { type: "CLEAR_ALL";  payload?: undefined }
 
   // Clip property updates — plain deep merge, no markers
   | {
@@ -398,6 +399,21 @@ function reducer(state: Project, command: EditorCommand): Project {
         clips: newClips,
         tracks: newTracks,
         ui: { ...state.ui, selection: state.ui.selection.filter((id) => !idSet.has(id)) },
+      };
+    }
+
+    case "CLEAR_ALL": {
+      return {
+        ...state,
+        clips: {},
+        tracks: {},
+        sequences: {},
+        markers: {},
+        ui: { 
+          ...state.ui, 
+          selection: [],
+          playheadTime: 0,
+        },
       };
     }
 

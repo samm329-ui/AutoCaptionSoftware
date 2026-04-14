@@ -265,3 +265,9 @@ export function redo(): EditorCommand {
 export function splitClip(clipId: string, splitTimeMs: number): EditorCommand {
   return { type: "UPDATE_CLIP", payload: { clipId } };
 }
+
+// ─── Clear all ──────────────────────────────────────────────────────────────
+
+export function clearAll(): EditorCommand {
+  return { type: "CLEAR_ALL", payload: undefined };
+}
