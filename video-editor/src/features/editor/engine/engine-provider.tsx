@@ -13,16 +13,16 @@ import type { ReactNode } from "react";
 import { engineStore, type EditorCommand, type Project } from "./engine-core";
 import {
   selectActiveClip,
-  selectCanvasSize,
-  selectClipCount,
+  selectAllClips,
+  selectOrderedTracks,
+  selectSelection,
+  selectZoom,
+  selectScroll,
+  selectPlayheadTime,
   selectDuration,
   selectFps,
-  selectHasSelection,
-  selectPlayheadTime,
-  selectScroll,
-  selectSelection,
-  selectSelectedClips,
-  selectZoom,
+  selectCanvasSize,
+  selectActiveSequence,
 } from "./selectors";
 
 const EngineContext = createContext<typeof engineStore | null>(null);
@@ -106,6 +106,20 @@ export function useEngineScroll() {
 
 export function useEngineDuration() {
   return useEngineSelector(selectDuration);
+}
+
+// New: Get timeline duration based on actual clips (not sequence)
+export function useTimelineDuration() {
+  const clips = useEngineSelector(selectAllClips);
+  const tracks = useEngineSelector(selectOrderedTracks);
+  
+  // If no clips, default to 10 seconds
+  if (clips.length === 0) return 10000;
+  
+  // Find max clip end time across all tracks
+  const maxEnd = Math.max(...clips.map(c => c.display.to));
+  // Add 2 seconds buffer
+  return maxEnd + 2000;
 }
 
 export function useEngineFps() {
