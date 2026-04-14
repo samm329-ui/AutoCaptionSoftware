@@ -113,6 +113,7 @@ const Player = () => {
         style={{ width: safeWidth, height: safeHeight }}
         fps={safeFps}
         overflowVisible
+        acknowledgeRemotionLicense
       />
     </div>
   );
