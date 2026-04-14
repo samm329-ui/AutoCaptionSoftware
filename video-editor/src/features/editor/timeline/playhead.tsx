@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import { useTheme } from "next-themes";
+import { useEngineFps, useEngineDispatch, useEnginePlayhead } from "../engine/engine-provider";
+import { setPlayhead } from "../engine/commands";
 
 interface PlayheadProps {
   scrollLeft: number;
@@ -18,18 +20,18 @@ interface PlayheadProps {
 const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   const playheadRef = useRef<HTMLDivElement>(null);
   const { playerRef } = useStore();
+  const fps = useEngineFps();
+  const engineDispatch = useEngineDispatch();
+  const enginePlayheadTime = useEnginePlayhead(); // Read from engine
   
   const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
   
-  // Calculate position from frame number
-  // frame / fps = seconds, * 1000 = ms, * pixelsPerMs = position
+  // Use engine playheadTime (in ms) 
   const position = useMemo(() => {
-    // Default to 30fps if not available
-    const fps = 30;
-    const msPerFrame = 1000 / fps;
-    const timeMs = currentFrame * msPerFrame;
-    return timeMs * pixelsPerMs - scrollLeft;
-  }, [currentFrame, pixelsPerMs, scrollLeft]);
+    const timeMs = enginePlayheadTime || 0;
+    // Simple: time * zoom = pixels
+    return timeMs * pixelsPerMs;
+  }, [enginePlayheadTime, pixelsPerMs]);
   
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, scrollLeft: 0 });
@@ -66,9 +68,10 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       
       const deltaX = e.clientX - dragStartRef.current.x;
       const newTimeMs = (dragStartRef.current.scrollLeft + deltaX) / pixelsPerMs;
-      const newFrame = Math.round(newTimeMs * (30 / 1000)); // Assume 30fps
+      const newFrame = Math.round(newTimeMs * (fps / 1000));
       
       playerRef.current.seekTo(newFrame);
+      engineDispatch(setPlayhead(newTimeMs), { skipHistory: true });
     };
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -76,9 +79,10 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       
       const deltaX = e.touches[0].clientX - dragStartRef.current.x;
       const newTimeMs = (dragStartRef.current.scrollLeft + deltaX) / pixelsPerMs;
-      const newFrame = Math.round(newTimeMs * (30 / 1000));
+      const newFrame = Math.round(newTimeMs * (fps / 1000));
       
       playerRef.current.seekTo(newFrame);
+      engineDispatch(setPlayhead(newTimeMs), { skipHistory: true });
     };
 
     if (isDragging) {
@@ -94,7 +98,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       document.removeEventListener("touchmove", handleTouchMove as any);
       document.removeEventListener("touchend", handleMouseUp);
     };
-  }, [isDragging, pixelsPerMs, playerRef]);
+  }, [isDragging, pixelsPerMs, playerRef, fps, engineDispatch]);
 
   // Only render if in visible range
   if (position < -10 || position > 3000) {
