@@ -80,28 +80,31 @@ function saveProjectToStorage(project: Project): void {
   }
 }
 
-function loadProjectFromStorage(): Project | null {
+function loadProjectFromStorage(): Project {
   try {
     const raw = localStorage.getItem(PROJECT_STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) return createEmptyProject();
+    
     const parsed = JSON.parse(raw) as Partial<Project>;
     if (parsed && typeof parsed === "object" && parsed.clips && parsed.tracks && parsed.sequences) {
-      // Ensure required fields exist
+      const rootSeqId = parsed.rootSequenceId || Object.keys(parsed.sequences || {})[0];
+      const seq = rootSeqId ? parsed.sequences?.[rootSeqId] : null;
+      
+      if (!rootSeqId || !seq) {
+        console.log('Invalid project in storage, creating empty');
+        return createEmptyProject();
+      }
+      
       return {
         ...parsed,
-        ui: parsed.ui || {
-          selection: [],
-          playheadTime: 0,
-          zoom: 1 / 300,
-          scrollX: 0,
-          scrollY: 0,
-          timelineVisible: true,
-        },
+        rootSequenceId: rootSeqId,
+        ui: parsed.ui || { selection: [], playheadTime: 0, zoom: 0.1, scrollX: 0, scrollY: 0, timelineVisible: true },
       } as Project;
     }
-    return null;
-  } catch {
-    return null;
+    return createEmptyProject();
+  } catch (e) {
+    console.log('Failed to load project, creating empty');
+    return createEmptyProject();
   }
 }
 
