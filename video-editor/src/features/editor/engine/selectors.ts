@@ -15,7 +15,7 @@
  *   const clip = useEngineSelector(selectActiveClip);
  */
 
-import type { Project, Clip, Track, Sequence } from "./engine-core";
+import type { Project, Clip, Track, Sequence, KeyframeTrack, TimelineMarker } from "./engine-core";
 
 // Safe array getter
 function getSelection(p: Project): string[] {
@@ -217,4 +217,140 @@ export function shallowObjectEqual<T extends Record<string, unknown>>(a: T, b: T
   const ka = Object.keys(a), kb = Object.keys(b);
   if (ka.length !== kb.length) return false;
   return ka.every((k) => a[k] === b[k]);
+}
+
+// ─── Layout State ───────────────────────────────────────────────────────────
+
+export function selectLayoutState(p: Project) {
+  return {
+    activeMenuItem: p.ui?.activeMenuItem ?? null,
+    showMenuItem: p.ui?.showMenuItem ?? false,
+    showControlItem: p.ui?.showControlItem ?? false,
+    showToolboxItem: p.ui?.showToolboxItem ?? false,
+    activeToolboxItem: p.ui?.activeToolboxItem ?? null,
+    floatingControl: p.ui?.floatingControl ?? null,
+    drawerOpen: p.ui?.drawerOpen ?? false,
+    controItemDrawerOpen: p.ui?.controItemDrawerOpen ?? false,
+    typeControlItem: p.ui?.typeControlItem ?? "",
+    labelControlItem: p.ui?.labelControlItem ?? "",
+  };
+}
+
+// ─── Crop State ──────────────────────────────────────────────────────────────
+
+export function selectCropState(p: Project) {
+  return {
+    cropTarget: p.ui?.cropTarget ?? null,
+    cropArea: p.ui?.cropArea ?? [0, 0, 0, 0],
+    cropSrc: p.ui?.cropSrc ?? "",
+    cropElement: p.ui?.cropElement ?? null,
+    cropFileLoading: p.ui?.cropFileLoading ?? false,
+    cropStep: p.ui?.cropStep ?? 0,
+    cropScale: p.ui?.cropScale ?? 1,
+    cropSize: p.ui?.cropSize ?? { width: 0, height: 0 },
+  };
+}
+
+// ─── Download State ───────────────────────────────────────────────────────────
+
+export function selectDownloadState(p: Project) {
+  return {
+    projectId: p.ui?.projectId ?? "",
+    exporting: p.ui?.exporting ?? false,
+    exportType: p.ui?.exportType ?? "mp4",
+    exportProgress: p.ui?.exportProgress ?? 0,
+    exportOutput: p.ui?.exportOutput ?? null,
+    displayProgressModal: p.ui?.displayProgressModal ?? false,
+  };
+}
+
+// ─── Folder State ───────────────────────────────────────────────────────────
+
+export function selectFolderState(p: Project) {
+  return {
+    valueFolder: p.ui?.valueFolder ?? "",
+    folderVideos: p.ui?.folderVideos ?? [],
+  };
+}
+
+// ─── Upload State ────────────────────────────────────────────────────────────
+
+export function selectUploads(p: Project): typeof p.uploads {
+  return p.uploads ?? [];
+}
+
+export function selectFolders(p: Project): typeof p.folders {
+  return p.folders ?? [];
+}
+
+export function selectMediaAssets(p: Project): typeof p.mediaAssets {
+  return p.mediaAssets ?? [];
+}
+
+export function selectShowUploadModal(p: Project): boolean {
+  return p.showUploadModal ?? false;
+}
+
+// ─── Data State (Fonts) ─────────────────────────────────────────────────────
+
+export function selectFonts(p: Project): typeof p.fonts {
+  return p.fonts ?? [];
+}
+
+export function selectCompactFonts(p: Project): typeof p.compactFonts {
+  return p.compactFonts ?? [];
+}
+
+// ─── Keyframe State ─────────────────────────────────────────────────────────
+
+export function selectKeyframesByClip(p: Project): typeof p.keyframesByClip {
+  return p.keyframesByClip ?? {};
+}
+
+export function selectClipKeyframes(clipId: string) {
+  return (p: Project): Record<string, KeyframeTrack> => {
+    return p.keyframesByClip?.[clipId] ?? {};
+  };
+}
+
+// ─── Runtime State ─────────────────────────────────────────────────────────
+
+export function selectPlayerRef(p: Project): unknown {
+  return p.playerRef ?? null;
+}
+
+export function selectSceneMoveableRef(p: Project): unknown {
+  return p.sceneMoveableRef ?? null;
+}
+
+export function selectBackground(p: Project): { type: "color" | "image"; value: string } {
+  return p.background ?? { type: "color", value: "transparent" };
+}
+
+export function selectViewTimeline(p: Project): boolean {
+  return p.viewTimeline ?? true;
+}
+
+// ─── Marker State ───────────────────────────────────────────────────────────
+
+export function selectTimelineMarkers(p: Project): TimelineMarker[] {
+  return p.timelineMarkers ?? [];
+}
+
+export function selectMarkerById(id: string) {
+  return (p: Project): TimelineMarker | undefined => {
+    return p.timelineMarkers?.find((m) => m.id === id);
+  };
+}
+
+export function selectMarkersInRange(fromMs: number, toMs: number) {
+  return (p: Project): TimelineMarker[] => {
+    return (p.timelineMarkers ?? []).filter(
+      (m) => m.timeMs >= fromMs && m.timeMs <= toMs
+    );
+  };
+}
+
+export function selectMarkerTimes(p: Project): number[] {
+  return (p.timelineMarkers ?? []).map((m) => m.timeMs);
 }
