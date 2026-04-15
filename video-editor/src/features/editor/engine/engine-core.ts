@@ -32,6 +32,79 @@ export interface Project {
   keyframes: Record<string, unknown>;
   markers: Record<string, unknown>;
   ui: UIState;
+  // ── Upload/Files State ─────────────────────────────────────────────────────
+  uploads: UploadedFile[];
+  folders: ProjectFolder[];
+  mediaAssets: MediaAsset[];
+  showUploadModal: boolean;
+  // ── Data State (Fonts) ────────────────────────────────────────────────────
+  fonts: FontData[];
+  compactFonts: FontData[];
+  // ── Keyframe State ────────────────────────────────────────────────────────
+  keyframesByClip: Record<string, Record<string, KeyframeTrack>>;
+  // ── Runtime Refs (non-serializable) ───────────────────────────────────────
+  playerRef: unknown;
+  sceneMoveableRef: unknown;
+  background: { type: "color" | "image"; value: string };
+  viewTimeline: boolean;
+  // ── Markers ─────────────────────────────────────────────────────────────────
+  timelineMarkers: TimelineMarker[];
+}
+
+export interface UploadedFile {
+  id: string;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  contentType: string;
+  type: "video" | "image" | "audio" | "adjustment" | "colormatte";
+  objectUrl: string;
+  file?: File;
+  status: "completed" | "uploading" | "failed";
+  progress: number;
+  createdAt: number;
+  duration?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  color?: string;
+  folderId?: string | null;
+}
+
+export interface ProjectFolder {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+export interface MediaAsset {
+  id: string;
+  name: string;
+  kind: "video" | "image" | "audio";
+  duration?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+}
+
+export interface FontData {
+  name: string;
+  postScriptName: string;
+  url?: string;
+  category?: string;
+}
+
+export interface KeyframeTrack {
+  property: string;
+  keyframes: Keyframe[];
+  defaultValue: number;
+}
+
+export interface Keyframe {
+  id: string;
+  time: number;
+  value: number;
+  interpolation: "linear" | "ease" | "step" | "bezier";
 }
 
 export interface Sequence {
@@ -84,6 +157,21 @@ export interface Transform {
   flipY: boolean;
 }
 
+// ─── Marker Types ───────────────────────────────────────────────────────────
+
+export type MarkerColor = "green" | "red" | "blue" | "yellow" | "orange" | "purple" | "cyan";
+
+export interface TimelineMarker {
+  id: string;
+  timeMs: number;
+  endTimeMs?: number;
+  label: string;
+  color: MarkerColor;
+  type: "sequence" | "clip";
+  clipId?: string;
+  notes?: string;
+}
+
 export interface UIState {
   selection: string[];
   activeTrackId?: string;
@@ -92,6 +180,36 @@ export interface UIState {
   scrollX: number;
   scrollY: number;
   timelineVisible: boolean;
+  // ── Layout State ───────────────────────────────────────────────────────────
+  activeMenuItem: string | null;
+  showMenuItem: boolean;
+  showControlItem: boolean;
+  showToolboxItem: boolean;
+  activeToolboxItem: string | null;
+  floatingControl: string | null;
+  drawerOpen: boolean;
+  controItemDrawerOpen: boolean;
+  typeControlItem: string;
+  labelControlItem: string;
+  // ── Crop State ──────────────────────────────────────────────────────────────
+  cropTarget: string | null;
+  cropArea: [number, number, number, number];
+  cropSrc: string;
+  cropElement: string | null;
+  cropFileLoading: boolean;
+  cropStep: number;
+  cropScale: number;
+  cropSize: { width: number; height: number };
+  // ── Download State ───────────────────────────────────────────────────────────
+  projectId: string;
+  exporting: boolean;
+  exportType: "json" | "mp4";
+  exportProgress: number;
+  exportOutput: { url: string; type: string } | null;
+  displayProgressModal: boolean;
+  // ── Folder State ───────────────────────────────────────────────────────────
+  valueFolder: string;
+  folderVideos: unknown[];
 }
 
 export interface AppliedEffect {
@@ -141,11 +259,49 @@ export function createEmptyProject(overrides?: Partial<Project>): Project {
     ui: {
       selection: [],
       playheadTime: 0,
-      zoom: 0.1,  // 100 pixels per second - reasonable for editing
+      zoom: 0.1,
       scrollX: 0,
       scrollY: 0,
       timelineVisible: true,
+      activeMenuItem: null,
+      showMenuItem: false,
+      showControlItem: false,
+      showToolboxItem: false,
+      activeToolboxItem: null,
+      floatingControl: null,
+      drawerOpen: false,
+      controItemDrawerOpen: false,
+      typeControlItem: "",
+      labelControlItem: "",
+      cropTarget: null,
+      cropArea: [0, 0, 0, 0],
+      cropSrc: "",
+      cropElement: null,
+      cropFileLoading: false,
+      cropStep: 0,
+      cropScale: 1,
+      cropSize: { width: 0, height: 0 },
+      projectId: "",
+      exporting: false,
+      exportType: "mp4",
+      exportProgress: 0,
+      exportOutput: null,
+      displayProgressModal: false,
+      valueFolder: "",
+      folderVideos: [],
     },
+    uploads: [],
+    folders: [],
+    mediaAssets: [],
+    showUploadModal: false,
+    fonts: [],
+    compactFonts: [],
+    keyframesByClip: {},
+    playerRef: null,
+    sceneMoveableRef: null,
+    background: { type: "color", value: "transparent" },
+    viewTimeline: true,
+    timelineMarkers: [],
     ...overrides,
   };
 }
@@ -220,7 +376,83 @@ export type EditorCommand =
   | { type: "REDO" }
 
   // Bulk load
-  | { type: "LOAD_PROJECT";  payload: { project: Project } };
+  | { type: "LOAD_PROJECT";  payload: { project: Project } }
+
+  // ── Layout State Commands ─────────────────────────────────────────────────
+  | { type: "SET_LAYOUT"; payload: {
+      activeMenuItem?: string | null;
+      showMenuItem?: boolean;
+      showControlItem?: boolean;
+      showToolboxItem?: boolean;
+      activeToolboxItem?: string | null;
+      floatingControl?: string | null;
+      drawerOpen?: boolean;
+      controItemDrawerOpen?: boolean;
+      typeControlItem?: string;
+      labelControlItem?: string;
+    }}
+
+  // ── Crop State Commands ────────────────────────────────────────────────────
+  | { type: "SET_CROP_TARGET"; payload: { target: string | null } }
+  | { type: "SET_CROP_AREA"; payload: { area: [number, number, number, number] } }
+  | { type: "SET_CROP_SRC"; payload: { src: string } }
+  | { type: "SET_CROP_ELEMENT"; payload: { element: string | null } }
+  | { type: "SET_CROP_STATE"; payload: {
+      fileLoading?: boolean;
+      step?: number;
+      scale?: number;
+      size?: { width: number; height: number };
+    }}
+  | { type: "CLEAR_CROP"; payload?: undefined }
+
+  // ── Download State Commands ───────────────────────────────────────────────
+  | { type: "SET_EXPORT_STATE"; payload: {
+      projectId?: string;
+      exporting?: boolean;
+      exportType?: "json" | "mp4";
+      exportProgress?: number;
+      exportOutput?: { url: string; type: string } | null;
+      displayProgressModal?: boolean;
+    }}
+
+  // ── Folder State Commands ─────────────────────────────────────────────────
+  | { type: "SET_FOLDER_STATE"; payload: {
+      valueFolder?: string;
+      folderVideos?: unknown[];
+    }}
+
+  // ── Upload/Files Commands ────────────────────────────────────────────────
+  | { type: "ADD_UPLOAD"; payload: { upload: UploadedFile } }
+  | { type: "REMOVE_UPLOAD"; payload: { id: string } }
+  | { type: "CLEAR_UPLOADS"; payload?: undefined }
+  | { type: "ADD_FOLDER"; payload: { folder: ProjectFolder } }
+  | { type: "REMOVE_FOLDER"; payload: { id: string } }
+  | { type: "RENAME_FOLDER"; payload: { id: string; name: string } }
+  | { type: "MOVE_FILE_TO_FOLDER"; payload: { fileId: string; folderId: string | null } }
+  | { type: "ADD_MEDIA_ASSET"; payload: { asset: MediaAsset } }
+  | { type: "SET_UPLOAD_MODAL"; payload: { show: boolean } }
+
+  // ── Data State (Fonts) Commands ───────────────────────────────────────────
+  | { type: "SET_FONTS"; payload: { fonts: FontData[] } }
+  | { type: "SET_COMPACT_FONTS"; payload: { compactFonts: FontData[] } }
+
+  // ── Keyframe State Commands ───────────────────────────────────────────────
+  | { type: "SET_KEYFRAME_TRACK"; payload: { clipId: string; property: string; track: KeyframeTrack } }
+  | { type: "REMOVE_KEYFRAME_TRACK"; payload: { clipId: string; property: string } }
+  | { type: "CLEAR_KEYFRAMES_FOR_CLIP"; payload: { clipId: string } }
+
+  // ── Runtime Refs Commands ────────────────────────────────────────────────
+  | { type: "SET_PLAYER_REF"; payload: { ref: unknown } }
+  | { type: "SET_SCENE_MOVEABLE_REF"; payload: { ref: unknown } }
+  | { type: "SET_BACKGROUND"; payload: { background: { type: "color" | "image"; value: string } } }
+  | { type: "SET_VIEW_TIMELINE"; payload: { visible: boolean } }
+
+  // ── Marker Commands ─────────────────────────────────────────────────────────
+  | { type: "ADD_MARKER"; payload: { marker: TimelineMarker } }
+  | { type: "REMOVE_MARKER"; payload: { id: string } }
+  | { type: "UPDATE_MARKER"; payload: { id: string; updates: Partial<TimelineMarker> } }
+  | { type: "MOVE_MARKER"; payload: { id: string; timeMs: number } }
+  | { type: "CLEAR_MARKERS"; payload?: undefined };
 
 // ─── History ──────────────────────────────────────────────────────────────────
 
@@ -698,6 +930,229 @@ function reducer(state: Project, command: EditorCommand): Project {
     case "UNDO":
     case "REDO":
       return state;
+
+    // ── Layout State ───────────────────────────────────────────────────────────
+    case "SET_LAYOUT": {
+      const { payload } = command;
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          activeMenuItem: payload.activeMenuItem ?? state.ui.activeMenuItem,
+          showMenuItem: payload.showMenuItem ?? state.ui.showMenuItem,
+          showControlItem: payload.showControlItem ?? state.ui.showControlItem,
+          showToolboxItem: payload.showToolboxItem ?? state.ui.showToolboxItem,
+          activeToolboxItem: payload.activeToolboxItem ?? state.ui.activeToolboxItem,
+          floatingControl: payload.floatingControl ?? state.ui.floatingControl,
+          drawerOpen: payload.drawerOpen ?? state.ui.drawerOpen,
+          controItemDrawerOpen: payload.controItemDrawerOpen ?? state.ui.controItemDrawerOpen,
+          typeControlItem: payload.typeControlItem ?? state.ui.typeControlItem,
+          labelControlItem: payload.labelControlItem ?? state.ui.labelControlItem,
+        },
+      };
+    }
+
+    // ── Crop State ─────────────────────────────────────────────────────────────
+    case "SET_CROP_TARGET":
+      return { ...state, ui: { ...state.ui, cropTarget: command.payload.target } };
+
+    case "SET_CROP_AREA":
+      return { ...state, ui: { ...state.ui, cropArea: command.payload.area } };
+
+    case "SET_CROP_SRC":
+      return { ...state, ui: { ...state.ui, cropSrc: command.payload.src } };
+
+    case "SET_CROP_ELEMENT":
+      return { ...state, ui: { ...state.ui, cropElement: command.payload.element } };
+
+    case "SET_CROP_STATE": {
+      const { payload } = command;
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          cropFileLoading: payload.fileLoading ?? state.ui.cropFileLoading,
+          cropStep: payload.step ?? state.ui.cropStep,
+          cropScale: payload.scale ?? state.ui.cropScale,
+          cropSize: payload.size ?? state.ui.cropSize,
+        },
+      };
+    }
+
+    case "CLEAR_CROP":
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          cropTarget: null,
+          cropArea: [0, 0, 0, 0],
+          cropSrc: "",
+          cropElement: null,
+          cropFileLoading: false,
+          cropStep: 0,
+          cropScale: 1,
+          cropSize: { width: 0, height: 0 },
+        },
+      };
+
+    // ── Download State ───────────────────────────────────────────────────────
+    case "SET_EXPORT_STATE": {
+      const { payload } = command;
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          projectId: payload.projectId ?? state.ui.projectId,
+          exporting: payload.exporting ?? state.ui.exporting,
+          exportType: payload.exportType ?? state.ui.exportType,
+          exportProgress: payload.exportProgress ?? state.ui.exportProgress,
+          exportOutput: payload.exportOutput !== undefined ? payload.exportOutput : state.ui.exportOutput,
+          displayProgressModal: payload.displayProgressModal ?? state.ui.displayProgressModal,
+        },
+      };
+    }
+
+    // ── Folder State ───────────────────────────────────────────────────────────
+    case "SET_FOLDER_STATE": {
+      const { payload } = command;
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          valueFolder: payload.valueFolder ?? state.ui.valueFolder,
+          folderVideos: payload.folderVideos ?? state.ui.folderVideos,
+        },
+      };
+    }
+
+    // ── Upload/Files State ────────────────────────────────────────────────────
+    case "ADD_UPLOAD":
+      return { ...state, uploads: [command.payload.upload, ...(state.uploads ?? [])] };
+
+    case "REMOVE_UPLOAD":
+      return { ...state, uploads: (state.uploads ?? []).filter((u) => u.id !== command.payload.id) };
+
+    case "CLEAR_UPLOADS":
+      return { ...state, uploads: [], folders: [], mediaAssets: [] };
+
+    case "ADD_FOLDER":
+      return { ...state, folders: [...(state.folders ?? []), command.payload.folder] };
+
+    case "REMOVE_FOLDER": {
+      const { id } = command.payload;
+      return {
+        ...state,
+        folders: (state.folders ?? []).filter((f) => f.id !== id),
+        uploads: (state.uploads ?? []).map((u) => (u.folderId === id ? { ...u, folderId: undefined } : u)),
+      };
+    }
+
+    case "RENAME_FOLDER": {
+      const { id, name } = command.payload;
+      return {
+        ...state,
+        folders: (state.folders ?? []).map((f) => (f.id === id ? { ...f, name } : f)),
+      };
+    }
+
+    case "MOVE_FILE_TO_FOLDER": {
+      const { fileId, folderId } = command.payload;
+      return {
+        ...state,
+        uploads: (state.uploads ?? []).map((u) => (u.id === fileId ? { ...u, folderId } : u)),
+      };
+    }
+
+    case "ADD_MEDIA_ASSET":
+      return { ...state, mediaAssets: [command.payload.asset, ...(state.mediaAssets ?? [])] };
+
+    case "SET_UPLOAD_MODAL":
+      return { ...state, showUploadModal: command.payload.show };
+
+    // ── Data State (Fonts) ────────────────────────────────────────────────────
+    case "SET_FONTS":
+      return { ...state, fonts: command.payload.fonts };
+
+    case "SET_COMPACT_FONTS":
+      return { ...state, compactFonts: command.payload.compactFonts };
+
+    // ── Keyframe State ─────────────────────────────────────────────────────────
+    case "SET_KEYFRAME_TRACK": {
+      const { clipId, property, track } = command.payload;
+      return {
+        ...state,
+        keyframesByClip: {
+          ...state.keyframesByClip,
+          [clipId]: {
+            ...(state.keyframesByClip[clipId] || {}),
+            [property]: track,
+          },
+        },
+      };
+    }
+
+    case "REMOVE_KEYFRAME_TRACK": {
+      const { clipId, property } = command.payload;
+      const clipKeyframes = state.keyframesByClip[clipId];
+      if (!clipKeyframes) return state;
+      const { [property]: _, ...rest } = clipKeyframes;
+      return {
+        ...state,
+        keyframesByClip: {
+          ...state.keyframesByClip,
+          [clipId]: rest,
+        },
+      };
+    }
+
+    case "CLEAR_KEYFRAMES_FOR_CLIP": {
+      const { clipId } = command.payload;
+      const { [clipId]: _, ...rest } = state.keyframesByClip;
+      return { ...state, keyframesByClip: rest };
+    }
+
+    // ── Runtime Refs ──────────────────────────────────────────────────────────
+    case "SET_PLAYER_REF":
+      return { ...state, playerRef: command.payload.ref };
+
+    case "SET_SCENE_MOVEABLE_REF":
+      return { ...state, sceneMoveableRef: command.payload.ref };
+
+    case "SET_BACKGROUND":
+      return { ...state, background: command.payload.background };
+
+    case "SET_VIEW_TIMELINE":
+      return { ...state, viewTimeline: command.payload.visible };
+
+    // ── Markers ────────────────────────────────────────────────────────────────
+    case "ADD_MARKER":
+      return { ...state, timelineMarkers: [...(state.timelineMarkers ?? []), command.payload.marker] };
+
+    case "REMOVE_MARKER":
+      return { ...state, timelineMarkers: (state.timelineMarkers ?? []).filter((m) => m.id !== command.payload.id) };
+
+    case "UPDATE_MARKER": {
+      const { id, updates } = command.payload;
+      return {
+        ...state,
+        timelineMarkers: (state.timelineMarkers ?? []).map((m) =>
+          m.id === id ? { ...m, ...updates } : m
+        ),
+      };
+    }
+
+    case "MOVE_MARKER": {
+      const { id, timeMs } = command.payload;
+      return {
+        ...state,
+        timelineMarkers: (state.timelineMarkers ?? []).map((m) =>
+          m.id === id ? { ...m, timeMs } : m
+        ),
+      };
+    }
+
+    case "CLEAR_MARKERS":
+      return { ...state, timelineMarkers: [] };
 
     default: {
       const _exhaustive: never = command;
