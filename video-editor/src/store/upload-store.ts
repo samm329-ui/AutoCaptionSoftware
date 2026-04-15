@@ -135,35 +135,48 @@ export function addFileToTimeline(upload: UploadedFile): void {
 type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
   const trackType: TrackType = upload.type === "audio" ? "audio" : "video";
 
-  // ── 2. Allocate track with proper lane logic (V1/V2/V3, A1/A2/A3) ────────
+// ── 2. Allocate track with proper lane logic (V1/V2/V3, A1/A2/A3) ────────
   const existingTracks = selectOrderedTracks(state).filter(t => t.type === trackType);
   
   let track: ReturnType<typeof createTrack> | undefined;
-  let laneIndex = 0;
+  let startMs = 0;
   
-  if (existingTracks.length > 0) {
-    // Find a lane that doesn't have significant overlap at the end position
-    // Check if the last clip on the track ends before we would want to start a new clip
-    // For simplicity, we use the next available lane
-    const maxOrder = Math.max(...existingTracks.map(t => t.order));
-    laneIndex = maxOrder + 1;
+  // Find existing tracks of the same type
+  const allClips = Object.values(state.clips);
+  
+  // Check if we can append to an existing track (find track with most room at end)
+  for (const existingTrack of existingTracks) {
+    const trackClipsOnThisTrack = allClips.filter(c => c && c.trackId === existingTrack.id);
+    
+    // Calculate end time of last clip on this track
+    let lastClipEnd = 0;
+    if (trackClipsOnThisTrack.length > 0) {
+      lastClipEnd = Math.max(...trackClipsOnThisTrack.map(c => c.display.to));
+    }
+    
+    // If this track has room (less than 30 seconds of content), use it
+    if (lastClipEnd < 30000) {
+      track = existingTrack;
+      startMs = lastClipEnd + 100; // 100ms gap after last clip
+      break;
+    }
   }
   
-  track = createTrack(trackType, {
-    name: `${trackType.toUpperCase()}${laneIndex + 1}`,
-    order: laneIndex,
-});
-  engineStore.dispatch(addTrack(track));
-
-  // ── 3. Calculate placement ───────────────────────────────-
-  // Place at start for new lanes, or after last clip if on existing lane
-  const trackClips = Object.values(engineStore.getState().clips).filter(
-    (c) => c && c.trackId === track!.id
-  );
-  let startMs = 0;
-  if (trackClips.length > 0) {
-    const maxEnd = Math.max(...trackClips.map(c => c.display.to));
-    startMs = maxEnd + 100; // 100ms gap
+  // If no track found with room, create new track
+  if (!track && existingTracks.length > 0) {
+    const maxOrder = Math.max(...existingTracks.map(t => t.order));
+    track = createTrack(trackType, {
+      name: `${trackType.toUpperCase()}${maxOrder + 2}`, // +2 because existing is already +1
+      order: maxOrder + 1,
+    });
+    engineStore.dispatch(addTrack(track));
+  } else if (!track) {
+    // No existing tracks, create V1/A1
+    track = createTrack(trackType, {
+      name: trackType === "audio" ? "A1" : "V1",
+      order: 0,
+    });
+    engineStore.dispatch(addTrack(track));
   }
 
   // ── 4. Build the clip ─────────────────────────────────────────────────────
