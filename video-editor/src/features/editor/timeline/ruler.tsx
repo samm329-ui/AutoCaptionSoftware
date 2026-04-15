@@ -7,7 +7,6 @@ import {
   TIMELINE_OFFSET_CANVAS_LEFT
 } from "../constants/constants";
 import { formatTimelineUnit } from "../utils/format";
-import useStore from "../store/use-store";
 import { debounce } from "lodash";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 
@@ -40,9 +39,6 @@ const Ruler = (props: RulerProps) => {
     onClick,
     onScroll
   } = props;
-  
-  // MIGRATION: Get scale from Zustand (needed for canvas drawing)
-  const { scale } = useStore();
   
   // ENGINE: Get zoom and duration
   const engineZoom = useEngineZoom();
