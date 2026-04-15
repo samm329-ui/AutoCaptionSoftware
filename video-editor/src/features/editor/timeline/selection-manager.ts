@@ -6,14 +6,16 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useEngineDispatch, useEngineSelector } from "../engine/engine-provider";
+import { useEngineDispatch, useEngineSelector, useEngineZoom } from "../engine/engine-provider";
 import { setSelection, moveClip } from "../engine/commands";
 import { dragEngine } from "../engine/subsystems/drag-engine";
+import { zoomToPixelsPerMs } from "../engine/time-scale";
 
 export function useTimelineSelection() {
   const dispatch = useEngineDispatch();
   const selection = useEngineSelector((s) => s.ui.selection);
   const clips = useEngineSelector((s) => s.clips);
+  const zoom = useEngineZoom();
   
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ clipId: "", startX: 0, originalFrom: 0 });
@@ -39,13 +41,13 @@ export function useTimelineSelection() {
     
     const { clipId, startX, originalFrom } = dragStartRef.current;
     const deltaX = clientX - startX;
-    const pixelsPerMs = 100; // Will get from zoom
+    const pixelsPerMs = zoomToPixelsPerMs(zoom);
     const deltaMs = deltaX / pixelsPerMs;
     const newFrom = Math.max(0, originalFrom + deltaMs);
     
     // Temporary move - will commit on end
     dragEngine.startDrag(clipId, clientX);
-  }, []);
+  }, [zoom]);
 
   // End dragging and commit to engine
   const endDrag = useCallback((clientX: number) => {
@@ -53,7 +55,7 @@ export function useTimelineSelection() {
     
     const { clipId, startX, originalFrom } = dragStartRef.current;
     const deltaX = clientX - startX;
-    const pixelsPerMs = 100;
+    const pixelsPerMs = zoomToPixelsPerMs(zoom);
     const deltaMs = deltaX / pixelsPerMs;
     const newFrom = Math.max(0, originalFrom + deltaMs);
     
@@ -62,7 +64,7 @@ export function useTimelineSelection() {
     
     isDraggingRef.current = false;
     dragStartRef.current = { clipId: "", startX: 0, originalFrom: 0 };
-  }, [dispatch]);
+  }, [dispatch, zoom]);
 
   // Cancel drag without committing
   const cancelDrag = useCallback(() => {
