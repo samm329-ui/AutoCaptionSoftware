@@ -33,17 +33,15 @@ import MenuBar from "./menu-bar";
 import { handleFileUpload } from "@/store/upload-store";
 import { engineStore } from "./engine/engine-core";
 import { setCanvas, undo, redo } from "./engine/commands";
-import { LegacyStateAdapter } from "./engine/legacy-state-adapter";
+// Engine is single source of truth for project state
 import { nanoid } from "nanoid";
 
 export default function Navbar({
   user,
-  stateManager,
   setProjectName,
   projectName
 }: {
   user: any | null;
-  stateManager: LegacyStateAdapter;
   setProjectName: (name: string) => void;
   projectName: string;
 }) {
@@ -163,7 +161,7 @@ export default function Navbar({
           </Button>
           <ModeToggle />
 
-          <DownloadPopover stateManager={stateManager} />
+          <DownloadPopover />
         </div>
       </div>
       <ShortcutsModal
@@ -174,7 +172,7 @@ export default function Navbar({
   );
 }
 
-const DownloadPopover = ({ stateManager }: { stateManager: LegacyStateAdapter }) => {
+const DownloadPopover = () => {
   const isMediumScreen = useIsMediumScreen();
   const { actions, exportType } = useDownloadState();
   const [isExportTypeOpen, setIsExportTypeOpen] = useState(false);
