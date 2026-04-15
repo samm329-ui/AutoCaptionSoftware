@@ -3,6 +3,7 @@ import { getDragData, clearDragData } from "@/components/shared/drag-data";
 import { useEngineDispatch, useEngineZoom } from "../engine/engine-provider";
 import { addClip, createTrack, nanoid } from "../engine/engine-core";
 import type { Clip } from "../engine/engine-core";
+import { zoomToPixelsPerMs, pxToMs } from "../engine/time-scale";
 
 enum AcceptedDropTypes {
   IMAGE = "image",
@@ -152,8 +153,8 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
       
       const rect = e.currentTarget.getBoundingClientRect();
       const dropX = e.clientX - rect.left;
-      const pixelsPerMs = zoom * 100;
-      const dropTimeMs = dropX / pixelsPerMs;
+      const pixelsPerMs = zoomToPixelsPerMs(zoom);
+      const dropTimeMs = pxToMs(dropX, pixelsPerMs);
       
       handleDrop(draggedData, Math.max(0, dropTimeMs));
       clearDragData();
