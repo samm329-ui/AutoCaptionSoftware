@@ -11,6 +11,7 @@ import {
 import { useTheme } from "next-themes";
 import { useEngineFps, useEngineDispatch, useEnginePlayhead } from "../engine/engine-provider";
 import { setPlayhead } from "../engine/commands";
+import { msToPx, pxToMs, frameToMs, msToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
 
 interface PlayheadProps {
   scrollLeft: number;
@@ -26,15 +27,14 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   
   const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
   
-  // Use engine playheadTime (in ms) 
+  // Use engine playheadTime (in ms) with shared conversion helper
   const position = useMemo(() => {
     const timeMs = enginePlayheadTime || 0;
-    // Simple: time * zoom = pixels
-    return timeMs * pixelsPerMs;
+    return msToPx(timeMs, pixelsPerMs);
   }, [enginePlayheadTime, pixelsPerMs]);
   
   const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, scrollLeft: 0 });
+  const dragStartRef = useRef({ x: 0, startTimeMs: 0 });
 
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -59,7 +59,8 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
     e.stopPropagation();
     setIsDragging(true);
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    dragStartRef.current = { x: clientX, scrollLeft };
+    // Store current playhead time as the drag origin, NOT scrollLeft
+    dragStartRef.current = { x: clientX, startTimeMs: enginePlayheadTime || 0 };
   };
 
   useEffect(() => {
@@ -67,22 +68,23 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       if (!isDragging || !playerRef?.current) return;
       
       const deltaX = e.clientX - dragStartRef.current.x;
-      const newTimeMs = (dragStartRef.current.scrollLeft + deltaX) / pixelsPerMs;
-      const newFrame = Math.round(newTimeMs * (fps / 1000));
+      // Calculate new time from the stored origin, not from scroll offset
+      const newTimeMs = dragStartRef.current.startTimeMs + (deltaX / pixelsPerMs);
+      const newFrame = msToFrame(newTimeMs, fps);
       
-      playerRef.current.seekTo(newFrame);
-      engineDispatch(setPlayhead(newTimeMs), { skipHistory: true });
+playerRef.current.seekTo(newFrame);
+      engineDispatch(setPlayhead(Math.max(0, newTimeMs)), { skipHistory: true });
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (!isDragging || !playerRef?.current) return;
       
       const deltaX = e.touches[0].clientX - dragStartRef.current.x;
-      const newTimeMs = (dragStartRef.current.scrollLeft + deltaX) / pixelsPerMs;
-      const newFrame = Math.round(newTimeMs * (fps / 1000));
+      const newTimeMs = dragStartRef.current.startTimeMs + (deltaX / pixelsPerMs);
+      const newFrame = msToFrame(newTimeMs, fps);
       
       playerRef.current.seekTo(newFrame);
-      engineDispatch(setPlayhead(newTimeMs), { skipHistory: true });
+      engineDispatch(setPlayhead(Math.max(0, newTimeMs)), { skipHistory: true });
     };
 
     if (isDragging) {
