@@ -180,6 +180,10 @@ export type EditorCommand =
   | { type: "MOVE_CLIP";   payload: { clipId: string; newStart: number; newTrackId?: string } }
   | { type: "CLEAR_ALL";  payload?: undefined }
 
+  // Split and clone
+  | { type: "SPLIT_CLIP"; payload: { clipId: string; splitTimeMs: number } }
+  | { type: "CLONE_CLIP"; payload: { clipId: string } }
+
   // Clip property updates — plain deep merge, no markers
   | {
       type: "UPDATE_CLIP";
@@ -414,6 +418,96 @@ function reducer(state: Project, command: EditorCommand): Project {
           selection: [],
           playheadTime: 0,
         },
+      };
+    }
+
+    // ── Split clip — creates two clips from one ──────────────────────────────
+    case "SPLIT_CLIP": {
+      const { clipId, splitTimeMs } = command.payload;
+      const clip = state.clips[clipId];
+      if (!clip) return state;
+      
+      const splitPoint = splitTimeMs;
+      if (splitPoint <= clip.display.from || splitPoint >= clip.display.to) {
+        return state;
+      }
+      
+      const firstClip: Clip = {
+        ...clip,
+        id: nanoid(),
+        display: { from: clip.display.from, to: splitPoint },
+        trim: { 
+          from: clip.trim.from, 
+          to: clip.trim.from + (splitPoint - clip.display.from) 
+        },
+        name: `${clip.name} (1)`,
+      };
+      
+      const secondClip: Clip = {
+        ...clip,
+        id: nanoid(),
+        display: { from: splitPoint, to: clip.display.to },
+        trim: { 
+          from: clip.trim.from + (splitPoint - clip.display.from), 
+          to: clip.trim.to 
+        },
+        name: `${clip.name} (2)`,
+      };
+      
+      const track = state.tracks[clip.trackId];
+      if (!track) return state;
+      
+      return {
+        ...state,
+        clips: {
+          ...state.clips,
+          [firstClip.id]: firstClip,
+          [secondClip.id]: secondClip,
+        },
+        tracks: {
+          ...state.tracks,
+          [clip.trackId]: {
+            ...track,
+            clipIds: [...track.clipIds.filter(id => id !== clipId), firstClip.id, secondClip.id],
+          },
+        },
+        ui: { ...state.ui, selection: [firstClip.id, secondClip.id] },
+      };
+    }
+
+    // ── Clone clip — creates a copy of a clip ──────────────────────────────────────
+    case "CLONE_CLIP": {
+      const { clipId } = command.payload;
+      const clip = state.clips[clipId];
+      if (!clip) return state;
+      
+      const clonedClip: Clip = {
+        ...clip,
+        id: nanoid(),
+        name: `${clip.name} (copy)`,
+        display: { 
+          from: clip.display.from + 1000, 
+          to: clip.display.to + 1000 
+        },
+      };
+      
+      const track = state.tracks[clip.trackId];
+      if (!track) return state;
+      
+      return {
+        ...state,
+        clips: {
+          ...state.clips,
+          [clonedClip.id]: clonedClip,
+        },
+        tracks: {
+          ...state.tracks,
+          [clip.trackId]: {
+            ...track,
+            clipIds: [...track.clipIds, clonedClip.id],
+          },
+        },
+        ui: { ...state.ui, selection: [clonedClip.id] },
       };
     }
 
