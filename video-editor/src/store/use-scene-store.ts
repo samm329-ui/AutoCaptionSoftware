@@ -1,12 +1,19 @@
+/**
+ * useSceneStore - DEPRECATED
+ * This store is no longer used. Scene state is managed by engine.
+ * Keeping for backwards compatibility only.
+ */
+
 import { IDesign } from "../features/editor/types";
-import { create } from "zustand";
 
 interface ISceneStore {
   scene: IDesign | null;
   setScene: (scene: IDesign) => void;
 }
 
-export const useSceneStore = create<ISceneStore>((set) => ({
+export const useSceneStore = (): ISceneStore => ({
   scene: null,
-  setScene: (scene) => set({ scene })
-}));
+  setScene: () => {},
+});
+
+export default useSceneStore;

@@ -1,129 +1,115 @@
-import { create } from "zustand";
+/**
+ * upload-store - Pure React implementation
+ * Uses engine store for state, no Zustand
+ */
+
+import { useCallback } from "react";
 import { probeMediaFile, type MediaAsset } from "@/features/editor/utils/media-probe";
 import {
   engineStore,
   createTrack,
   nanoid,
   type Clip,
+  type UploadedFile,
+  type ProjectFolder,
 } from "@/features/editor/engine/engine-core";
 import {
   addTrack,
   addClip,
   selectClip,
   setCanvas,
+  addUpload as addUploadCmd,
+  removeUpload as removeUploadCmd,
+  clearUploads as clearUploadsCmd,
+  addFolder as addFolderCmd,
+  removeFolder as removeFolderCmd,
+  renameFolder as renameFolderCmd,
+  moveFileToFolder as moveFileToFolderCmd,
+  addMediaAsset as addMediaAssetCmd,
+  setUploadModal,
 } from "@/features/editor/engine/commands";
 import { selectOrderedTracks } from "@/features/editor/engine/selectors";
+import { useUploads, useFolders, useMediaAssets, useShowUploadModal } from "@/features/editor/engine";
 
-export interface UploadedFile {
-  id: string;
-  fileName: string;
-  filePath: string;
-  fileSize: number;
-  contentType: string;
-  type: "video" | "image" | "audio" | "adjustment" | "colormatte";
-  objectUrl: string;
-  file?: File;
-  status: "completed" | "uploading" | "failed";
-  progress: number;
-  createdAt: number;
-  duration?: number;
-  width?: number;
-  height?: number;
-  fps?: number;
-  color?: string;
-  folderId?: string | null;
+export function useUploadStore() {
+  const uploads = useUploads();
+  const folders = useFolders();
+  const mediaAssets = useMediaAssets();
+  const showUploadModal = useShowUploadModal();
+
+  return {
+    uploads,
+    folders,
+    mediaAssets,
+    showUploadModal,
+  };
 }
 
-export interface ProjectFolder {
-  id: string;
-  name: string;
-  createdAt: number;
+export function useUploadStoreWithActions() {
+  const uploads = useUploads();
+  const folders = useFolders();
+  const mediaAssets = useMediaAssets();
+  const showUploadModal = useShowUploadModal();
+
+  const addUpload = useCallback((upload: UploadedFile) => {
+    engineStore.dispatch(addUploadCmd(upload));
+  }, []);
+
+  const addFolder = useCallback((folder: ProjectFolder) => {
+    engineStore.dispatch(addFolderCmd(folder));
+  }, []);
+
+  const removeFolderAction = useCallback((id: string) => {
+    engineStore.dispatch(removeFolderCmd(id));
+  }, []);
+
+  const renameFolderAction = useCallback((id: string, name: string) => {
+    engineStore.dispatch(renameFolderCmd(id, name));
+  }, []);
+
+  const moveFileToFolderAction = useCallback((fileId: string, folderId: string | null) => {
+    engineStore.dispatch(moveFileToFolderCmd(fileId, folderId));
+  }, []);
+
+  const addMediaAssetAction = useCallback((asset: MediaAsset) => {
+    engineStore.dispatch(addMediaAssetCmd(asset));
+  }, []);
+
+  const removeUploadAction = useCallback((id: string) => {
+    engineStore.dispatch(removeUploadCmd(id));
+  }, []);
+
+  const clearUploadsAction = useCallback(() => {
+    engineStore.dispatch(clearUploadsCmd());
+  }, []);
+
+  const setShowUploadModalAction = useCallback((show: boolean) => {
+    engineStore.dispatch(setUploadModal(show));
+  }, []);
+
+  return {
+    uploads,
+    folders,
+    mediaAssets,
+    showUploadModal,
+    addUpload,
+    addFolder,
+    removeFolder: removeFolderAction,
+    renameFolder: renameFolderAction,
+    moveFileToFolder: moveFileToFolderAction,
+    addMediaAsset: addMediaAssetAction,
+    removeUpload: removeUploadAction,
+    clearUploads: clearUploadsAction,
+    setShowUploadModal: setShowUploadModalAction,
+  };
 }
 
-interface IUploadStore {
-  uploads: UploadedFile[];
-  folders: ProjectFolder[];
-  mediaAssets: MediaAsset[];
-  addUpload: (upload: UploadedFile) => void;
-  addFolder: (folder: ProjectFolder) => void;
-  removeFolder: (id: string) => void;
-  renameFolder: (id: string, name: string) => void;
-  moveFileToFolder: (fileId: string, folderId: string | null) => void;
-  addMediaAsset: (asset: MediaAsset) => void;
-  removeUpload: (id: string) => void;
-  clearUploads: () => void;
-  showUploadModal: boolean;
-  setShowUploadModal: (show: boolean) => void;
-}
+export { type UploadedFile, type ProjectFolder };
 
-export const useUploadStore = create<IUploadStore>((set) => ({
-  uploads: [],
-  folders: [],
-  mediaAssets: [],
-
-  addUpload: (upload) =>
-    set((state) => ({
-      uploads: [upload, ...state.uploads]
-    })),
-
-  addFolder: (folder) =>
-    set((state) => ({
-      folders: [...state.folders, folder]
-    })),
-
-  removeFolder: (id) =>
-    set((state) => ({
-      folders: state.folders.filter((f) => f.id !== id),
-      uploads: state.uploads.map((u) =>
-        u.folderId === id ? { ...u, folderId: undefined } : u
-      ),
-    })),
-
-  renameFolder: (id, name) =>
-    set((state) => ({
-      folders: state.folders.map((f) =>
-        f.id === id ? { ...f, name } : f
-      ),
-    })),
-
-  moveFileToFolder: (fileId, folderId) =>
-    set((state) => ({
-      uploads: state.uploads.map((u) =>
-        u.id === fileId ? { ...u, folderId } : u
-      ),
-    })),
-
-  addMediaAsset: (asset) =>
-    set((state) => ({
-      mediaAssets: [asset, ...state.mediaAssets]
-    })),
-
-  removeUpload: (id) =>
-    set((state) => ({
-      uploads: state.uploads.filter((u) => u.id !== id)
-    })),
-
-  clearUploads: () => set({ uploads: [], folders: [], mediaAssets: [] }),
-
-  showUploadModal: false,
-  setShowUploadModal: (show) => set({ showUploadModal: show })
-}));
-
-/**
- * addFileToTimeline — engine-first
- *
- * 1. Find or create a track of the correct type.
- * 2. Dispatch ADD_CLIP with a proper engine Clip shape.
- * 3. Update canvas / fps / duration through engine commands.
- * 4. Select the new clip.
- *
- * Never writes to Zustand trackItemsMap / trackItemIds.
- */
 export function addFileToTimeline(upload: UploadedFile): void {
   const state = engineStore.getState();
   const durationMs = (upload.duration ?? 5) * 1000;
 
-  // ── 1. Determine clip type ────────────────────────────────────────────────
   type ClipType = Clip["type"];
   const clipType: ClipType =
     upload.type === "audio"
@@ -132,46 +118,39 @@ export function addFileToTimeline(upload: UploadedFile): void {
       ? "image"
       : "video";
 
-type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
+  type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
   const trackType: TrackType = upload.type === "audio" ? "audio" : "video";
 
-// ── 2. Allocate track with proper lane logic (V1/V2/V3, A1/A2/A3) ────────
   const existingTracks = selectOrderedTracks(state).filter(t => t.type === trackType);
   
   let track: ReturnType<typeof createTrack> | undefined;
   let startMs = 0;
   
-  // Find existing tracks of the same type
   const allClips = Object.values(state.clips);
   
-  // Check if we can append to an existing track (find track with most room at end)
   for (const existingTrack of existingTracks) {
     const trackClipsOnThisTrack = allClips.filter(c => c && c.trackId === existingTrack.id);
     
-    // Calculate end time of last clip on this track
     let lastClipEnd = 0;
     if (trackClipsOnThisTrack.length > 0) {
       lastClipEnd = Math.max(...trackClipsOnThisTrack.map(c => c.display.to));
     }
     
-    // If this track has room (less than 30 seconds of content), use it
     if (lastClipEnd < 30000) {
       track = existingTrack;
-      startMs = lastClipEnd + 100; // 100ms gap after last clip
+      startMs = lastClipEnd + 100;
       break;
     }
   }
   
-  // If no track found with room, create new track
   if (!track && existingTracks.length > 0) {
     const maxOrder = Math.max(...existingTracks.map(t => t.order));
     track = createTrack(trackType, {
-      name: `${trackType.toUpperCase()}${maxOrder + 2}`, // +2 because existing is already +1
+      name: `${trackType.toUpperCase()}${maxOrder + 2}`,
       order: maxOrder + 1,
     });
     engineStore.dispatch(addTrack(track));
   } else if (!track) {
-    // No existing tracks, create V1/A1
     track = createTrack(trackType, {
       name: trackType === "audio" ? "A1" : "V1",
       order: 0,
@@ -179,7 +158,6 @@ type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
     engineStore.dispatch(addTrack(track));
   }
 
-  // ── 4. Build the clip ─────────────────────────────────────────────────────
   const clipId = upload.id || nanoid();
   const clip: Clip = {
     id: clipId,
@@ -221,7 +199,6 @@ type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
 
   engineStore.dispatch(addClip(clip, track.id));
 
-  // ── 5. Update canvas size for first video/image clip ─────────────────────
   if (
     (clipType === "video" || clipType === "image") &&
     upload.width &&
@@ -233,7 +210,6 @@ type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
     }
   }
 
-  // ── 6. Extend sequence duration if needed ────────────────────────────────
   const newEndMs = startMs + durationMs;
   const currentSeq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
   if (currentSeq && newEndMs > currentSeq.duration) {
@@ -252,18 +228,16 @@ type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
     });
   }
 
-  // ── 7. Select the new clip ────────────────────────────────────────────────
   engineStore.dispatch(selectClip(clipId));
 }
 
 export async function handleFileUpload(files: File[]): Promise<UploadedFile[]> {
-  const { addUpload, addMediaAsset } = useUploadStore.getState();
   const uploaded: UploadedFile[] = [];
 
   for (const file of files) {
     try {
       const asset = await probeMediaFile(file);
-      addMediaAsset(asset);
+      engineStore.dispatch(addMediaAssetCmd(asset));
 
       const objectUrl = URL.createObjectURL(file);
 
@@ -285,7 +259,7 @@ export async function handleFileUpload(files: File[]): Promise<UploadedFile[]> {
         fps: asset.fps,
       };
 
-      addUpload(upload);
+      engineStore.dispatch(addUploadCmd(upload));
       uploaded.push(upload);
     } catch (error) {
       console.error(`Failed to probe ${file.name}:`, error);
