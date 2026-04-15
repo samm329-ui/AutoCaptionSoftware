@@ -23,6 +23,9 @@ import {
   selectFps,
   selectCanvasSize,
   selectActiveSequence,
+  selectSelectedClips,
+  selectHasSelection,
+  selectClipCount,
 } from "./selectors";
 
 const EngineContext = createContext<typeof engineStore | null>(null);
