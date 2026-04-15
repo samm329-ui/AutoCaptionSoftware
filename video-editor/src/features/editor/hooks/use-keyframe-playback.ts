@@ -17,6 +17,8 @@
 import { useEffect, useRef } from "react";
 import useStore from "../store/use-store";
 import { useKeyframeStore, AnimatableProperty } from "../store/use-keyframe-store";
+import { useEngineSelector } from "../engine/engine-provider";
+import { selectAllClips } from "../engine/selectors";
 
 const EDIT_OBJECT = "EDIT_OBJECT";
 
@@ -34,8 +36,10 @@ const PROPERTY_TO_DETAILS_KEY: Partial<Record<AnimatableProperty, string>> = {
 };
 
 export function useKeyframePlayback() {
-  const { playerRef, fps, trackItemsMap } = useStore();
-  const { keyframesByClip, getValue } = useKeyframeStore();
+  const { playerRef, fps } = useStore();
+  const clips = useEngineSelector(selectAllClips);
+  const keyframesByClip = useKeyframeStore((s) => s.keyframesByClip);
+  const getValue = useKeyframeStore((s) => s.getValue);
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number>(-1);
 
@@ -65,11 +69,11 @@ export function useKeyframePlayback() {
 
       for (const [clipId, clipKFs] of Object.entries(keyframesByClip)) {
         if (!clipKFs) continue;
-        const clip = trackItemsMap[clipId];
+        const clip = clips.find((c) => c.id === clipId);
         if (!clip) continue;
 
-        const clipStart = (clip as any).display?.from ?? 0;
-        const clipEnd = (clip as any).display?.to ?? 0;
+        const clipStart = clip.display?.from ?? 0;
+        const clipEnd = clip.display?.to ?? 0;
 
         if (timelineMs < clipStart || timelineMs > clipEnd) continue;
 
@@ -110,5 +114,5 @@ export function useKeyframePlayback() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [playerRef, fps, trackItemsMap, keyframesByClip, getValue]);
+  }, [playerRef, fps, clips, keyframesByClip, getValue]);
 }
