@@ -17,8 +17,9 @@ import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom, useEnginePlayhead } from "../engine/engine-provider";
 import { selectDuration, selectFps, selectAllClips } from "../engine/selectors";
-import { deleteClip, splitClip, setZoom, clearAll } from "../engine/commands";
+import { deleteClips, splitClip, cloneClip, setZoom, clearAll } from "../engine/commands";
 import { engineStore } from "../engine/engine-core";
+import { frameToMs, msToFrame } from "../engine/time-scale";
 
 interface ITimelineScaleState {
   index: number;
@@ -115,7 +116,7 @@ const Header = () => {
 
   const doActiveDelete = () => {
     if (engineSelection.length === 0) return;
-    engineDispatch(deleteClip(engineSelection));
+    engineDispatch(deleteClips(engineSelection));
   };
 
   const doClearAll = () => {
@@ -150,8 +151,8 @@ const Header = () => {
 
   const doClone = () => {
     if (engineSelection.length === 0) return;
-    // Clone is not yet implemented - placeholder
-    console.log("Clone not yet implemented");
+    const clipId = engineSelection[0];
+    engineDispatch(cloneClip(clipId));
   };
 
   const changeScale = (newScale: ITimelineScaleState) => {
@@ -169,15 +170,15 @@ const Header = () => {
   };
 
   const handleFrameBack = () => {
-    const newFrame = Math.max(0, currentFrame - 1);
-    const timeMs = (newFrame / safeFps) * 1000;
-    playerRef?.current?.seekTo(Math.round(timeMs / 1000));
+    const newFrame = Math.max(0, (currentFrame || 0 ) - 1);
+    playerRef?.current?.seekTo(newFrame);
+    engineDispatch(setPlayhead(frameToMs(newFrame, safeFps)));
   };
 
   const handleFrameForward = () => {
-    const newFrame = currentFrame + 1;
-    const timeMs = (newFrame / safeFps) * 1000;
-    playerRef?.current?.seekTo(Math.round(timeMs / 1000));
+    const newFrame = (currentFrame || 0) + 1;
+    playerRef?.current?.seekTo(newFrame);
+    engineDispatch(setPlayhead(frameToMs(newFrame, safeFps)));
   };
 
   useEffect(() => {
