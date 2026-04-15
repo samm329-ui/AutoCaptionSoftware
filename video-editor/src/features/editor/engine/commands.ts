@@ -23,7 +23,7 @@
  *      here maps to an explicit reducer case in engine-core.ts.
  */
 
-import type { EditorCommand, Clip, Track, Transform, AppliedEffect } from "./engine-core";
+import type { EditorCommand, Clip, Track, Transform, AppliedEffect, TimelineMarker } from "./engine-core";
 import { nanoid } from "./engine-core";
 
 // ─── Clip CRUD ────────────────────────────────────────────────────────────────
@@ -276,4 +276,200 @@ export function cloneClip(clipId: string): EditorCommand {
 
 export function clearAll(): EditorCommand {
   return { type: "CLEAR_ALL", payload: undefined };
+}
+
+// ─── Layout State Commands ───────────────────────────────────────────────────
+
+export function setLayout(payload: {
+  activeMenuItem?: string | null;
+  showMenuItem?: boolean;
+  showControlItem?: boolean;
+  showToolboxItem?: boolean;
+  activeToolboxItem?: string | null;
+  floatingControl?: string | null;
+  drawerOpen?: boolean;
+  controItemDrawerOpen?: boolean;
+  typeControlItem?: string;
+  labelControlItem?: string;
+}): EditorCommand {
+  return { type: "SET_LAYOUT", payload };
+}
+
+export function setActiveMenuItem(menuItem: string | null): EditorCommand {
+  return { type: "SET_LAYOUT", payload: { activeMenuItem: menuItem } };
+}
+
+export function setShowMenuItem(show: boolean): EditorCommand {
+  return { type: "SET_LAYOUT", payload: { showMenuItem: show } };
+}
+
+export function setShowControlItem(show: boolean): EditorCommand {
+  return { type: "SET_LAYOUT", payload: { showControlItem: show } };
+}
+
+export function setFloatingControl(control: string | null): EditorCommand {
+  return { type: "SET_LAYOUT", payload: { floatingControl: control } };
+}
+
+export function setDrawerOpen(open: boolean): EditorCommand {
+  return { type: "SET_LAYOUT", payload: { drawerOpen: open } };
+}
+
+// ─── Crop State Commands ────────────────────────────────────────────────────
+
+export function setCropTarget(target: string | null): EditorCommand {
+  return { type: "SET_CROP_TARGET", payload: { target } };
+}
+
+export function setCropArea(area: [number, number, number, number]): EditorCommand {
+  return { type: "SET_CROP_AREA", payload: { area } };
+}
+
+export function setCropSrc(src: string): EditorCommand {
+  return { type: "SET_CROP_SRC", payload: { src } };
+}
+
+export function setCropElement(element: string | null): EditorCommand {
+  return { type: "SET_CROP_ELEMENT", payload: { element } };
+}
+
+export function setCropState(payload: {
+  fileLoading?: boolean;
+  step?: number;
+  scale?: number;
+  size?: { width: number; height: number };
+}): EditorCommand {
+  return { type: "SET_CROP_STATE", payload };
+}
+
+export function clearCrop(): EditorCommand {
+  return { type: "CLEAR_CROP", payload: undefined };
+}
+
+// ─── Download State Commands ───────────────────────────────────────────────
+
+export function setExportState(payload: {
+  projectId?: string;
+  exporting?: boolean;
+  exportType?: "json" | "mp4";
+  exportProgress?: number;
+  exportOutput?: { url: string; type: string } | null;
+  displayProgressModal?: boolean;
+}): EditorCommand {
+  return { type: "SET_EXPORT_STATE", payload };
+}
+
+// ─── Folder State Commands ─────────────────────────────────────────────────
+
+export function setFolderState(payload: {
+  valueFolder?: string;
+  folderVideos?: unknown[];
+}): EditorCommand {
+  return { type: "SET_FOLDER_STATE", payload };
+}
+
+// ─── Upload/Files Commands ────────────────────────────────────────────────
+
+export function addUpload(upload: Parameters<typeof import("./engine-core").UploadedFile>[0]): EditorCommand {
+  return { type: "ADD_UPLOAD", payload: { upload: upload as any } };
+}
+
+export function removeUpload(id: string): EditorCommand {
+  return { type: "REMOVE_UPLOAD", payload: { id } };
+}
+
+export function clearUploads(): EditorCommand {
+  return { type: "CLEAR_UPLOADS", payload: undefined };
+}
+
+export function addFolder(folder: Parameters<typeof import("./engine-core").ProjectFolder>[0]): EditorCommand {
+  return { type: "ADD_FOLDER", payload: { folder } };
+}
+
+export function removeFolder(id: string): EditorCommand {
+  return { type: "REMOVE_FOLDER", payload: { id } };
+}
+
+export function renameFolder(id: string, name: string): EditorCommand {
+  return { type: "RENAME_FOLDER", payload: { id, name } };
+}
+
+export function moveFileToFolder(fileId: string, folderId: string | null): EditorCommand {
+  return { type: "MOVE_FILE_TO_FOLDER", payload: { fileId, folderId } };
+}
+
+export function addMediaAsset(asset: Parameters<typeof import("./engine-core").MediaAsset>[0]): EditorCommand {
+  return { type: "ADD_MEDIA_ASSET", payload: { asset } };
+}
+
+export function setUploadModal(show: boolean): EditorCommand {
+  return { type: "SET_UPLOAD_MODAL", payload: { show } };
+}
+
+// ─── Font State Commands ───────────────────────────────────────────────────
+
+export function setFonts(fonts: Parameters<typeof import("./engine-core").FontData>[]): EditorCommand {
+  return { type: "SET_FONTS", payload: { fonts: fonts as any } };
+}
+
+export function setCompactFonts(compactFonts: Parameters<typeof import("./engine-core").FontData>[]): EditorCommand {
+  return { type: "SET_COMPACT_FONTS", payload: { compactFonts: compactFonts as any } };
+}
+
+// ─── Keyframe State Commands ────────────────────────────────────────────────
+
+export function setKeyframeTrack(
+  clipId: string,
+  property: string,
+  track: Parameters<typeof import("./engine-core").KeyframeTrack>[0]
+): EditorCommand {
+  return { type: "SET_KEYFRAME_TRACK", payload: { clipId, property, track: track as any } };
+}
+
+export function removeKeyframeTrack(clipId: string, property: string): EditorCommand {
+  return { type: "REMOVE_KEYFRAME_TRACK", payload: { clipId, property } };
+}
+
+export function clearKeyframesForClip(clipId: string): EditorCommand {
+  return { type: "CLEAR_KEYFRAMES_FOR_CLIP", payload: { clipId } };
+}
+
+// ─── Runtime Refs Commands ─────────────────────────────────────────────────
+
+export function setPlayerRef(ref: unknown): EditorCommand {
+  return { type: "SET_PLAYER_REF", payload: { ref } };
+}
+
+export function setSceneMoveableRef(ref: unknown): EditorCommand {
+  return { type: "SET_SCENE_MOVEABLE_REF", payload: { ref } };
+}
+
+export function setBackground(background: { type: "color" | "image"; value: string }): EditorCommand {
+  return { type: "SET_BACKGROUND", payload: { background } };
+}
+
+export function setViewTimeline(visible: boolean): EditorCommand {
+  return { type: "SET_VIEW_TIMELINE", payload: { visible } };
+}
+
+// ─── Marker Commands ───────────────────────────────────────────────────────
+
+export function addMarker(marker: TimelineMarker): EditorCommand {
+  return { type: "ADD_MARKER", payload: { marker } };
+}
+
+export function removeMarker(id: string): EditorCommand {
+  return { type: "REMOVE_MARKER", payload: { id } };
+}
+
+export function updateMarker(id: string, updates: Partial<TimelineMarker>): EditorCommand {
+  return { type: "UPDATE_MARKER", payload: { id, updates } };
+}
+
+export function moveMarker(id: string, timeMs: number): EditorCommand {
+  return { type: "MOVE_MARKER", payload: { id, timeMs } };
+}
+
+export function clearMarkers(): EditorCommand {
+  return { type: "CLEAR_MARKERS", payload: undefined };
 }
