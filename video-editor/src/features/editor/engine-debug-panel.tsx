@@ -12,27 +12,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useEngine, useEngineSelection, useEnginePlayhead } from "./engine/engine-provider";
-import useStore from "./store/use-store";
+import { useEngine, useEngineSelection, useEnginePlayhead, useEngineSelector } from "./engine/engine-provider";
+import { selectAllClips, selectOrderedTracks } from "./engine/selectors";
 
 export function EngineDebugPanel() {
   const project = useEngine();
   const selection = useEngineSelection();
   const playhead = useEnginePlayhead();
+  const clips = useEngineSelector(selectAllClips);
+  const tracks = useEngineSelector(selectOrderedTracks);
   
-  // Also read Zustand for comparison
-  const { activeIds, trackItemsMap } = useStore();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     console.log("[Engine Debug] Engine state:", {
-      engineClips: Object.keys(project.clips).length,
-      engineTracks: Object.keys(project.tracks).length,
+      engineClips: clips.length,
+      engineTracks: tracks.length,
       engineSelection: selection,
-      zustandActiveIds: activeIds,
-      zustandTrackItemsMapKeys: Object.keys(trackItemsMap).length,
     });
-  }, [project, selection, activeIds, trackItemsMap]);
+  }, [clips, tracks, selection]);
 
   if (!isVisible) {
     return (
