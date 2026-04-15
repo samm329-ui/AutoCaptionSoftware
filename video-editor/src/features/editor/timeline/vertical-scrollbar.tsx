@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import useStore from "../store/use-store";
+import { useEngineSelector } from "../engine/engine-provider";
+import { selectOrderedTracks } from "../engine/selectors";
 
 interface TimelineVerticalScrollbarProps {
   className?: string;
@@ -11,70 +12,57 @@ interface TimelineVerticalScrollbarProps {
 export function TimelineVerticalScrollbar({ className }: TimelineVerticalScrollbarProps) {
   const scrollbarRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
-  const { timeline } = useStore();
-  const [thumbHeight, setThumbHeight] = useState(50);
+  const tracks = useEngineSelector(selectOrderedTracks);
+  const [thumbHeight, setThumbHeight] = useState(20);
   const [thumbPosition, setThumbPosition] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   
+  const TRACK_HEIGHT = 50;
   const containerHeight = 300;
+  const numTracks = tracks?.length ?? 1;
+  const contentHeight = Math.max(numTracks * TRACK_HEIGHT, containerHeight);
 
   const updateScrollPosition = useCallback(() => {
-    if (!timeline) return;
-    
-    const contentHeight = timeline?.height ?? 500;
-    const visibleHeight = containerHeight;
-    
-    const scrollableHeight = contentHeight - visibleHeight;
+    const scrollableHeight = contentHeight - containerHeight;
     if (scrollableHeight <= 0) {
       setThumbHeight(100);
       setThumbPosition(0);
       return;
     }
     
-    const thumbHeightPercent = Math.max(10, (visibleHeight / contentHeight) * 100);
+    const thumbHeightPercent = Math.max(10, (containerHeight / contentHeight) * 100);
     setThumbHeight(thumbHeightPercent);
     
     const maxPosition = 100 - thumbHeightPercent;
     const positionPercent = (scrollTop / scrollableHeight) * maxPosition;
     setThumbPosition(Math.max(0, Math.min(maxPosition, positionPercent)));
-  }, [timeline, containerHeight, scrollTop]);
+  }, [contentHeight, containerHeight, scrollTop]);
 
   useEffect(() => {
     updateScrollPosition();
-    
-    const handleScroll = () => updateScrollPosition();
-    window.addEventListener("resize", handleScroll);
-    
-    return () => window.removeEventListener("resize", handleScroll);
   }, [updateScrollPosition]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     e.preventDefault();
     
-    const startY = e.clientY;
+    const containerEl = scrollbarRef.current;
+    if (!containerEl) return;
+    
+    const containerElHeight = containerEl.clientHeight;
+    const maxPosition = 100 - thumbHeight;
     const startPosition = thumbPosition;
-    const currentScrollTop = scrollTop;
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaY = moveEvent.clientY - startY;
-      const containerEl = scrollbarRef.current;
-      if (!containerEl) return;
-      
-      const containerElHeight = containerEl.clientHeight;
-      const maxPosition = 100 - thumbHeight;
+      const deltaY = moveEvent.clientY - e.clientY;
       const deltaPercent = (deltaY / containerElHeight) * 100;
       const newPosition = Math.max(0, Math.min(maxPosition, startPosition + deltaPercent));
       setThumbPosition(newPosition);
       
-      if (timeline) {
-        const contentHeight = timeline?.height ?? 500;
-        const scrollableHeight = contentHeight - containerHeight;
-        const newScrollTop = (newPosition / maxPosition) * scrollableHeight;
-        setScrollTop(newScrollTop);
-        timeline?.scrollTo?.({ scrollTop: newScrollTop });
-      }
+      const scrollableHeight = contentHeight - containerHeight;
+      const newScrollTop = (newPosition / maxPosition) * scrollableHeight;
+      setScrollTop(newScrollTop);
     };
     
     const handleMouseUp = () => {
@@ -89,7 +77,7 @@ export function TimelineVerticalScrollbar({ className }: TimelineVerticalScrollb
 
   const handleTrackClick = (e: React.MouseEvent) => {
     const containerEl = scrollbarRef.current;
-    if (!containerEl || !timeline) return;
+    if (!containerEl) return;
     
     const rect = containerEl.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
@@ -99,11 +87,9 @@ export function TimelineVerticalScrollbar({ className }: TimelineVerticalScrollb
     const newPosition = Math.max(0, Math.min(maxPosition, clickPercent - thumbHeight / 2));
     setThumbPosition(newPosition);
     
-    const contentHeight = timeline?.height ?? 500;
     const scrollableHeight = contentHeight - containerHeight;
     const newScrollTop = (newPosition / maxPosition) * scrollableHeight;
     setScrollTop(newScrollTop);
-    timeline?.scrollTo?.({ scrollTop: newScrollTop });
   };
 
   return (
