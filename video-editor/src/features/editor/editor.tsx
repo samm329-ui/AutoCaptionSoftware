@@ -33,6 +33,7 @@ import { LegacyStateAdapter, legacyStateAdapter } from "./engine/legacy-state-ad
 import useDataState from "./store/use-data-state";
 import useLayoutStore from "./store/use-layout-store";
 import useTimelineEvents from "./hooks/use-timeline-events";
+import usePlayerEngineSync from "./hooks/use-player-engine-sync";
 import useAutoSequenceDetector from "./hooks/use-auto-sequence-detector";
 import { useKeyframePlayback } from "./hooks/use-keyframe-playback";
 import { useMarkerShortcuts } from "./engine/marker-engine";
@@ -271,6 +272,7 @@ function EditorShell() {
 
   // Engine-only hooks
   useTimelineEvents();
+  usePlayerEngineSync();
   useKeyframePlayback();
   useMarkerShortcuts();
   useAutoSequenceDetector();
