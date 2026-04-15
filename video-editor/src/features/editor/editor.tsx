@@ -36,7 +36,7 @@ import useTimelineEvents from "./hooks/use-timeline-events";
 import usePlayerEngineSync from "./hooks/use-player-engine-sync";
 import useAutoSequenceDetector from "./hooks/use-auto-sequence-detector";
 import { useKeyframePlayback } from "./hooks/use-keyframe-playback";
-import { useMarkerShortcuts } from "./engine/marker-engine";
+import { useMarkerShortcuts } from "./panels/timeline-markers";
 
 // Layout
 import {
