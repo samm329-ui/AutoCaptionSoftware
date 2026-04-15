@@ -25,6 +25,7 @@ import {
   selectAllClips,
 } from "../engine/selectors";
 import { setSelection, setPlayhead } from "../engine/commands";
+import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
 import useStore from "../store/use-store";
 
 const TRACK_HEIGHT = 50;
@@ -39,16 +40,17 @@ const Timeline = () => {
 
   const [scrollLeft, setScrollLeft] = useState(0);
   
-  // Calculate pixels per millisecond
-  const pixelsPerMs = zoom * 100;
+  // Calculate pixels per millisecond using shared helper
+  const pixelsPerMs = zoomToPixelsPerMs(zoom);
 
-
-
-  const onRulerClick = useCallback((units: number) => {
-    const timeMs = units * 1000;
+  const onRulerClick = useCallback((pixels: number) => {
+    // Convert pixels to milliseconds using shared helper
+    const timeMs = pxToMs(pixels, pixelsPerMs);
     dispatch(setPlayhead(timeMs));
-    playerRef?.current?.seekTo(Math.round(timeMs / 1000));
-  }, [dispatch, playerRef]);
+    // Seek player using frame number
+    const frame = pxToFrame(pixels, pixelsPerMs);
+    playerRef?.current?.seekTo(frame);
+  }, [dispatch, playerRef, pixelsPerMs]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget as HTMLElement;
