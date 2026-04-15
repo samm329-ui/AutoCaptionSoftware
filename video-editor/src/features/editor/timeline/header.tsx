@@ -155,10 +155,9 @@ const Header = () => {
     engineDispatch(cloneClip(clipId));
   };
 
-  const changeScale = (newScale: ITimelineScaleState) => {
-    if (!newScale || !newScale.index) return;
-    // Only dispatch to engine (not the old store)
-    engineDispatch(setZoom(newScale.zoom));
+  const handleZoomChange = (newZoom: number) => {
+    // Dispatch actual zoom value to engine
+    engineDispatch(setZoom(newZoom));
   };
 
   const handlePlay = () => {
@@ -392,8 +391,8 @@ const Header = () => {
           </div>
 
           <ZoomControl
-            scale={{ index: 7, zoom: engineZoom, segments: 5, unit: 300 }}
-            onChangeTimelineScale={changeScale}
+            zoom={engineZoom}
+            onZoomChange={handleZoomChange}
             duration={clipDuration}
           />
         </div>
@@ -403,61 +402,71 @@ const Header = () => {
 };
 
 const ZoomControl = ({
-  scale,
-  onChangeTimelineScale,
+  zoom,
+  onZoomChange,
   duration
 }: {
-  scale: { index: number; unit: number; zoom: number; segments: number };
-  onChangeTimelineScale: (scale: ITimelineScaleState) => void;
+  zoom: number;
+  onZoomChange: (zoom: number) => void;
   duration: number;
 }) => {
-  const timelineOffsetX = useTimelineOffsetX();
-  const safeIndex = scale?.index ?? 7;
-  const safeZoom = scale?.zoom ?? (1 / 300);
+  // Convert zoom to a slider index (0-20 range)
+  // zoom = pixels per 100ms, so zoom=1 means 1000 pixels/second
+  // We map this to an index for the slider
+  
+  const ZOOM_MIN = 0.01;
+  const ZOOM_MAX = 1;
+  const zoomIndex = Math.round((Math.log10(zoom) - Math.log10(ZOOM_MIN)) / (Math.log10(ZOOM_MAX) - Math.log10(ZOOM_MIN)) * 20);
 
-  const onZoomOutClick = () => {
-    const previousZoom = getPreviousZoomLevel(scale);
-    onChangeTimelineScale(previousZoom);
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const idx = parseInt(e.target.value, 10);
+    // Convert index back to zoom value
+    const newZoom = ZOOM_MIN * Math.pow(ZOOM_MAX / ZOOM_MIN, idx / 20);
+    onZoomChange(newZoom);
   };
 
-  const onZoomInClick = () => {
-    const nextZoom = getNextZoomLevel(scale);
-    onChangeTimelineScale(nextZoom);
+  const handleZoomOut = () => {
+    const newZoom = Math.max(ZOOM_MIN, zoom * 0.75);
+    onZoomChange(newZoom);
   };
 
-  const onZoomFitClick = () => {
-    const fitZoom = getFitZoomLevel(duration, safeZoom, timelineOffsetX);
-    onChangeTimelineScale(fitZoom);
+  const handleZoomIn = () => {
+    const newZoom = Math.min(ZOOM_MAX, zoom * 1.5);
+    onZoomChange(newZoom);
+  };
+
+  const handleZoomFit = () => {
+    // Fit to duration: show entire duration in ~2000 pixels
+    const targetWidth = 2000;
+    const durationSeconds = duration / 1000;
+    const newZoom = targetWidth / (durationSeconds * 1000);
+    onZoomChange(newZoom);
   };
 
   return (
     <div className="flex items-center justify-end pr-2">
       <div className="flex items-center gap-1">
-        <Button size={"icon"} variant={"ghost"} onClick={onZoomOutClick} className="h-7 w-7" title="Zoom Out">
+        <Button size={"icon"} variant={"ghost"} onClick={handleZoomOut} className="h-7 w-7" title="Zoom Out">
           <ZoomOut size={14} />
         </Button>
         <div className="hidden lg:flex items-center gap-1">
           <input
             type="range"
             min={0}
-            max={12}
+            max={20}
             step={1}
-            value={safeIndex}
-            onChange={(e) => {
-              const idx = parseInt(e.target.value, 10);
-              const zoom = getZoomByIndex(idx);
-              onChangeTimelineScale(zoom);
-            }}
+            value={zoomIndex}
+            onChange={handleSliderChange}
             className="w-24 h-1 accent-primary"
           />
           <span className="text-[10px] text-muted-foreground w-8 text-center tabular-nums">
-            {safeIndex.toFixed(1)}x
+            {zoom.toFixed(2)}
           </span>
         </div>
-        <Button size={"icon"} variant={"ghost"} onClick={onZoomInClick} className="h-7 w-7" title="Zoom In">
+        <Button size={"icon"} variant={"ghost"} onClick={handleZoomIn} className="h-7 w-7" title="Zoom In">
           <ZoomIn size={14} />
         </Button>
-        <Button onClick={onZoomFitClick} variant={"ghost"} size={"icon"} className="h-7 w-7" title="Fit">
+        <Button onClick={handleZoomFit} variant={"ghost"} size={"icon"} className="h-7 w-7" title="Fit">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="14"
