@@ -475,24 +475,41 @@ function reducer(state: Project, command: EditorCommand): Project {
       };
     }
 
-    // ── Clone clip — creates a copy of a clip ──────────────────────────────────────
+    // ── Clone clip — creates a copy in a NEW track below original ──────────────
     case "CLONE_CLIP": {
       const { clipId } = command.payload;
       const clip = state.clips[clipId];
       if (!clip) return state;
       
+      // Find all tracks of same type
+      const tracksOfType = Object.values(state.tracks).filter(t => t.type === clip.type);
+      
+      // Create new track below all existing of same type
+      const maxOrder = tracksOfType.length > 0 
+        ? Math.max(...tracksOfType.map(t => t.order)) 
+        : -1;
+      const newTrackOrder = maxOrder + 1;
+      const newTrack: Track = {
+        id: nanoid(),
+        type: clip.type as Track["type"],
+        name: clip.type === "video" ? `V${newTrackOrder + 1}` : `A${newTrackOrder + 1}`,
+        order: newTrackOrder,
+        locked: false,
+        muted: false,
+        hidden: false,
+        clipIds: [],
+      };
+      
       const clonedClip: Clip = {
         ...clip,
         id: nanoid(),
         name: `${clip.name} (copy)`,
+        trackId: newTrack.id,
         display: { 
-          from: clip.display.from + 1000, 
-          to: clip.display.to + 1000 
+          from: clip.display.from, 
+          to: clip.display.to 
         },
       };
-      
-      const track = state.tracks[clip.trackId];
-      if (!track) return state;
       
       return {
         ...state,
@@ -502,10 +519,7 @@ function reducer(state: Project, command: EditorCommand): Project {
         },
         tracks: {
           ...state.tracks,
-          [clip.trackId]: {
-            ...track,
-            clipIds: [...track.clipIds, clonedClip.id],
-          },
+          [newTrack.id]: newTrack,
         },
         ui: { ...state.ui, selection: [clonedClip.id] },
       };
