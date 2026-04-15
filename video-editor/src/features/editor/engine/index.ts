@@ -56,11 +56,12 @@ export * from "./selectors";
 // ── Command builders ──────────────────────────────────────────────────────────
 export * from "./commands";
 
-// ── Mappers (migration adapters — delete after legacy runtime is fully removed) ──
-export * from "./mappers";
+// ── Mappers (deprecated - migration complete) ──
+// export * from "./mappers"; // Uncomment after all usages removed
 
 // ── Legacy state adapter ───────────────────────────────────────────────────────
-export { LegacyStateAdapter, legacyStateAdapter } from "./legacy-state-adapter";
+// Export removed - engine is now the single source of truth
+// import { LegacyStateAdapter, legacyStateAdapter } from "./legacy-state-adapter";
 
 // ── NOT exported from this barrel: ───────────────────────────────────────────
 //   ./legacy-bridge  — import directly in editor.tsx only, never through here
