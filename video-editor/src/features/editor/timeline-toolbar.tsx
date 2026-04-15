@@ -16,12 +16,12 @@ import {
 } from "lucide-react";
 import { getCurrentTime } from "./utils/time";
 import { useEngineSelection, useEngineDispatch } from "./engine/engine-provider";
-import { deleteClip, splitClip } from "./engine/commands";
+import { deleteClips, splitClip, cloneClip } from "./engine/commands";
 import { createTrack, type Clip } from "./engine/engine-core";
 import { addTrack, addClip, selectClip } from "./engine/commands";
 import { selectOrderedTracks } from "./engine/selectors";
 import { engineStore } from "./engine/engine-core";
-import { nanoid } from "nanoid";
+import { nanoid } from "./engine/engine-core";
 
 const ACTIVE_SPLIT = "ACTIVE_SPLIT";
 const LAYER_DELETE = "LAYER_DELETE";
@@ -83,7 +83,7 @@ export function TimelineToolbar({ onToolChange, className }: TimelineToolbarProp
 
   const doDelete = useCallback(() => {
     if (selectionLength === 0) return;
-    engineDispatch(deleteClip(safeSelection));
+    engineDispatch(deleteClips(safeSelection));
   }, [selectionLength, safeSelection, engineDispatch]);
 
   const doAddText = useCallback(() => {
