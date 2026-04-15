@@ -132,23 +132,31 @@ export function addFileToTimeline(upload: UploadedFile): void {
       ? "image"
       : "video";
 
-  type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
+type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
   const trackType: TrackType = upload.type === "audio" ? "audio" : "video";
 
-  // ── 2. Find existing track of matching type or create one ─────────────────
-  const existingTracks = selectOrderedTracks(state);
-  let track = existingTracks.find((t) => t.type === trackType);
-
-  if (!track) {
-    track = createTrack(trackType, {
-      name: trackType === "audio" ? "Audio" : "Video",
-      order: existingTracks.length,
-    });
-    engineStore.dispatch(addTrack(track));
+  // ── 2. Allocate track with proper lane logic (V1/V2/V3, A1/A2/A3) ────────
+  const existingTracks = selectOrderedTracks(state).filter(t => t.type === trackType);
+  
+  let track: ReturnType<typeof createTrack> | undefined;
+  let laneIndex = 0;
+  
+  if (existingTracks.length > 0) {
+    // Find a lane that doesn't have significant overlap at the end position
+    // Check if the last clip on the track ends before we would want to start a new clip
+    // For simplicity, we use the next available lane
+    const maxOrder = Math.max(...existingTracks.map(t => t.order));
+    laneIndex = maxOrder + 1;
   }
+  
+  track = createTrack(trackType, {
+    name: `${trackType.toUpperCase()}${laneIndex + 1}`,
+    order: laneIndex,
+});
+  engineStore.dispatch(addTrack(track));
 
-  // ── 3. Calculate placement ────────────────────────────────
-  // Place after last clip on this track to avoid overlap
+  // ── 3. Calculate placement ───────────────────────────────-
+  // Place at start for new lanes, or after last clip if on existing lane
   const trackClips = Object.values(engineStore.getState().clips).filter(
     (c) => c && c.trackId === track!.id
   );
