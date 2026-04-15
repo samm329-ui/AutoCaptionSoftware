@@ -27,7 +27,7 @@ import {
   type Project,
 } from "./engine/engine-core";
 import { setPlayhead, setScroll, setSelection, setZoom } from "./engine/commands";
-import { LegacyStateAdapter, legacyStateAdapter } from "./engine/legacy-state-adapter";
+// Engine is the single source of truth for project state
 
 // Store + hooks
 import useDataState from "./store/use-data-state";
@@ -226,10 +226,8 @@ const RightSidebar = () => (
 
 const SceneContainer = ({
   sceneRef,
-  stateManager,
 }: {
   sceneRef: RefObject<SceneRef>;
-  stateManager: LegacyStateAdapter;
 }) => (
   <div className="flex flex-col bg-background h-full">
     <div className="flex-1 min-h-0">
@@ -238,7 +236,7 @@ const SceneContainer = ({
           <ResizablePanelWrapper id="scene">
             <div className="flex-1 relative overflow-hidden w-full h-full">
               <CropModal />
-              <Scene ref={sceneRef} stateManager={stateManager} />
+              <Scene ref={sceneRef} />
             </div>
           </ResizablePanelWrapper>
         </ResizablePanel>
@@ -268,7 +266,7 @@ function EditorShell() {
   const isLargeScreen = useIsLargeScreen();
   const bootstrapped = useRef(false);
 
-  const stateManager = useMemo(() => legacyStateAdapter, []);
+  // stateManager removed - engine is the single source of truth
 
   // Engine-only hooks
   useTimelineEvents();
@@ -323,7 +321,6 @@ function EditorShell() {
   const navbarProps = {
     projectName: "Untitled video",
     user: null,
-    stateManager,
     setProjectName: () => {},
   };
 
@@ -339,7 +336,7 @@ function EditorShell() {
               </ResizablePanel>
               <ResizableHandle className="bg-border/60" />
               <ResizablePanel defaultSize={61} minSize={40}>
-                <SceneContainer sceneRef={sceneRef} stateManager={stateManager} />
+                <SceneContainer sceneRef={sceneRef} />
               </ResizablePanel>
               <ResizableHandle className="bg-border/60" />
               <ResizablePanel defaultSize={24} minSize={18} maxSize={36}>
@@ -359,7 +356,7 @@ function EditorShell() {
       <div className="flex h-screen flex-col overflow-hidden bg-background">
         <Navbar {...navbarProps} />
         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-          <SceneContainer sceneRef={sceneRef} stateManager={stateManager} />
+          <SceneContainer sceneRef={sceneRef} />
         </div>
         <div className="border-t border-border/60 overflow-y-auto max-h-64 bg-card">
           <ControlItemHorizontal />
