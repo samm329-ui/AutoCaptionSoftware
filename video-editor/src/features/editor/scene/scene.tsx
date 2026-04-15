@@ -15,8 +15,7 @@ import { SceneRef } from "./scene.types";
 import { useEngineSelector } from "../engine/engine-provider";
 import { selectClipCount, selectCanvasSize } from "../engine/selectors";
 
-const Scene = forwardRef<SceneRef, { stateManager: any }>(
-  ({ stateManager }, ref) => {
+const Scene = forwardRef<SceneRef>((props, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     // All project dimensions from engine
