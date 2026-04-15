@@ -1,9 +1,10 @@
 import React, { useCallback, useState, useRef } from "react";
 import { getDragData, clearDragData } from "@/components/shared/drag-data";
 import { useEngineDispatch, useEngineZoom } from "../engine/engine-provider";
-import { addClip, createTrack, nanoid } from "../engine/engine-core";
-import type { Clip } from "../engine/engine-core";
+import { addClip } from "../engine/commands";
+import { createTrack, nanoid, engineStore, type Clip, type Track } from "../engine/engine-core";
 import { zoomToPixelsPerMs, pxToMs } from "../engine/time-scale";
+import { selectOrderedTracks } from "../engine/selectors";
 
 enum AcceptedDropTypes {
   IMAGE = "image",
@@ -28,7 +29,6 @@ interface DroppableAreaProps {
 const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
   const [isPointerInside, setIsPointerInside] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const engineDispatch = useEngineDispatch();
   const zoom = useEngineZoom();
 
   const handleDrop = useCallback((draggedData: DraggedData, dropTimeMs: number = 0) => {
@@ -38,7 +38,23 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
       : draggedData.type === "transition" ? "transition"
       : "video";
     
-    const track = createTrack(clipType as Clip["type"]);
+    // Use proper lane allocation (V1/V2/V3, A1/A2/A3)
+    const trackType = clipType === "audio" ? "audio" : "video";
+    const allTracks = selectOrderedTracks(engineStore.getState());
+    const existingTracks = allTracks.filter(t => t.type === trackType);
+    let track;
+    let laneIndex = 0;
+    
+    if (existingTracks.length > 0) {
+      const maxOrder = Math.max(...existingTracks.map(t => t.order));
+      laneIndex = maxOrder + 1;
+    }
+    
+    track = createTrack(trackType, {
+      name: `${trackType.toUpperCase()}${laneIndex + 1}`,
+      order: laneIndex,
+    });
+    engineStore.dispatch({ type: "ADD_TRACK", payload: { track } });
     
     const metadata = draggedData.metadata || {};
     const durationSec = typeof metadata.duration === 'number' ? metadata.duration : 5;
@@ -68,9 +84,9 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
       assetId: draggedData.assetId,
     };
 
-    engineDispatch({ type: "ADD_TRACK", payload: { track } });
-    engineDispatch({ type: "ADD_CLIP", payload: { clip, trackId: track.id } });
-  }, [engineDispatch]);
+    engineStore.dispatch({ type: "ADD_TRACK", payload: { track } });
+    engineStore.dispatch({ type: "ADD_CLIP", payload: { clip, trackId: track.id } });
+  }, []);
 
   const parseDragData = (e: React.DragEvent<HTMLDivElement>): DraggedData | null => {
     try {
