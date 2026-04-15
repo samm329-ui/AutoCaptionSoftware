@@ -88,7 +88,7 @@ const IconPlayerSkipForward = ({ size }: { size: number }) => (
 const Header = () => {
   const [playing, setPlaying] = useState(false);
   
-  const { scale, playerRef } = useStore();
+  const { playerRef } = useStore();
   const engineSelection = useEngineSelection();
   const engineDispatch = useEngineDispatch();
   const engineZoom = useEngineZoom();
