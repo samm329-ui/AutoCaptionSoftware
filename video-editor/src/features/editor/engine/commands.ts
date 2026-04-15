@@ -263,7 +263,13 @@ export function redo(): EditorCommand {
 // ─── Split clip ──────────────────────────────────────────────────────────────
 
 export function splitClip(clipId: string, splitTimeMs: number): EditorCommand {
-  return { type: "UPDATE_CLIP", payload: { clipId } };
+  return { type: "SPLIT_CLIP", payload: { clipId, splitTimeMs } };
+}
+
+// ─── Clone clip ──────────────────────────────────────────────────────────────
+
+export function cloneClip(clipId: string): EditorCommand {
+  return { type: "CLONE_CLIP", payload: { clipId } };
 }
 
 // ─── Clear all ──────────────────────────────────────────────────────────────
