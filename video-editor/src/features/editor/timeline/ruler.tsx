@@ -13,6 +13,7 @@ import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 
 // ENGINE MIGRATION: Import engine hooks
 import { useEngineZoom, useTimelineDuration } from "../engine/engine-provider";
+import { zoomToPixelsPerMs, pxToMs } from "../engine/time-scale";
 
 interface RulerProps {
   height?: number;
@@ -22,7 +23,7 @@ interface RulerProps {
   textOffsetY?: number;
   scrollLeft?: number;
   textFormat?: (scale: number) => string;
-  onClick?: (units: number) => void;
+  onClick?: (pixels: number) => void;
   onScroll?: (scrollLeft: number) => void;
 }
 
@@ -117,10 +118,9 @@ const Ruler = (props: RulerProps) => {
     width: number,
     height: number
   ) => {
-    // Use engine zoom instead of old scale
+    // Use shared time scale conversion
     const zoom = engineZoom > 0 ? engineZoom : 0.1;
-    const unit = 300; // milliseconds per unit
-    const segments = 5;
+    const pixelsPerMs = zoomToPixelsPerMs(zoom);
     
     context.clearRect(0, 0, width, height);
     context.save();
@@ -135,7 +135,6 @@ const Ruler = (props: RulerProps) => {
 
     // Draw based on timelineDuration (clips end + buffer)
     const totalMs = timelineDuration;
-    const pixelsPerMs = zoom;
     const totalPixels = totalMs * pixelsPerMs;
     
     // Draw marks every second (1000ms)
