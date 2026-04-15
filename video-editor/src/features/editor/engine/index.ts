@@ -50,6 +50,34 @@ export {
   useEngineHistory,
 } from "./engine-provider";
 
+// ── Engine Hooks (state slices) ─────────────────────────────────────────────
+export {
+  useEngineState,
+  useEngineTracks,
+  useEngineClips,
+  useEngineSelectedClips,
+  useLayoutState,
+  useCropState,
+  useDownloadState,
+  useFolderState,
+  useUploads,
+  useFolders,
+  useMediaAssets,
+  useShowUploadModal,
+  useFonts,
+  useCompactFonts,
+  useKeyframesByClip,
+  useClipKeyframes,
+  usePlayerRef,
+  useSceneMoveableRef,
+  useBackground,
+  useViewTimeline,
+  useTimelineMarkers,
+  useMarkerById,
+  useMarkersInRange,
+  useMarkerTimes,
+} from "./engine-hooks";
+
 // ── Selectors ─────────────────────────────────────────────────────────────────
 export * from "./selectors";
 
