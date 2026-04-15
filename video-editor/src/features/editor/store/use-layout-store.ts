@@ -1,54 +1,91 @@
 /**
- * useLayoutStore — UI-only state
- * ───────────────────────────────
- * RULE: This store owns only interface state — which panels are open, which
- * tab is active, modal visibility, tool selection, etc.
- *
- * It does NOT own clip data. The `trackItem` field here is a MIRROR of the
- * selected clip from useStore — it exists only so the right panel knows which
- * ControlItem component to render. It is never modified directly from editing
- * operations. All edits go through dispatch(EDIT_OBJECT) → useStore.
- *
- * FIXED: Removed any fields that were doubling as editor content state.
- * The only "editor" field kept is `trackItem` (read-only mirror, set by editor.tsx).
+ * useLayoutStore - Compatibility wrapper
+ * Now uses engine store instead of Zustand
  */
 
-import { ILayoutState } from "../interfaces/layout";
-import { create } from "zustand";
+import { useMemo, useCallback } from "react";
+import { useLayoutState, engineStore } from "../engine";
+import { setLayout as setLayoutCmd, setCropTarget as setCropTargetCmd } from "../engine/commands";
 
-const useLayoutStore = create<ILayoutState>((set) => ({
-  // ── Panel / menu visibility ─────────────────────────────────────────────────
-  activeMenuItem: "texts",
-  showMenuItem: false,
-  showControlItem: false,
-  showToolboxItem: false,
-  activeToolboxItem: null,
-  floatingControl: null,
-  drawerOpen: false,
-  controItemDrawerOpen: false,
-  typeControlItem: "",
-  labelControlItem: "",
-
-  // ── Crop modal ──────────────────────────────────────────────────────────────
-  cropTarget: null,
-
-  // ── Active clip mirror (READ ONLY from UI perspective) ─────────────────────
-  // Set by editor.tsx when activeIds changes. Never written by edit operations.
-  trackItem: null,
-
-  // ── Setters ─────────────────────────────────────────────────────────────────
-  setCropTarget: (cropTarget) => set({ cropTarget }),
-  setActiveMenuItem: (activeMenuItem) => set({ activeMenuItem }),
-  setShowMenuItem: (showMenuItem) => set({ showMenuItem }),
-  setShowControlItem: (showControlItem) => set({ showControlItem }),
-  setShowToolboxItem: (showToolboxItem) => set({ showToolboxItem }),
-  setActiveToolboxItem: (activeToolboxItem) => set({ activeToolboxItem }),
-  setFloatingControl: (floatingControl) => set({ floatingControl }),
-  setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
-  setTrackItem: (trackItem) => set({ trackItem }),
-  setControItemDrawerOpen: (controItemDrawerOpen) => set({ controItemDrawerOpen }),
-  setTypeControlItem: (typeControlItem) => set({ typeControlItem }),
-  setLabelControlItem: (labelControlItem) => set({ labelControlItem }),
-}));
+export function useLayoutStore() {
+  const state = useLayoutState();
+  
+  const setCropTarget = useCallback((target: string | null) => {
+    engineStore.dispatch(setCropTargetCmd(target));
+  }, []);
+  
+  const setActiveMenuItem = useCallback((activeMenuItem: string | null) => {
+    engineStore.dispatch(setLayoutCmd({ activeMenuItem }));
+  }, []);
+  
+  const setShowMenuItem = useCallback((showMenuItem: boolean) => {
+    engineStore.dispatch(setLayoutCmd({ showMenuItem }));
+  }, []);
+  
+  const setShowControlItem = useCallback((showControlItem: boolean) => {
+    engineStore.dispatch(setLayoutCmd({ showControlItem }));
+  }, []);
+  
+  const setShowToolboxItem = useCallback((showToolboxItem: boolean) => {
+    engineStore.dispatch(setLayoutCmd({ showToolboxItem }));
+  }, []);
+  
+  const setActiveToolboxItem = useCallback((activeToolboxItem: string | null) => {
+    engineStore.dispatch(setLayoutCmd({ activeToolboxItem }));
+  }, []);
+  
+  const setFloatingControl = useCallback((floatingControl: string | null) => {
+    engineStore.dispatch(setLayoutCmd({ floatingControl }));
+  }, []);
+  
+  const setDrawerOpen = useCallback((drawerOpen: boolean) => {
+    engineStore.dispatch(setLayoutCmd({ drawerOpen }));
+  }, []);
+  
+  const setControItemDrawerOpen = useCallback((controItemDrawerOpen: boolean) => {
+    engineStore.dispatch(setLayoutCmd({ controItemDrawerOpen }));
+  }, []);
+  
+  const setTypeControlItem = useCallback((typeControlItem: string) => {
+    engineStore.dispatch(setLayoutCmd({ typeControlItem }));
+  }, []);
+  
+  const setLabelControlItem = useCallback((labelControlItem: string) => {
+    engineStore.dispatch(setLayoutCmd({ labelControlItem }));
+  }, []);
+  
+  const setTrackItem = useCallback(() => {}, []);
+  
+  return useMemo(() => ({
+    ...state,
+    trackItem: null,
+    setCropTarget,
+    setActiveMenuItem,
+    setShowMenuItem,
+    setShowControlItem,
+    setShowToolboxItem,
+    setActiveToolboxItem,
+    setFloatingControl,
+    setDrawerOpen,
+    setTrackItem,
+    setControItemDrawerOpen,
+    setTypeControlItem,
+    setLabelControlItem,
+  }), [
+    state,
+    setCropTarget,
+    setActiveMenuItem,
+    setShowMenuItem,
+    setShowControlItem,
+    setShowToolboxItem,
+    setActiveToolboxItem,
+    setFloatingControl,
+    setDrawerOpen,
+    setTrackItem,
+    setControItemDrawerOpen,
+    setTypeControlItem,
+    setLabelControlItem,
+  ]);
+}
 
 export default useLayoutStore;
