@@ -1,36 +1,26 @@
 /**
- * Keyframe Store
- * Manages all keyframe tracks for all clips.
- * Each clip can have multiple property tracks (opacity, positionX, positionY, scale, rotation, etc.)
- *
- * Structure:
- *   keyframesByClip: {
- *     [clipId]: {
- *       [property]: KeyframeTrack
- *     }
- *   }
+ * useKeyframeStore - Pure React implementation
+ * No Zustand - uses React hooks with engine as backing store
  */
 
-import { create } from "zustand";
+import { useState, useCallback, useMemo } from "react";
 import {
   KeyframeTrack,
   Keyframe,
   InterpolationType,
-  addKeyframe,
-  removeKeyframe,
-  moveKeyframe,
-  updateKeyframeValue,
-  updateKeyframeInterpolation,
+  addKeyframe as addKf,
+  removeKeyframe as removeKf,
+  moveKeyframe as moveKf,
+  updateKeyframeValue as updateKfValue,
+  updateKeyframeInterpolation as updateKfInterp,
   sampleKeyframeTrack,
 } from "../engine/keyframe-engine";
+import { useKeyframesByClip, engineStore } from "../engine";
+import { setKeyframeTrack, removeKeyframeTrack, clearKeyframesForClip } from "../engine/commands";
 
-// Re-export for convenience
 export type { KeyframeTrack, Keyframe, InterpolationType };
 export { sampleKeyframeTrack };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-/** All animatable properties */
 export type AnimatableProperty =
   | "opacity"
   | "positionX"
@@ -108,60 +98,6 @@ export const PROPERTY_LABELS: Record<AnimatableProperty, string> = {
 
 type ClipKeyframes = Partial<Record<AnimatableProperty, KeyframeTrack>>;
 
-// ─── Store ────────────────────────────────────────────────────────────────────
-
-interface IKeyframeStore {
-  /** { clipId → { property → KeyframeTrack } } */
-  keyframesByClip: Record<string, ClipKeyframes>;
-
-  /** Add a keyframe for a clip property at a given time */
-  addKeyframe: (
-    clipId: string,
-    property: AnimatableProperty,
-    timeMs: number,
-    value: number,
-    interpolation?: InterpolationType
-  ) => void;
-
-  /** Remove a specific keyframe */
-  removeKeyframe: (clipId: string, property: AnimatableProperty, keyframeId: string) => void;
-
-  /** Move a keyframe to a new time */
-  moveKeyframe: (clipId: string, property: AnimatableProperty, keyframeId: string, newTimeMs: number) => void;
-
-  /** Update a keyframe's value */
-  updateKeyframeValue: (clipId: string, property: AnimatableProperty, keyframeId: string, value: number) => void;
-
-  /** Update a keyframe's interpolation type */
-  updateInterpolation: (
-    clipId: string,
-    property: AnimatableProperty,
-    keyframeId: string,
-    interpolation: InterpolationType
-  ) => void;
-
-  /** Get the value of a property at a given time (interpolated) */
-  getValue: (clipId: string, property: AnimatableProperty, timeMs: number) => number;
-
-  /** Check if a property has any keyframes */
-  hasKeyframes: (clipId: string, property: AnimatableProperty) => boolean;
-
-  /** Get all keyframes for a clip */
-  getClipKeyframes: (clipId: string) => ClipKeyframes;
-
-  /** Get track for a specific property */
-  getTrack: (clipId: string, property: AnimatableProperty) => KeyframeTrack | undefined;
-
-  /** Enable keyframing for a property (creates empty track) */
-  enableProperty: (clipId: string, property: AnimatableProperty) => void;
-
-  /** Disable keyframing for a property (removes all keyframes) */
-  disableProperty: (clipId: string, property: AnimatableProperty) => void;
-
-  /** Remove all keyframes for a clip (when clip is deleted) */
-  removeClip: (clipId: string) => void;
-}
-
 function getOrCreateTrack(
   clipKeyframes: ClipKeyframes,
   property: AnimatableProperty
@@ -175,148 +111,232 @@ function getOrCreateTrack(
   );
 }
 
-export const useKeyframeStore = create<IKeyframeStore>((set, get) => ({
-  keyframesByClip: {},
+export function useKeyframeStore() {
+  const [keyframesByClip, setKeyframesByClip] = useState<Record<string, ClipKeyframes>>({});
+  
+  const engineKeyframes = useKeyframesByClip();
 
-  addKeyframe: (clipId, property, timeMs, value, interpolation = "linear") => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId] ?? {};
+  const addKeyframe = useCallback((
+    clipId: string,
+    property: AnimatableProperty,
+    timeMs: number,
+    value: number,
+    interpolation: InterpolationType = "linear"
+  ) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId] ?? {};
       const track = getOrCreateTrack(clipKFs, property);
-      const updated = addKeyframe(track, { time: timeMs, value, interpolation });
+      const updated = addKf(track, { time: timeMs, value, interpolation });
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: { ...clipKFs, [property]: updated },
-        },
+        ...prev,
+        [clipId]: { ...clipKFs, [property]: updated },
       };
     });
-  },
+    
+    const clipKFs = keyframesByClip[clipId];
+    if (clipKFs && clipKFs[property]) {
+      engineStore.dispatch(setKeyframeTrack(clipId, property, clipKFs[property]));
+    }
+  }, [keyframesByClip]);
 
-  removeKeyframe: (clipId, property, keyframeId) => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId];
-      if (!clipKFs) return state;
+  const removeKeyframe = useCallback((
+    clipId: string,
+    property: AnimatableProperty,
+    keyframeId: string
+  ) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId];
+      if (!clipKFs) return prev;
       const track = clipKFs[property];
-      if (!track) return state;
-      const updated = removeKeyframe(track, keyframeId);
+      if (!track) return prev;
+      const updated = removeKf(track, keyframeId);
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: { ...clipKFs, [property]: updated },
-        },
+        ...prev,
+        [clipId]: { ...clipKFs, [property]: updated },
       };
     });
-  },
+    
+    const clipKFs = keyframesByClip[clipId];
+    if (clipKFs && clipKFs[property]) {
+      engineStore.dispatch(setKeyframeTrack(clipId, property, clipKFs[property]));
+    }
+  }, [keyframesByClip]);
 
-  moveKeyframe: (clipId, property, keyframeId, newTimeMs) => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId];
-      if (!clipKFs) return state;
+  const moveKeyframe = useCallback((
+    clipId: string,
+    property: AnimatableProperty,
+    keyframeId: string,
+    newTimeMs: number
+  ) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId];
+      if (!clipKFs) return prev;
       const track = clipKFs[property];
-      if (!track) return state;
-      const updated = moveKeyframe(track, keyframeId, newTimeMs);
+      if (!track) return prev;
+      const updated = moveKf(track, keyframeId, newTimeMs);
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: { ...clipKFs, [property]: updated },
-        },
+        ...prev,
+        [clipId]: { ...clipKFs, [property]: updated },
       };
     });
-  },
+    
+    const clipKFs = keyframesByClip[clipId];
+    if (clipKFs && clipKFs[property]) {
+      engineStore.dispatch(setKeyframeTrack(clipId, property, clipKFs[property]));
+    }
+  }, [keyframesByClip]);
 
-  updateKeyframeValue: (clipId, property, keyframeId, value) => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId];
-      if (!clipKFs) return state;
+  const updateKeyframeValue = useCallback((
+    clipId: string,
+    property: AnimatableProperty,
+    keyframeId: string,
+    value: number
+  ) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId];
+      if (!clipKFs) return prev;
       const track = clipKFs[property];
-      if (!track) return state;
-      const updated = updateKeyframeValue(track, keyframeId, value);
+      if (!track) return prev;
+      const updated = updateKfValue(track, keyframeId, value);
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: { ...clipKFs, [property]: updated },
-        },
+        ...prev,
+        [clipId]: { ...clipKFs, [property]: updated },
       };
     });
-  },
+    
+    const clipKFs = keyframesByClip[clipId];
+    if (clipKFs && clipKFs[property]) {
+      engineStore.dispatch(setKeyframeTrack(clipId, property, clipKFs[property]));
+    }
+  }, [keyframesByClip]);
 
-  updateInterpolation: (clipId, property, keyframeId, interpolation) => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId];
-      if (!clipKFs) return state;
+  const updateInterpolation = useCallback((
+    clipId: string,
+    property: AnimatableProperty,
+    keyframeId: string,
+    interpolation: InterpolationType
+  ) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId];
+      if (!clipKFs) return prev;
       const track = clipKFs[property];
-      if (!track) return state;
-      const updated = updateKeyframeInterpolation(track, keyframeId, interpolation);
+      if (!track) return prev;
+      const updated = updateKfInterp(track, keyframeId, interpolation);
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: { ...clipKFs, [property]: updated },
-        },
+        ...prev,
+        [clipId]: { ...clipKFs, [property]: updated },
       };
     });
-  },
+    
+    const clipKFs = keyframesByClip[clipId];
+    if (clipKFs && clipKFs[property]) {
+      engineStore.dispatch(setKeyframeTrack(clipId, property, clipKFs[property]));
+    }
+  }, [keyframesByClip]);
 
-  getValue: (clipId, property, timeMs) => {
-    const clipKFs = get().keyframesByClip[clipId];
+  const getValue = useCallback((
+    clipId: string,
+    property: AnimatableProperty,
+    timeMs: number
+  ) => {
+    const clipKFs = keyframesByClip[clipId];
     if (!clipKFs) return PROPERTY_DEFAULTS[property];
     const track = clipKFs[property];
     if (!track) return PROPERTY_DEFAULTS[property];
     return sampleKeyframeTrack(track, timeMs);
-  },
+  }, [keyframesByClip]);
 
-  hasKeyframes: (clipId, property) => {
-    const clipKFs = get().keyframesByClip[clipId];
+  const hasKeyframes = useCallback((
+    clipId: string,
+    property: AnimatableProperty
+  ) => {
+    const clipKFs = keyframesByClip[clipId];
     if (!clipKFs) return false;
     const track = clipKFs[property];
     return !!(track && track.keyframes.length > 0);
-  },
+  }, [keyframesByClip]);
 
-  getClipKeyframes: (clipId) => {
-    return get().keyframesByClip[clipId] ?? {};
-  },
+  const getClipKeyframes = useCallback((clipId: string) => {
+    return keyframesByClip[clipId] ?? {};
+  }, [keyframesByClip]);
 
-  getTrack: (clipId, property) => {
-    return get().keyframesByClip[clipId]?.[property];
-  },
+  const getTrack = useCallback((clipId: string, property: AnimatableProperty) => {
+    return keyframesByClip[clipId]?.[property];
+  }, [keyframesByClip]);
 
-  enableProperty: (clipId, property) => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId] ?? {};
-      if (clipKFs[property]) return state; // already exists
+  const enableProperty = useCallback((clipId: string, property: AnimatableProperty) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId] ?? {};
+      if (clipKFs[property]) return prev;
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: {
-            ...clipKFs,
-            [property]: {
-              property,
-              keyframes: [],
-              defaultValue: PROPERTY_DEFAULTS[property],
-            },
+        ...prev,
+        [clipId]: {
+          ...clipKFs,
+          [property]: {
+            property,
+            keyframes: [],
+            defaultValue: PROPERTY_DEFAULTS[property],
           },
         },
       };
     });
-  },
+    
+    const clipKFs = keyframesByClip[clipId];
+    if (clipKFs && clipKFs[property]) {
+      engineStore.dispatch(setKeyframeTrack(clipId, property, clipKFs[property]));
+    }
+  }, [keyframesByClip]);
 
-  disableProperty: (clipId, property) => {
-    set((state) => {
-      const clipKFs = state.keyframesByClip[clipId];
-      if (!clipKFs) return state;
+  const disableProperty = useCallback((clipId: string, property: AnimatableProperty) => {
+    setKeyframesByClip((prev) => {
+      const clipKFs = prev[clipId];
+      if (!clipKFs) return prev;
       const { [property]: _, ...rest } = clipKFs;
       return {
-        keyframesByClip: {
-          ...state.keyframesByClip,
-          [clipId]: rest,
-        },
+        ...prev,
+        [clipId]: rest,
       };
     });
-  },
+    engineStore.dispatch(removeKeyframeTrack(clipId, property));
+  }, []);
 
-  removeClip: (clipId) => {
-    set((state) => {
-      const { [clipId]: _, ...rest } = state.keyframesByClip;
-      return { keyframesByClip: rest };
+  const removeClip = useCallback((clipId: string) => {
+    setKeyframesByClip((prev) => {
+      const { [clipId]: _, ...rest } = prev;
+      return rest;
     });
-  },
-}));
+    engineStore.dispatch(clearKeyframesForClip(clipId));
+  }, []);
+
+  return useMemo(() => ({
+    keyframesByClip,
+    addKeyframe,
+    removeKeyframe,
+    moveKeyframe,
+    updateKeyframeValue,
+    updateInterpolation,
+    getValue,
+    hasKeyframes,
+    getClipKeyframes,
+    getTrack,
+    enableProperty,
+    disableProperty,
+    removeClip,
+  }), [
+    keyframesByClip,
+    addKeyframe,
+    removeKeyframe,
+    moveKeyframe,
+    updateKeyframeValue,
+    updateInterpolation,
+    getValue,
+    hasKeyframes,
+    getClipKeyframes,
+    getTrack,
+    enableProperty,
+    disableProperty,
+    removeClip,
+  ]);
+}
+
+export default useKeyframeStore;
