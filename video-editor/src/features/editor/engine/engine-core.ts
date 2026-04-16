@@ -870,10 +870,13 @@ function reducer(state: Project, command: EditorCommand): Project {
       const track = state.tracks[clip.trackId];
       if (!track) return state;
       
+      // Create a new clips object without the original clip
+      const { [clipId]: deleted, ...remainingClips } = state.clips;
+      
       return {
         ...state,
         clips: {
-          ...state.clips,
+          ...remainingClips,
           [firstClip.id]: firstClip,
           [secondClip.id]: secondClip,
         },
