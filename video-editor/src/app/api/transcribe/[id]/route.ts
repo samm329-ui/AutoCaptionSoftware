@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { API_CONFIG } from "@/constants/api";
+
+const getAuthHeader = () => `${API_CONFIG.TRANSCRIBE.AUTH_PREFIX} ${API_CONFIG.TRANSCRIBE.ENV_KEY}`;
 
 export async function GET(
   request: Request,
@@ -8,33 +11,21 @@ export async function GET(
     const { id } = await params;
 
     if (!id) {
-      return NextResponse.json(
-        { message: "id parameter is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "id parameter is required" }, { status: 400 });
     }
 
-    const response = await fetch(`https://api.combo.sh/v1/transcribe/${id}`, {
-      headers: {
-        Authorization: "Bearer cb_bYQbTtE7Yb7R" // JWT Token from environment
-      }
+    const response = await fetch(`${API_CONFIG.TRANSCRIBE.BASE_URL}/transcribe/${id}`, {
+      headers: { [API_CONFIG.TRANSCRIBE.AUTH_HEADER]: getAuthHeader() }
     });
 
     const statusData = await response.json();
     if (!response.ok) {
-      const error = new Error(
-        statusData?.message || "Failed status transcribe"
-      );
-      (error as any).status = response.status;
-      throw error;
+      return NextResponse.json({ message: statusData?.message || "Failed status transcribe" }, { status: response.status });
     }
 
     return NextResponse.json(statusData, { status: 200 });
   } catch (error: any) {
     console.error("Transcribe status error:", error instanceof Error ? error.message : String(error));
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,16 +1,19 @@
 // app/api/transcribe/route.ts
 import { NextResponse } from "next/server";
+import { API_CONFIG, API_ENDPOINTS } from "@/constants/api";
+
+const getAuthHeader = () => `${API_CONFIG.RENDER.AUTH_PREFIX} ${API_CONFIG.RENDER.ENV_KEY}`;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json(); // Parse the request body
+    const body = await request.json();
     const response = await fetch(
-      "https://api.designcombo.dev/v1/audios/speech-to-text",
+      API_ENDPOINTS.TRANSCRIBE.SPEECH_TO_TEXT,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.COMBO_SK}`
+          [API_CONFIG.RENDER.AUTH_HEADER]: getAuthHeader()
         },
         body: JSON.stringify(body)
       }
