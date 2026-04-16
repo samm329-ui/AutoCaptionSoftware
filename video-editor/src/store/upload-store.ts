@@ -28,7 +28,7 @@ import {
   addMediaAsset as addMediaAssetCmd,
   setUploadModal,
 } from "@/features/editor/engine/commands";
-import { selectOrderedTracks } from "@/features/editor/engine/selectors";
+import { selectSequenceTracks, selectTracksByGroup } from "@/features/editor/engine/selectors";
 import { useUploads, useFolders, useMediaAssets, useShowUploadModal } from "@/features/editor/engine";
 
 export function useUploadStore() {
@@ -108,7 +108,8 @@ export { type UploadedFile, type ProjectFolder };
 
 export function addFileToTimeline(upload: UploadedFile): void {
   const state = engineStore.getState();
-  const durationMs = (upload.duration ?? 5) * 1000;
+  const durationMs = upload.duration ? upload.duration * 1000 : 5000;
+  const playheadTime = state.ui?.playheadTime ?? 0;
 
   type ClipType = Clip["type"];
   const clipType: ClipType =
@@ -119,46 +120,68 @@ export function addFileToTimeline(upload: UploadedFile): void {
       : "video";
 
   type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
-  const trackType: TrackType = upload.type === "audio" ? "audio" : "video";
+  
+  let trackType: TrackType;
+  let trackGroup: "video" | "audio" | "text" | "subtitle";
+  let trackName: string;
+  
+  if (upload.type === "audio") {
+    trackType = "audio";
+    trackGroup = "audio";
+    trackName = "A1";
+  } else if (upload.type === "image") {
+    trackType = "video";
+    trackGroup = "video";
+    trackName = "V1";
+  } else {
+    trackType = "video";
+    trackGroup = "video";
+    trackName = "V1";
+  }
 
-  const existingTracks = selectOrderedTracks(state).filter(t => t.type === trackType);
+  const existingTracks = selectTracksByGroup(trackGroup)(state);
   
   let track: ReturnType<typeof createTrack> | undefined;
   let startMs = 0;
   
-  const allClips = Object.values(state.clips);
-  
-  for (const existingTrack of existingTracks) {
-    const trackClipsOnThisTrack = allClips.filter(c => c && c.trackId === existingTrack.id);
+  if (existingTracks.length > 0) {
+    let bestTrack = existingTracks[0];
+    let maxEndMs = 0;
     
-    let lastClipEnd = 0;
-    if (trackClipsOnThisTrack.length > 0) {
-      lastClipEnd = Math.max(...trackClipsOnThisTrack.map(c => c.display.to));
+    for (const t of existingTracks) {
+      const trackClips = Object.values(state.clips).filter(
+        c => c && c.trackId === t.id
+      );
+      if (trackClips.length > 0) {
+        const lastEnd = Math.max(...trackClips.map(c => c.display.to));
+        if (lastEnd > maxEndMs) {
+          maxEndMs = lastEnd;
+          bestTrack = t;
+        }
+      } else if (maxEndMs === 0) {
+        bestTrack = t;
+      }
     }
     
-    if (lastClipEnd < 30000) {
-      track = existingTrack;
-      startMs = lastClipEnd + 100;
-      break;
+    track = bestTrack;
+    const trackClips = Object.values(state.clips).filter(
+      c => c && c.trackId === track!.id
+    );
+    if (trackClips.length > 0) {
+      startMs = Math.max(...trackClips.map(c => c.display.to));
+    } else {
+      startMs = 0;
     }
-  }
-  
-  if (!track && existingTracks.length > 0) {
-    const maxOrder = Math.max(...existingTracks.map(t => t.order));
+  } else {
     track = createTrack(trackType, {
-      name: `${trackType.toUpperCase()}${maxOrder + 2}`,
-      order: maxOrder + 1,
+      name: trackName,
+      order: existingTracks.length,
     });
     engineStore.dispatch(addTrack(track));
-  } else if (!track) {
-    track = createTrack(trackType, {
-      name: trackType === "audio" ? "A1" : "V1",
-      order: 0,
-    });
-    engineStore.dispatch(addTrack(track));
+    startMs = 0;
   }
 
-  const clipId = upload.id || nanoid();
+  const clipId = nanoid();
   const clip: Clip = {
     id: clipId,
     type: clipType,
