@@ -1,4 +1,12 @@
-# Engine Migration Plan - Complete Analysis
+# Engine Migration Plan - ARCHIVE
+
+> **NOTE:** This document describes the OLD architecture that has been FIXED.
+> The timeline engine migration is now complete. See ENGINE_MIGRATION_PLAN.md
+> in the root for the new architecture documentation.
+
+---
+
+# Engine Migration Plan - Complete Analysis (Legacy)
 
 ## Current Architecture Problem
 
