@@ -226,10 +226,34 @@ addTrack(track)
 addClip(clip, trackId)
 moveClip(clipId, newStart, newTrackId)
 
+// Lane commands
+INSERT_TRACK_ABOVE, INSERT_TRACK_BELOW, CLONE_CLIP_TO_NEW_LANE
+
 // Selection
 setSelection(clipIds[])
 setPlayheadTime(timeMs)
 
 // Zoom
 setZoom(zoomLevel)
+```
+
+### API Configuration
+
+All external API endpoints are centralized in `constants/api.ts`:
+
+```typescript
+const API_CONFIG = {
+  RENDER: {
+    BASE_URL: "https://api.designcombo.dev/v1",
+    AUTH_PREFIX: "Bearer",
+    ENV_KEY: process.env.COMBO_SK
+  }
+};
+
+const API_ENDPOINTS = {
+  RENDER: {
+    CREATE_PROJECT: () => `${BASE_URL}/projects`,
+    CREATE_EXPORT: (id) => `${BASE_URL}/projects/${id}/export`
+  }
+};
 ```
