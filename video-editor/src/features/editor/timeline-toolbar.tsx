@@ -89,13 +89,36 @@ export function TimelineToolbar({ onToolChange, className }: TimelineToolbarProp
   const doAddText = useCallback(() => {
     const state = engineStore.getState();
     const ordered = selectOrderedTracks(state);
-    let track = ordered.find(t => t.type === "text");
-    if (!track) {
-      track = createTrack("text", { order: ordered.length });
+    const textTracks = ordered.filter(t => t.type === "text");
+    
+    let track;
+    let startMs = 0;
+    
+    if (textTracks.length > 0) {
+      let bestTrack = textTracks[0];
+      let maxEndMs = 0;
+      
+      for (const t of textTracks) {
+        const trackClips = Object.values(state.clips).filter(c => c?.trackId === t.id);
+        if (trackClips.length > 0) {
+          const lastEnd = Math.max(...trackClips.map(c => c.display.to));
+          if (lastEnd > maxEndMs) {
+            maxEndMs = lastEnd;
+            bestTrack = t;
+          }
+        } else if (maxEndMs === 0) {
+          bestTrack = t;
+        }
+      }
+      
+      track = bestTrack;
+      const trackClips = Object.values(state.clips).filter(c => c?.trackId === track!.id);
+      startMs = trackClips.length > 0 ? Math.max(...trackClips.map(c => c.display.to)) : 0;
+    } else {
+      track = createTrack("text", { name: "T1", order: ordered.length });
       engineDispatch(addTrack(track));
     }
-    const trackClips = Object.values(engineStore.getState().clips).filter(c => c?.trackId === track!.id);
-    const startMs = trackClips.reduce((max, c) => Math.max(max, c ? c.display.to : 0), 0);
+    
     const clipId = nanoid();
     const clip: Clip = {
       id: clipId, trackId: track.id, type: "text", name: "Text",

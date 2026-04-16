@@ -81,15 +81,40 @@ function MediaToolbar() {
   const handleAddText = () => {
     const state = engineStore.getState();
     const ordered = selectOrderedTracks(state);
-    let track = ordered.find(t => t.type === "text");
-    if (!track) {
-      track = createTrack("text", { order: ordered.length });
+    const textTracks = ordered.filter(t => t.type === "text");
+    
+    let track;
+    let startMs = 0;
+    
+    if (textTracks.length > 0) {
+      let bestTrack = textTracks[0];
+      let maxEndMs = 0;
+      
+      for (const t of textTracks) {
+        const trackClips = Object.values(state.clips).filter(c => c?.trackId === t.id);
+        if (trackClips.length > 0) {
+          const lastEnd = Math.max(...trackClips.map(c => c.display.to));
+          if (lastEnd > maxEndMs) {
+            maxEndMs = lastEnd;
+            bestTrack = t;
+          }
+        } else if (maxEndMs === 0) {
+          bestTrack = t;
+        }
+      }
+      
+      track = bestTrack;
+      const trackClips = Object.values(state.clips).filter(c => c?.trackId === track!.id);
+      startMs = trackClips.length > 0 ? Math.max(...trackClips.map(c => c.display.to)) : 0;
+    } else {
+      track = createTrack("text", { name: "T1", order: ordered.length });
       engineStore.dispatch(addTrack(track));
     }
+    
     const clipId = nanoid();
     const clip: Clip = {
       id: clipId, trackId: track.id, type: "text", name: "Text",
-      display: { from: 0, to: 5000 },
+      display: { from: startMs, to: startMs + 5000 },
       trim: { from: 0, to: 5000 },
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
       details: { text: "New Text", fontSize: 80, color: "#ffffff", fontFamily: "Inter", textAlign: "center" },
@@ -102,15 +127,40 @@ function MediaToolbar() {
   const handleAddCaption = () => {
     const state = engineStore.getState();
     const ordered = selectOrderedTracks(state);
-    let track = ordered.find(t => t.type === "caption");
-    if (!track) {
-      track = createTrack("caption", { order: ordered.length });
+    const captionTracks = ordered.filter(t => t.type === "caption");
+    
+    let track;
+    let startMs = 0;
+    
+    if (captionTracks.length > 0) {
+      let bestTrack = captionTracks[0];
+      let maxEndMs = 0;
+      
+      for (const t of captionTracks) {
+        const trackClips = Object.values(state.clips).filter(c => c?.trackId === t.id);
+        if (trackClips.length > 0) {
+          const lastEnd = Math.max(...trackClips.map(c => c.display.to));
+          if (lastEnd > maxEndMs) {
+            maxEndMs = lastEnd;
+            bestTrack = t;
+          }
+        } else if (maxEndMs === 0) {
+          bestTrack = t;
+        }
+      }
+      
+      track = bestTrack;
+      const trackClips = Object.values(state.clips).filter(c => c?.trackId === track!.id);
+      startMs = trackClips.length > 0 ? Math.max(...trackClips.map(c => c.display.to)) : 0;
+    } else {
+      track = createTrack("caption", { name: "S1", order: ordered.length });
       engineStore.dispatch(addTrack(track));
     }
+    
     const clipId = nanoid();
     const clip: Clip = {
       id: clipId, trackId: track.id, type: "caption", name: "Caption",
-      display: { from: 0, to: 5000 },
+      display: { from: startMs, to: startMs + 5000 },
       trim: { from: 0, to: 5000 },
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
       details: { text: "Caption", fontSize: 60, color: "#ffffff", textAlign: "center" },

@@ -12,34 +12,27 @@ import { useEngineDispatch } from "../engine/engine-provider";
 import { updateTrack } from "../engine/commands";
 import type { Track } from "../engine/engine-core";
 
-const VIDEO_TYPES = new Set(["video", "image", "overlay"]);
-const AUDIO_TYPES = new Set(["audio"]);
-
 function assignLabels(tracks: Track[]) {
-  const labels = new Map<string, { label: string; isVideo: boolean; isAudio: boolean }>();
-  const videoTracks = tracks.filter((t) => VIDEO_TYPES.has(t.type));
-  const audioTracks = tracks.filter((t) => AUDIO_TYPES.has(t.type));
-
-  for (let i = 0; i < videoTracks.length; i++) {
-    labels.set(videoTracks[i].id, {
-      label: `V${videoTracks.length - i}`,
-      isVideo: true,
-      isAudio: false,
-    });
-  }
-  for (let i = 0; i < audioTracks.length; i++) {
-    labels.set(audioTracks[i].id, {
-      label: `A${i + 1}`,
-      isVideo: false,
-      isAudio: true,
-    });
-  }
-  let other = 1;
-  for (const t of tracks) {
-    if (!labels.has(t.id)) {
-      labels.set(t.id, { label: `T${other++}`, isVideo: false, isAudio: false });
+  const labels = new Map<string, { label: string; group: string }>();
+  
+  const groups = { subtitle: [] as Track[], video: [] as Track[], text: [] as Track[], audio: [] as Track[] };
+  
+  for (const track of tracks) {
+    const group = track.group || (track.type === "audio" ? "audio" : track.type === "caption" ? "subtitle" : track.type === "text" ? "text" : "video");
+    if (groups[group]) {
+      groups[group].push(track);
     }
   }
+  
+  for (const group of ["subtitle", "video", "text", "audio"] as const) {
+    const groupTracks = groups[group];
+    const prefix = group === "subtitle" ? "S" : group === "text" ? "T" : group === "video" ? "V" : "A";
+    
+    for (let i = 0; i < groupTracks.length; i++) {
+      labels.set(groupTracks[i].id, { label: `${prefix}${i + 1}`, group });
+    }
+  }
+  
   return labels;
 }
 
@@ -70,7 +63,10 @@ export default function TrackHeaders({ tracks }: TrackHeadersProps) {
       {tracks.map((track, index) => {
         const info = labels.get(track.id);
         if (!info) return null;
-        const { label, isVideo, isAudio } = info;
+        const { label, group } = info;
+        
+        const isVideo = group === "video";
+        const isAudio = group === "audio";
 
         return (
           <div
