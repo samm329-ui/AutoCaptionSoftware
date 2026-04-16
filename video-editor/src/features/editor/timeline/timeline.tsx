@@ -1,11 +1,11 @@
 /**
  * timeline/timeline.tsx — ENGINE-FIRST
- * Fixed version with proper clip rendering
+ * Fixed version with proper clip rendering and tool behavior
  */
 
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
 import Playhead from "./playhead";
@@ -24,8 +24,10 @@ import {
   selectSelection,
   selectAllClips,
 } from "../engine/selectors";
-import { setSelection, setPlayhead, seekPlayer } from "../engine/commands";
+import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
+import { selectTrackClips } from "../engine/selectors";
+import { engineStore } from "../engine/engine-core";
 import useStore from "../store/use-store";
 
 const TRACK_HEIGHT = 50;
@@ -36,9 +38,17 @@ const Timeline = () => {
   const clips = useEngineSelector(selectAllClips);
   const selection = useEngineSelector(selectSelection);
   const zoom = useEngineZoom();
+  const activeTool = useEngineSelector((state) => state.ui?.activeTool ?? "select");
+  const playheadTime = useEngineSelector((state) => state.ui?.playheadTime ?? 0);
+  const scrollX = useEngineSelector((state) => state.ui?.scrollX ?? 0);
   const { playerRef } = useStore();
 
+  const timelineRef = useRef<HTMLDivElement>(null);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [isDraggingClip, setIsDraggingClip] = useState(false);
+  const [dragClipId, setDragClipId] = useState<string | null>(null);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragStartTime, setDragStartTime] = useState(0);
   
   // Calculate pixels per millisecond using shared helper
   const pixelsPerMs = zoomToPixelsPerMs(zoom);
@@ -58,8 +68,94 @@ const Timeline = () => {
 
   const handleClipClick = useCallback((e: React.MouseEvent, clipId: string) => {
     e.stopPropagation();
-    dispatch(setSelection([clipId]));
-  }, [dispatch]);
+    
+    if (activeTool === "select") {
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        const currentSelection = selection ?? [];
+        if (currentSelection.includes(clipId)) {
+          dispatch(setSelection(currentSelection.filter(id => id !== clipId)));
+        } else {
+          dispatch(setSelection([...currentSelection, clipId]));
+        }
+      } else {
+        dispatch(setSelection([clipId]));
+      }
+    } else if (activeTool === "trackSelect") {
+      const state = engineStore.getState();
+      const clip = state.clips[clipId];
+      if (!clip) return;
+      
+      const trackClips = selectTrackClips(clip.trackId)(state);
+      const forwardClips = trackClips.filter(c => c.display.from >= playheadTime);
+      const clipIds = forwardClips.map(c => c.id);
+      
+      if (clipIds.length > 0) {
+        dispatch(setSelection(clipIds));
+      }
+    } else if (activeTool === "razor") {
+      const clip = clips.find(c => c.id === clipId);
+      if (!clip) return;
+      
+      if (playheadTime > clip.display.from && playheadTime < clip.display.to) {
+        dispatch(splitClip(clipId, playheadTime));
+      }
+    } else {
+      dispatch(setSelection([clipId]));
+    }
+  }, [dispatch, activeTool, selection, playheadTime, clips]);
+
+  const handleClipMouseDown = useCallback((e: React.MouseEvent, clipId: string) => {
+    if (activeTool === "select" || activeTool === "rippleEdit") {
+      e.stopPropagation();
+      const clip = clips.find(c => c.id === clipId);
+      if (!clip) return;
+      
+      setIsDraggingClip(true);
+      setDragClipId(clipId);
+      setDragStartX(e.clientX);
+      setDragStartTime(clip.display.from);
+    }
+  }, [activeTool, clips]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDraggingClip && dragClipId) {
+      const deltaX = e.clientX - dragStartX;
+      const deltaTime = deltaX / pixelsPerMs;
+      const newStart = Math.max(0, dragStartTime + deltaTime);
+      
+      dispatch(moveClip(dragClipId, newStart));
+    }
+    
+    if (activeTool === "hand" && e.buttons === 1) {
+      const deltaX = e.movementX;
+      const deltaY = e.movementY;
+      const newScrollX = Math.max(0, scrollX - deltaX);
+      dispatch(setScroll(newScrollX, undefined));
+    }
+  }, [isDraggingClip, dragClipId, dragStartX, dragStartTime, pixelsPerMs, activeTool, scrollX, dispatch]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDraggingClip(false);
+    setDragClipId(null);
+  }, []);
+
+  const handleTimelineClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.track-header') || target.closest('.clip')) return;
+    
+    if (activeTool === "select") {
+      dispatch(setSelection([]));
+    } else if (activeTool === "trackSelect") {
+      const clickTime = (e.nativeEvent.offsetX - 120) / pixelsPerMs;
+      if (clickTime > 0) {
+        const forwardClips = clips.filter(c => c.display.from >= clickTime);
+        const clipIds = forwardClips.map(c => c.id);
+        if (clipIds.length > 0) {
+          dispatch(setSelection(clipIds));
+        }
+      }
+    }
+  }, [dispatch, activeTool, clips, pixelsPerMs]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -90,8 +186,28 @@ const Timeline = () => {
 
   const timelineWidth = Math.max(maxTime * pixelsPerMs, 1000);
 
+  // Get cursor style based on active tool
+  const getCursorStyle = () => {
+    switch (activeTool) {
+      case "select": return "cursor-default";
+      case "trackSelect": return "cursor-text";
+      case "rippleEdit": return "cursor-ew-resize";
+      case "razor": return "cursor-crosshair";
+      case "pen": return "cursor-crosshair";
+      case "rectangle": return "cursor-crosshair";
+      case "hand": return "cursor-grab";
+      case "text": return "cursor-text";
+      default: return "cursor-default";
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full w-full">
+    <div 
+      className={`flex flex-col h-full w-full ${getCursorStyle()}`}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
       {/* Header */}
       <div className="shrink-0">
         <Header />
@@ -103,14 +219,15 @@ const Timeline = () => {
       </div>
       
       {/* Main timeline area */}
-      <div className="flex flex-1 min-h-0">
+      <div 
+        className="flex flex-1 min-h-0 timeline-area"
+        onClick={handleTimelineClick}
+      >
         {/* Track headers */}
         <div 
-          className="shrink-0 bg-sidebar border-r border-border overflow-y-auto"
+          className="shrink-0 bg-sidebar border-r border-border overflow-y-auto track-header"
           style={{ width: 120 }}
         >
-          <TrackHeaders tracks={tracks} />
-        </div>
         
         {/* Timeline content */}
         <div 
@@ -156,12 +273,19 @@ const Timeline = () => {
               const left = clip.display.from * pixelsPerMs;
               const width = (clip.display.to - clip.display.from) * pixelsPerMs;
               
-              return (
+              const getClipCursor = () => {
+    if (activeTool === "select" || activeTool === "rippleEdit") {
+      return "cursor-grab";
+    }
+    return "cursor-pointer";
+  };
+
+  return (
                 <div
                   key={`clip-${clip.id}`}
-                  className={`absolute rounded border-2 text-white select-none cursor-pointer transition-all hover:brightness-110 ${getTypeColor(clip.type)} ${
+                  className={`absolute rounded border-2 text-white select-none transition-all hover:brightness-110 ${getTypeColor(clip.type)} ${
                     isSelected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""
-                  }`}
+                  } ${getClipCursor()}`}
                   style={{
                     left: `${left}px`,
                     width: `${Math.max(width, 20)}px`,
@@ -169,6 +293,7 @@ const Timeline = () => {
                     top: `${displayIndex * TRACK_HEIGHT + 5}px`,
                   }}
                   onClick={(e) => handleClipClick(e, clip.id)}
+                  onMouseDown={(e) => handleClipMouseDown(e, clip.id)}
                 >
                   <div className="px-1.5 py-0.5 text-[9px] truncate font-medium leading-tight overflow-hidden">
                     {clip.name || clip.type}

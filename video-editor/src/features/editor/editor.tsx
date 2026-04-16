@@ -62,6 +62,7 @@ import MediaToolbar from "./media-toolbar";
 import ProjectPanel from "./panels/project-panel";
 import EffectControlsPanel from "./panels/effect-controls-panel";
 import SourceControlPanel from "./panels/source-control-panel";
+import EditingToolbar from "./editing-toolbar";
 
 // Fonts
 import { getCompactFontData, loadFonts } from "./utils/fonts";
@@ -207,6 +208,41 @@ const LeftSidebar = () => (
   </div>
 );
 
+const CenterArea = ({
+  sceneRef,
+}: {
+  sceneRef: RefObject<SceneRef>;
+}) => (
+  <div className="flex flex-col bg-background h-full">
+    <div className="flex-1 min-h-0">
+      <ResizablePanelGroup direction="vertical" className="h-full">
+        <ResizablePanel defaultSize={65} minSize={35}>
+          <ResizablePanelWrapper id="scene">
+            <div className="flex-1 relative overflow-hidden w-full h-full">
+              <CropModal />
+              <Scene ref={sceneRef} />
+            </div>
+          </ResizablePanelWrapper>
+        </ResizablePanel>
+        <ResizableHandle className="bg-border/90" withHandle />
+        <ResizablePanel defaultSize={35} minSize={20}>
+          <ResizablePanelWrapper id="timeline">
+            <div className="w-full h-full flex flex-col">
+              <MediaToolbar />
+              <div className="flex-1 min-h-0 flex">
+                <EditingToolbar className="flex-none" />
+                <div className="flex-1 min-h-0">
+                  <Timeline />
+                </div>
+              </div>
+            </div>
+          </ResizablePanelWrapper>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
+  </div>
+);
+
 const RightSidebar = () => (
   <div className="bg-card flex flex-col border-l border-border/80 h-[calc(100vh-52px)] w-full">
     <Tabs defaultValue="effects" className="flex flex-col h-full">
@@ -245,8 +281,11 @@ const SceneContainer = ({
           <ResizablePanelWrapper id="timeline">
             <div className="w-full h-full flex flex-col">
               <MediaToolbar />
-              <div className="flex-1 min-h-0">
-                <Timeline />
+              <div className="flex-1 min-h-0 flex">
+                <EditingToolbar className="flex-none" />
+                <div className="flex-1 min-h-0">
+                  <Timeline />
+                </div>
               </div>
             </div>
           </ResizablePanelWrapper>
@@ -336,7 +375,7 @@ function EditorShell() {
               </ResizablePanel>
               <ResizableHandle className="bg-border/60" />
               <ResizablePanel defaultSize={61} minSize={40}>
-                <SceneContainer sceneRef={sceneRef} />
+                <CenterArea sceneRef={sceneRef} />
               </ResizablePanel>
               <ResizableHandle className="bg-border/60" />
               <ResizablePanel defaultSize={24} minSize={18} maxSize={36}>
