@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEngineDispatch, useEngineSelector } from "./engine/engine-provider";
-import { deleteClips, splitClip, setTool } from "./engine/commands";
+import { deleteClips, splitClip, setTool as setToolCommand } from "./engine/commands";
 import { createTrack, type Clip } from "./engine/engine-core";
 import { addTrack, addClip, selectClip } from "./engine/commands";
 import { selectOrderedTracks, selectAllClips, selectTrackClips, selectPlayheadTime, selectScroll } from "./engine/selectors";
@@ -60,7 +60,7 @@ export function EditingToolbar({ className }: EditingToolbarProps) {
   const playheadTime = useEngineSelector((state) => state.ui?.playheadTime ?? 0);
 
   const setTool = useCallback((tool: EditorTool) => {
-    engineDispatch(setTool(tool));
+    engineDispatch(setToolCommand(tool));
   }, [engineDispatch]);
 
   const selectionLength = selection.length;
