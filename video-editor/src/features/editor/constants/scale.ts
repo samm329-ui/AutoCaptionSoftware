@@ -1,3 +1,8 @@
+/**
+ * LEGACY FILE - Quarantined after engine migration
+ * No new code should depend on TIMELINE_ZOOM_LEVELS
+ * Use engine zoom via useEngineZoom() instead
+ */
 import { ITimelineScaleState } from "../types";
 
 export const TIMELINE_ZOOM_LEVELS: ITimelineScaleState[] = [
