@@ -105,6 +105,14 @@ export function selectTrackClips(trackId: string) {
 
 // ─── Tracks ───────────────────────────────────────────────────────────────────
 
+/** Group priority for sorting: SUBTITLE → VIDEO → TEXT → AUDIO */
+const GROUP_ORDER: Record<string, number> = {
+  subtitle: 0,
+  video: 1,
+  text: 2,
+  audio: 3,
+};
+
 /** All tracks in sequence order (from root sequence trackIds) */
 export function selectOrderedTracks(p: Project): Track[] {
   const seq = getRootSequence(p);
@@ -114,7 +122,14 @@ export function selectOrderedTracks(p: Project): Track[] {
   return trackIds
     .map((id) => tracks[id])
     .filter((t): t is Track => !!t)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    .sort((a, b) => {
+      const groupA = a.group || (a.type === "audio" ? "audio" : a.type === "caption" ? "subtitle" : a.type === "text" ? "text" : "video");
+      const groupB = b.group || (b.type === "audio" ? "audio" : b.type === "caption" ? "subtitle" : b.type === "text" ? "text" : "video");
+      const orderA = GROUP_ORDER[groupA] ?? 4;
+      const orderB = GROUP_ORDER[groupB] ?? 4;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
 }
 
 /** A single track by id */
@@ -129,6 +144,51 @@ export function selectTrackForClip(clipId: string) {
     if (!clip) return null;
     return getTracks(p)[clip.trackId] ?? null;
   };
+}
+
+// ─── Lane/Group selectors ───────────────────────────────────────────────────
+
+export type TrackGroup = "subtitle" | "text" | "video" | "audio";
+
+/** All groups in canonical order: SUBTITLE → VIDEO → TEXT → AUDIO */
+export function selectTimelineGroups(p: Project): TrackGroup[] {
+  return ["subtitle", "video", "text", "audio"];
+}
+
+/** Tracks filtered by group */
+export function selectTracksByGroup(group: TrackGroup) {
+  return (p: Project): Track[] => {
+    const tracks = getTracks(p);
+    return Object.values(tracks)
+      .filter((t): t is Track => !!t && t.group === group)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  };
+}
+
+/** Track matrix: grouped tracks in canonical order */
+export function selectTrackMatrix(p: Project): Record<TrackGroup, Track[]> {
+  const groups = selectTimelineGroups(p);
+  const tracks = getTracks(p);
+  const matrix: Record<TrackGroup, Track[]> = { subtitle: [], text: [], video: [], audio: [] };
+  
+  for (const group of groups) {
+    matrix[group] = Object.values(tracks)
+      .filter((t): t is Track => !!t && t.group === group)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }
+  
+  return matrix;
+}
+
+/** Only tracks that are actually in the sequence */
+export function selectSequenceTracks(p: Project): Track[] {
+  const seq = getRootSequence(p);
+  if (!seq) return [];
+  const trackIds = seq.trackIds ?? [];
+  const tracks = getTracks(p);
+  return trackIds
+    .map((id) => tracks[id])
+    .filter((t): t is Track => !!t);
 }
 
 // ─── Sequence ─────────────────────────────────────────────────────────────────

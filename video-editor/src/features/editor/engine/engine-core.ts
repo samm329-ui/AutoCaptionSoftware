@@ -120,6 +120,7 @@ export interface Sequence {
 export interface Track {
   id: string;
   type: "video" | "audio" | "text" | "caption" | "overlay";
+  group: "subtitle" | "text" | "video" | "audio";
   name: string;
   order: number;
   locked: boolean;
@@ -307,9 +308,14 @@ export function createEmptyProject(overrides?: Partial<Project>): Project {
 }
 
 export function createTrack(type: Track["type"], overrides?: Partial<Track>): Track {
+  const group = type === "caption" ? "subtitle" 
+    : type === "text" ? "text" 
+    : type === "video" || type === "overlay" ? "video" 
+    : "audio";
   return {
     id: nanoid(),
     type,
+    group,
     name: type.charAt(0).toUpperCase() + type.slice(1),
     order: 0,
     locked: false,
@@ -329,6 +335,9 @@ export type EditorCommand =
   | { type: "ADD_TRACK";    payload: { track: Track } }
   | { type: "REMOVE_TRACK"; payload: { trackId: string } }
   | { type: "UPDATE_TRACK"; payload: { trackId: string; locked?: boolean; muted?: boolean; hidden?: boolean; name?: string; order?: number } }
+  | { type: "INSERT_TRACK_ABOVE"; payload: { sourceTrackId: string } }
+  | { type: "INSERT_TRACK_BELOW"; payload: { sourceTrackId: string } }
+  | { type: "CLONE_CLIP_TO_NEW_LANE"; payload: { clipId: string; position: "above" | "below" } }
 
   // Clip CRUD
   | { type: "ADD_CLIP";    payload: { clip: Clip; trackId?: string } }
@@ -598,6 +607,173 @@ function reducer(state: Project, command: EditorCommand): Project {
       return { ...state, tracks: { ...state.tracks, [trackId]: { ...track, ...patch } } };
     }
 
+    case "INSERT_TRACK_ABOVE": {
+      const { sourceTrackId } = command.payload;
+      const sourceTrack = state.tracks[sourceTrackId];
+      if (!sourceTrack) return state;
+      
+      const seq = state.sequences[state.rootSequenceId];
+      if (!seq) return state;
+      
+      const sourceIndex = seq.trackIds.indexOf(sourceTrack.id);
+      
+      const newTrack: Track = {
+        id: nanoid(),
+        type: sourceTrack.type,
+        group: sourceTrack.group,
+        name: sourceTrack.type === "video" || sourceTrack.type === "overlay" 
+          ? `V${sourceTrack.order}` 
+          : sourceTrack.type === "text"
+          ? `T${sourceTrack.order}`
+          : sourceTrack.type === "caption"
+          ? `S${sourceTrack.order}`
+          : `A${sourceTrack.order}`,
+        order: sourceTrack.order - 1,
+        locked: false,
+        muted: false,
+        hidden: false,
+        clipIds: [],
+      };
+      
+      return {
+        ...state,
+        tracks: {
+          ...state.tracks,
+          [newTrack.id]: newTrack,
+        },
+        sequences: {
+          ...state.sequences,
+          [state.rootSequenceId]: {
+            ...seq,
+            trackIds: [
+              ...seq.trackIds.slice(0, sourceIndex),
+              newTrack.id,
+              ...seq.trackIds.slice(sourceIndex),
+            ],
+          },
+        },
+      };
+    }
+
+    case "INSERT_TRACK_BELOW": {
+      const { sourceTrackId } = command.payload;
+      const sourceTrack = state.tracks[sourceTrackId];
+      if (!sourceTrack) return state;
+      
+      const seq = state.sequences[state.rootSequenceId];
+      if (!seq) return state;
+      
+      const sourceIndex = seq.trackIds.indexOf(sourceTrack.id);
+      const insertIndex = sourceIndex + 1;
+      
+      const newTrack: Track = {
+        id: nanoid(),
+        type: sourceTrack.type,
+        group: sourceTrack.group,
+        name: sourceTrack.type === "video" || sourceTrack.type === "overlay" 
+          ? `V${sourceTrack.order + 2}` 
+          : sourceTrack.type === "text"
+          ? `T${sourceTrack.order + 2}`
+          : sourceTrack.type === "caption"
+          ? `S${sourceTrack.order + 2}`
+          : `A${sourceTrack.order + 2}`,
+        order: sourceTrack.order + 1,
+        locked: false,
+        muted: false,
+        hidden: false,
+        clipIds: [],
+      };
+      
+      return {
+        ...state,
+        tracks: {
+          ...state.tracks,
+          [newTrack.id]: newTrack,
+        },
+        sequences: {
+          ...state.sequences,
+          [state.rootSequenceId]: {
+            ...seq,
+            trackIds: [
+              ...seq.trackIds.slice(0, insertIndex),
+              newTrack.id,
+              ...seq.trackIds.slice(insertIndex),
+            ],
+          },
+        },
+      };
+    }
+
+    case "CLONE_CLIP_TO_NEW_LANE": {
+      const { clipId, position } = command.payload;
+      const clip = state.clips[clipId];
+      if (!clip) return state;
+      
+      const sourceTrack = state.tracks[clip.trackId];
+      if (!sourceTrack) return state;
+      
+      const seq = state.sequences[state.rootSequenceId];
+      if (!seq) return state;
+      
+      const sourceIndex = seq.trackIds.indexOf(sourceTrack.id);
+      const insertIndex = position === "above" ? sourceIndex : sourceIndex + 1;
+      
+      const newTrack: Track = {
+        id: nanoid(),
+        type: sourceTrack.type,
+        group: sourceTrack.group,
+        name: sourceTrack.type === "video" || sourceTrack.type === "overlay" 
+          ? `V${sourceTrack.order + (position === "above" ? 0 : 2)}` 
+          : sourceTrack.type === "text"
+          ? `T${sourceTrack.order + (position === "above" ? 0 : 2)}`
+          : sourceTrack.type === "caption"
+          ? `S${sourceTrack.order + (position === "above" ? 0 : 2)}`
+          : `A${sourceTrack.order + (position === "above" ? 0 : 2)}`,
+        order: position === "above" ? sourceTrack.order - 1 : sourceTrack.order + 1,
+        locked: false,
+        muted: false,
+        hidden: false,
+        clipIds: [],
+      };
+      
+      const clonedClip: Clip = {
+        ...clip,
+        id: nanoid(),
+        name: `${clip.name} (copy)`,
+        trackId: newTrack.id,
+        display: { 
+          from: clip.display.from, 
+          to: clip.display.to 
+        },
+      };
+      
+      newTrack.clipIds.push(clonedClip.id);
+      
+      return {
+        ...state,
+        clips: {
+          ...state.clips,
+          [clonedClip.id]: clonedClip,
+        },
+        tracks: {
+          ...state.tracks,
+          [newTrack.id]: newTrack,
+        },
+        sequences: {
+          ...state.sequences,
+          [state.rootSequenceId]: {
+            ...seq,
+            trackIds: [
+              ...seq.trackIds.slice(0, insertIndex),
+              newTrack.id,
+              ...seq.trackIds.slice(insertIndex),
+            ],
+          },
+        },
+        ui: { ...state.ui, selection: [clonedClip.id] },
+      };
+    }
+
     // ── Clip CRUD ────────────────────────────────────────────────────────────
     case "ADD_CLIP": {
       const { clip, trackId } = command.payload;
@@ -713,19 +889,27 @@ function reducer(state: Project, command: EditorCommand): Project {
       const clip = state.clips[clipId];
       if (!clip) return state;
       
-      // Find all tracks of same type
-      const tracksOfType = Object.values(state.tracks).filter(t => t.type === clip.type);
+      const sourceTrack = state.tracks[clip.trackId];
+      if (!sourceTrack) return state;
       
-      // Create new track below all existing of same type
-      const maxOrder = tracksOfType.length > 0 
-        ? Math.max(...tracksOfType.map(t => t.order)) 
-        : -1;
-      const newTrackOrder = maxOrder + 1;
+      const seq = state.sequences[state.rootSequenceId];
+      if (!seq) return state;
+      
+      const sourceIndex = seq.trackIds.indexOf(sourceTrack.id);
+      const insertIndex = sourceIndex + 1;
+      
       const newTrack: Track = {
         id: nanoid(),
-        type: clip.type as Track["type"],
-        name: clip.type === "video" ? `V${newTrackOrder + 1}` : `A${newTrackOrder + 1}`,
-        order: newTrackOrder,
+        type: sourceTrack.type,
+        group: sourceTrack.group,
+        name: sourceTrack.type === "video" || sourceTrack.type === "overlay" 
+          ? `V${sourceTrack.order + 2}` 
+          : sourceTrack.type === "text"
+          ? `T${sourceTrack.order + 2}`
+          : sourceTrack.type === "caption"
+          ? `S${sourceTrack.order + 2}`
+          : `A${sourceTrack.order + 2}`,
+        order: sourceTrack.order + 1,
         locked: false,
         muted: false,
         hidden: false,
@@ -743,6 +927,8 @@ function reducer(state: Project, command: EditorCommand): Project {
         },
       };
       
+      newTrack.clipIds.push(clonedClip.id);
+      
       return {
         ...state,
         clips: {
@@ -752,6 +938,17 @@ function reducer(state: Project, command: EditorCommand): Project {
         tracks: {
           ...state.tracks,
           [newTrack.id]: newTrack,
+        },
+        sequences: {
+          ...state.sequences,
+          [state.rootSequenceId]: {
+            ...seq,
+            trackIds: [
+              ...seq.trackIds.slice(0, insertIndex),
+              newTrack.id,
+              ...seq.trackIds.slice(insertIndex),
+            ],
+          },
         },
         ui: { ...state.ui, selection: [clonedClip.id] },
       };
@@ -892,9 +1089,8 @@ function reducer(state: Project, command: EditorCommand): Project {
     case "SET_PLAYHEAD": {
       const seq = state.sequences[state.rootSequenceId];
       const clamped = Math.max(0, Math.min(seq?.duration ?? Infinity, command.payload.timeMs));
-      return clamped === state.ui.playheadTime
-        ? state
-        : { ...state, ui: { ...state.ui, playheadTime: clamped } };
+      // Always update (no comparison to force re-render)
+      return { ...state, ui: { ...state.ui, playheadTime: clamped, _tick: Date.now() } };
     }
 
     case "SET_ZOOM":

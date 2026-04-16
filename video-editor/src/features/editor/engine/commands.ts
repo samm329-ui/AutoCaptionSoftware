@@ -23,7 +23,7 @@
  *      here maps to an explicit reducer case in engine-core.ts.
  */
 
-import type { EditorCommand, Clip, Track, Transform, AppliedEffect, TimelineMarker } from "./engine-core";
+import type { EditorCommand, Clip, Track, Transform, AppliedEffect, TimelineMarker, KeyframeTrack, MediaAsset, ProjectFolder, UploadedFile, FontData } from "./engine-core";
 import { nanoid } from "./engine-core";
 
 // ─── Clip CRUD ────────────────────────────────────────────────────────────────
@@ -217,6 +217,19 @@ export function setPlayhead(timeMs: number): EditorCommand {
   return { type: "SET_PLAYHEAD", payload: { timeMs: Math.max(0, timeMs) } };
 }
 
+// Player frame sync
+let playerSeekFn: ((frame: number) => void) | null = null;
+
+export function registerPlayerSeek(fn: (frame: number) => void) {
+  playerSeekFn = fn;
+}
+
+export function seekPlayer(frame: number) {
+  if (playerSeekFn) {
+    playerSeekFn(frame);
+  }
+}
+
 // ─── Zoom / scroll ────────────────────────────────────────────────────────────
 
 export function setZoom(zoom: number): EditorCommand {
@@ -270,6 +283,20 @@ export function splitClip(clipId: string, splitTimeMs: number): EditorCommand {
 
 export function cloneClip(clipId: string): EditorCommand {
   return { type: "CLONE_CLIP", payload: { clipId } };
+}
+
+// ─── Lane-aware track insertion ─────────────────────────────────────────────────
+
+export function insertTrackAbove(sourceTrackId: string): EditorCommand {
+  return { type: "INSERT_TRACK_ABOVE", payload: { sourceTrackId } };
+}
+
+export function insertTrackBelow(sourceTrackId: string): EditorCommand {
+  return { type: "INSERT_TRACK_BELOW", payload: { sourceTrackId } };
+}
+
+export function cloneClipToNewLane(clipId: string, position: "above" | "below"): EditorCommand {
+  return { type: "CLONE_CLIP_TO_NEW_LANE", payload: { clipId, position } };
 }
 
 // ─── Clear all ──────────────────────────────────────────────────────────────
@@ -370,8 +397,8 @@ export function setFolderState(payload: {
 
 // ─── Upload/Files Commands ────────────────────────────────────────────────
 
-export function addUpload(upload: Parameters<typeof import("./engine-core").UploadedFile>[0]): EditorCommand {
-  return { type: "ADD_UPLOAD", payload: { upload: upload as any } };
+export function addUpload(upload: UploadedFile): EditorCommand {
+  return { type: "ADD_UPLOAD", payload: { upload } };
 }
 
 export function removeUpload(id: string): EditorCommand {
@@ -382,7 +409,7 @@ export function clearUploads(): EditorCommand {
   return { type: "CLEAR_UPLOADS", payload: undefined };
 }
 
-export function addFolder(folder: Parameters<typeof import("./engine-core").ProjectFolder>[0]): EditorCommand {
+export function addFolder(folder: ProjectFolder): EditorCommand {
   return { type: "ADD_FOLDER", payload: { folder } };
 }
 
@@ -398,7 +425,7 @@ export function moveFileToFolder(fileId: string, folderId: string | null): Edito
   return { type: "MOVE_FILE_TO_FOLDER", payload: { fileId, folderId } };
 }
 
-export function addMediaAsset(asset: Parameters<typeof import("./engine-core").MediaAsset>[0]): EditorCommand {
+export function addMediaAsset(asset: MediaAsset): EditorCommand {
   return { type: "ADD_MEDIA_ASSET", payload: { asset } };
 }
 
@@ -408,12 +435,12 @@ export function setUploadModal(show: boolean): EditorCommand {
 
 // ─── Font State Commands ───────────────────────────────────────────────────
 
-export function setFonts(fonts: Parameters<typeof import("./engine-core").FontData>[]): EditorCommand {
-  return { type: "SET_FONTS", payload: { fonts: fonts as any } };
+export function setFonts(fonts: FontData[]): EditorCommand {
+  return { type: "SET_FONTS", payload: { fonts } };
 }
 
-export function setCompactFonts(compactFonts: Parameters<typeof import("./engine-core").FontData>[]): EditorCommand {
-  return { type: "SET_COMPACT_FONTS", payload: { compactFonts: compactFonts as any } };
+export function setCompactFonts(compactFonts: FontData[]): EditorCommand {
+  return { type: "SET_COMPACT_FONTS", payload: { compactFonts } };
 }
 
 // ─── Keyframe State Commands ────────────────────────────────────────────────
@@ -421,9 +448,9 @@ export function setCompactFonts(compactFonts: Parameters<typeof import("./engine
 export function setKeyframeTrack(
   clipId: string,
   property: string,
-  track: Parameters<typeof import("./engine-core").KeyframeTrack>[0]
+  track: KeyframeTrack
 ): EditorCommand {
-  return { type: "SET_KEYFRAME_TRACK", payload: { clipId, property, track: track as any } };
+  return { type: "SET_KEYFRAME_TRACK", payload: { clipId, property, track } };
 }
 
 export function removeKeyframeTrack(clipId: string, property: string): EditorCommand {
