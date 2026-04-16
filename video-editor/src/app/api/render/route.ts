@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
+import { API_CONFIG, API_ENDPOINTS } from "@/constants/api";
+
+const getAuthHeader = (config: typeof API_CONFIG.RENDER) => 
+  `${config.AUTH_PREFIX} ${config.ENV_KEY}`;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json(); // Parse the request body
+    const body = await request.json();
 
-    // Step 1: Create project using the new API
     const projectResponse = await fetch(
-      "https://api.designcombo.dev/v1/projects",
+      API_ENDPOINTS.RENDER.CREATE_PROJECT(),
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.COMBO_SK}`
+          [API_CONFIG.RENDER.AUTH_HEADER]: getAuthHeader(API_CONFIG.RENDER)
         },
         body: JSON.stringify(body)
       }
@@ -29,14 +32,13 @@ export async function POST(request: Request) {
     const projectId = projectData.project.id;
     console.log("Project created:", projectId);
 
-    // Step 2: Initialize export
     const exportResponse = await fetch(
-      `https://api.designcombo.dev/v1/projects/${projectId}/export`,
+      API_ENDPOINTS.RENDER.CREATE_EXPORT(projectId),
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.COMBO_SK}`
+          [API_CONFIG.RENDER.AUTH_HEADER]: getAuthHeader(API_CONFIG.RENDER)
         }
       }
     );
@@ -50,9 +52,6 @@ export async function POST(request: Request) {
     }
 
     const exportData = await exportResponse.json();
-    console.log("Export initialized:", exportData);
-
-    // Return the export data with the render ID for status checking
     return NextResponse.json(exportData, { status: 200 });
   } catch (error) {
     console.error("Render POST error:", error instanceof Error ? error.message : String(error));
@@ -66,41 +65,25 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get("type");
     const id = searchParams.get("id");
     if (!id) {
-      return NextResponse.json(
-        { message: "id parameter is required" },
-        { status: 400 }
-      );
-    }
-    if (!type) {
-      return NextResponse.json(
-        { message: "type parameter is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "id parameter is required" }, { status: 400 });
     }
 
-    const response = await fetch(`https://api.combo.sh/v1/render/${id}`, {
+    const response = await fetch(API_ENDPOINTS.RENDER.GET_RENDER_STATUS(id), {
       headers: {
-        Authorization: `Bearer ${process.env.COMBO_SH_JWT}` // JWT Token from environment
+        [API_CONFIG.TRANSCRIBE.AUTH_HEADER]: getAuthHeader(API_CONFIG.TRANSCRIBE)
       }
     });
 
     if (!response.ok) {
-      return NextResponse.json(
-        { message: "Failed to fetch export status" },
-        { status: response.status }
-      );
+      return NextResponse.json({ message: "Failed to fetch export status" }, { status: response.status });
     }
 
     const statusData = await response.json();
     return NextResponse.json(statusData, { status: 200 });
   } catch (error) {
     console.error("Render GET error:", error instanceof Error ? error.message : String(error));
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
