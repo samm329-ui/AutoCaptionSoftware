@@ -1,4 +1,11 @@
-# VIDEO EDITOR ERROR ANALYSIS - COMPLETE BREAKDOWN
+# VIDEO EDITOR ERROR ANALYSIS - ARCHIVE
+
+> **NOTE:** This document describes the OLD hybrid architecture that has been FIXED.
+> The timeline now uses a pure engine-first approach. This analysis is kept for reference.
+
+---
+
+# VIDEO EDITOR ERROR ANALYSIS - COMPLETE BREAKDOWN (Legacy)
 
 ## Executive Summary
 

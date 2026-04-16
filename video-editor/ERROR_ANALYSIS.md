@@ -1,4 +1,10 @@
-# Video Editor Architecture Analysis & Error Fixes
+# Video Editor Architecture Analysis & Error Fixes - ARCHIVE
+
+> **NOTE:** This document contains pre-engine-migration analysis.
+
+---
+
+# Video Editor Architecture Analysis & Error Fixes (Legacy)
 
 ## Overview
 
