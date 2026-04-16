@@ -12,29 +12,24 @@ import { TEXT_ADD_PAYLOAD } from "../constants/payload";
 import { cn } from "@/lib/utils";
 import { nanoid } from "nanoid";
 import { engineStore, createTrack, type Clip } from "../engine/engine-core";
-import { addTrack, addClip, selectClip } from "../engine/commands";
-import { selectOrderedTracks } from "../engine/selectors";
+import { addTrack, addClip, selectClip, setPlayhead } from "../engine/commands";
+import { selectTracksByGroup } from "../engine/selectors";
 
 function insertClipToEngine(clipPartial: Omit<Clip, "id" | "trackId" | "appliedEffects" | "effectIds" | "keyframeIds">): void {
   const state = engineStore.getState();
   const clipType = clipPartial.type as Clip["type"];
 
-  // Track type for text/overlay
-  const trackType = (clipType === "audio") ? "audio" : (clipType === "text" || clipType === "caption") ? "text" : "video";
+  const trackGroup = (clipType === "audio") ? "audio" : (clipType === "text" || clipType === "caption") ? "text" : "video";
 
-  // Find or create track
-  const ordered = selectOrderedTracks(state);
-  let track = ordered.find(t => t.type === trackType);
+  const textTracks = selectTracksByGroup(trackGroup)(state);
+  let track = textTracks[0];
   if (!track) {
-    track = createTrack(trackType as any, { order: ordered.length });
+    track = createTrack(clipType === "audio" ? "audio" : clipType === "text" ? "text" : "video", { order: 0 });
     engineStore.dispatch(addTrack(track));
   }
 
-  // Non-overlapping start
-  const freshState = engineStore.getState();
-  const trackClips = Object.values(freshState.clips).filter(c => c?.trackId === track!.id);
-  const startMs = trackClips.reduce((max, c) => Math.max(max, c ? c.display.to : 0), 0);
-
+  const playheadTime = state.ui?.playheadTime ?? 0;
+  const startMs = playheadTime;
   const dur = (clipPartial.display.to - clipPartial.display.from) || 5000;
   const clipId = nanoid();
   const clip: Clip = {

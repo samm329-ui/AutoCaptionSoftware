@@ -8,6 +8,7 @@ import type { PlayerRef } from "@remotion/player";
 import type { Moveable } from "@interactify/toolkit";
 import { useBackground, useViewTimeline, engineStore } from "../engine";
 import { setBackground as setBackgroundCmd, setViewTimeline as setViewTimelineCmd } from "../engine/commands";
+import { useEngineZoom } from "../engine/engine-provider";
 
 export const EDIT_OBJECT   = "EDIT_OBJECT";
 export const ADD_ANIMATION = "ADD_ANIMATION";
@@ -72,11 +73,14 @@ export function useStore() {
     engineStore.dispatch(setViewTimelineCmd(visible));
   }, []);
 
+  const engineZoom = useEngineZoom();
+  
   return {
     playerRef,
     sceneMoveableRef,
     scroll,
-    scale: defaultScale,
+    scale: { index: 7, unit: 300, zoom: engineZoom, segments: 5 },
+    zoom: engineZoom,
     setPlayerRef: setPlayerRefWrapper,
     setSceneMoveableRef: setSceneMoveableRefWrapper,
     setScroll: setScrollWrapper,

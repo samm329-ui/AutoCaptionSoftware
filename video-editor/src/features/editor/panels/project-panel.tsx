@@ -31,7 +31,7 @@ import {
   Folder,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useUploadStore, addFileToTimeline, UploadedFile, handleFileUpload, ProjectFolder } from "@/store/upload-store";
+import { useUploadStoreWithActions, addFileToTimeline, UploadedFile, handleFileUpload, ProjectFolder } from "@/store/upload-store";
 import { setDragData } from "@/components/shared/drag-data";
 import EffectsTab from "./effects-tab";
 
@@ -615,7 +615,7 @@ const FolderItem: React.FC<{
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 const ProjectPanel: React.FC = () => {
-  const { uploads, folders, removeUpload, removeFolder, renameFolder, addFolder, moveFileToFolder } = useUploadStore();
+  const { uploads, folders, removeUpload, removeFolder, renameFolder, addFolder, moveFileToFolder, addUpload } = useUploadStoreWithActions();
   const [view, setView] = useState<"list" | "grid">("list");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -689,7 +689,7 @@ const ProjectPanel: React.FC = () => {
       width: 1920,
       height: 1080,
     };
-    useUploadStore.getState().addUpload(upload);
+    addUpload(upload);
     setCreateMenu(null);
   }, [uploads]);
 
@@ -721,7 +721,7 @@ const ProjectPanel: React.FC = () => {
       width: 1920,
       height: 1080,
     };
-    useUploadStore.getState().addUpload(upload);
+    addUpload(upload);
     setShowColorPicker(false);
     setCreateMenu(null);
   }, [uploads]);

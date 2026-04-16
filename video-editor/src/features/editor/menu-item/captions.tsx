@@ -14,18 +14,13 @@ import { millisecondsToHHMMSS } from "../utils/format";
 import useStore from "../store/use-store";
 import { useEngineSelector } from "../engine/engine-provider";
 import { selectAllClips } from "../engine/selectors";
-import { engineStore } from "../engine/engine-core";
+import { engineStore, createTrack, nanoid, type Clip } from "../engine/engine-core";
+import { addTrack, addClip, setSelection } from "../engine/commands";
+import { selectTracksByGroup } from "../engine/selectors";
 import { groupBy } from "lodash";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
 import { Loader2 } from "lucide-react";
-
-const ADD_ITEMS = "ADD_ITEMS";
-const PLAYER_SEEK = "player:seek";
-
-const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
 
 const generateId = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -100,21 +95,41 @@ export const Captions = () => {
         options
       );
 
-      console.log({ captions });
-
-      dispatch(ADD_ITEMS, {
-        payload: {
-          trackItems: captions,
-          tracks: [
-            {
-              id: generateId(),
-              items: captions.map((item) => item.id),
-              type: "caption",
-              name: "Captions"
-            }
-          ]
-        }
-      });
+      const playheadTime = engineStore.getState().ui?.playheadTime ?? 0;
+      const state = engineStore.getState();
+      const subtitleTracks = selectTracksByGroup("subtitle")(state);
+      
+      let track = subtitleTracks[0];
+      if (!track) {
+        track = createTrack("caption", { name: "S1", order: 0 });
+        engineStore.dispatch(addTrack(track));
+      }
+      
+      const clipIds: string[] = [];
+      for (const captionItem of captions as any[]) {
+        const id = captionItem.id || nanoid();
+        const displayFrom = typeof captionItem.display?.from === "number" ? captionItem.display.from : playheadTime;
+        const displayTo = typeof captionItem.display?.to === "number" ? captionItem.display.to : displayFrom + 2000;
+        
+        const clip: Clip = {
+          id,
+          type: "caption",
+          trackId: track.id,
+          name: captionItem.name || "Caption",
+          display: { from: displayFrom, to: displayTo },
+          trim: { from: 0, to: displayTo - displayFrom },
+          transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
+          details: captionItem.details || {},
+          appliedEffects: [],
+          effectIds: [],
+          keyframeIds: [],
+          metadata: captionItem.metadata,
+        };
+        engineStore.dispatch(addClip(clip, track.id));
+        clipIds.push(id);
+      }
+      
+      engineStore.dispatch(setSelection(clipIds));
     } catch (error) {
       console.error("Error generating captions:", error instanceof Error ? error.message : String(error));
     } finally {

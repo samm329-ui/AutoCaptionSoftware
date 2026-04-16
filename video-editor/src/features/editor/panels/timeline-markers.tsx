@@ -17,7 +17,8 @@ import {
   MarkerColor,
 } from "../engine";
 import { addMarker, removeMarker as removeMarkerCmd, updateMarker, clearMarkers } from "../engine/commands";
-import useStore from "../store/use-store";
+import { useEnginePlayhead, useEngineDuration, useEngineZoom } from "../engine/engine-provider";
+import { zoomToPixelsPerMs } from "../engine/time-scale";
 
 const MARKER_COLORS: Record<MarkerColor, string> = {
   green: "#22c55e",
@@ -27,10 +28,6 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
   orange: "#f97316",
   purple: "#a855f7",
   cyan: "#06b6d4",
-};
-
-const timeMsToUnits = (timeMs: number, zoom: number): number => {
-  return (timeMs / 1000) * 30 * zoom;
 };
 
 export function useMarkerStore() {
@@ -185,24 +182,17 @@ const MarkerEditorDialog: React.FC<{
 
 // ─── Markers Layer ───────────────────────────────────────────────────────────
 
+const TIMELINE_GUTTER = 120;
+
 const TimelineMarkersLayer: React.FC<{ scrollLeft: number }> = ({ scrollLeft }) => {
-  const { zoom } = useStore();
+  const engineZoom = useEngineZoom();
   const { markers, addMarker, getMarkersInRange } = useMarkerStore();
   const playheadTime = useEnginePlayhead();
   const duration = useEngineDuration();
   const [editingMarker, setEditingMarker] = useState<TimelineMarker | null>(null);
 
+  const pixelsPerMs = zoomToPixelsPerMs(engineZoom);
   const visibleMarkers = getMarkersInRange(0, duration);
-
-  const handleAddMarker = () => {
-    addMarker({
-      timeMs: playheadTime,
-      label: "Marker",
-      color: "green",
-      type: "sequence",
-    });
-    setEditingMarker(null);
-  };
 
   return (
     <>
@@ -210,7 +200,7 @@ const TimelineMarkersLayer: React.FC<{ scrollLeft: number }> = ({ scrollLeft }) 
         <MarkerPin
           key={marker.id}
           marker={marker}
-          xPx={timeMsToUnits(marker.timeMs, zoom) - scrollLeft}
+          xPx={(marker.timeMs * pixelsPerMs) - scrollLeft + TIMELINE_GUTTER}
           onEdit={setEditingMarker}
         />
       ))}
@@ -252,8 +242,6 @@ export function useMarkerShortcuts(
     return () => window.removeEventListener("keydown", handler);
   }, [addMarker, playheadTime, onOpenEditor]);
 }
-
-import { useEnginePlayhead, useEngineDuration } from "../engine";
 
 export { TimelineMarkersLayer, MarkerEditorDialog };
 export default TimelineMarkersLayer;
