@@ -26,15 +26,15 @@ interface RulerProps {
   onScroll?: (scrollLeft: number) => void;
 }
 
+const TIMELINE_GUTTER = 120;
+
 const Ruler = (props: RulerProps) => {
-  const timelineOffsetX = useTimelineOffsetX();
   const {
-    height = 40, // Increased height to give space for the text
+    height = 40,
     longLineSize = 8,
     shortLineSize = 10,
-    offsetX = timelineOffsetX + TIMELINE_OFFSET_CANVAS_LEFT,
-    textOffsetY = 17, // Place the text above the lines but inside the canvas
-    textFormat = formatTimelineUnit,
+    offsetX = TIMELINE_GUTTER,
+    textOffsetY = 17,
     scrollLeft = 0,
     onClick,
     onScroll
@@ -60,7 +60,7 @@ const Ruler = (props: RulerProps) => {
     startScrollPos: 0,
     isDragging: false,
     hasDragged: false
-  });
+}); 
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,11 +69,11 @@ const Ruler = (props: RulerProps) => {
       setCanvasContext(context);
       resize(canvas, context, scrollLeft);
     }
-  }, [timelineOffsetX]);
+  }, [engineZoom, timelineDuration]);
 
   const handleResize = useCallback(() => {
     resize(canvasRef.current, canvasContext, scrollLeft);
-  }, [canvasContext, scrollLeft, timelineOffsetX]);
+  }, [canvasContext, scrollLeft, engineZoom, timelineDuration]);
 
   useEffect(() => {
     const resizeHandler = debounce(handleResize, 200);
@@ -299,9 +299,9 @@ const Ruler = (props: RulerProps) => {
       const rect = canvas.getBoundingClientRect();
       const clickX = event.clientX - rect.left;
 
-      // Calculate total x position, including scrollLeft
-      const totalX =
-        clickX + scrollLeft - timelineOffsetX - TIMELINE_OFFSET_CANVAS_LEFT;
+      const TIMELINE_GUTTER = 120;
+      
+      const totalX = clickX + scrollLeft - TIMELINE_GUTTER;
 
       onClick?.(totalX);
     } else {
@@ -333,9 +333,9 @@ const Ruler = (props: RulerProps) => {
       const touch = event.changedTouches[0];
       const touchX = touch.clientX - rect.left;
 
-      // Calculate total x position, including scrollLeft
-      const totalX =
-        touchX + scrollLeft - timelineOffsetX - TIMELINE_OFFSET_CANVAS_LEFT;
+      const TIMELINE_GUTTER = 120;
+      
+      const totalX = touchX + scrollLeft - TIMELINE_GUTTER;
 
       onClick?.(totalX);
     } else {

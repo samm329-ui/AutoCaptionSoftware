@@ -24,7 +24,7 @@ import {
   selectSelection,
   selectAllClips,
 } from "../engine/selectors";
-import { setSelection, setPlayhead } from "../engine/commands";
+import { setSelection, setPlayhead, seekPlayer } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
 import useStore from "../store/use-store";
 
@@ -46,11 +46,10 @@ const Timeline = () => {
   const onRulerClick = useCallback((pixels: number) => {
     // Convert pixels to milliseconds using shared helper
     const timeMs = pxToMs(pixels, pixelsPerMs);
-    dispatch(setPlayhead(timeMs));
-    // Seek player using frame number
     const frame = pxToFrame(pixels, pixelsPerMs);
-    playerRef?.current?.seekTo(frame);
-  }, [dispatch, playerRef, pixelsPerMs]);
+    dispatch(setPlayhead(timeMs));
+    seekPlayer(frame);
+  }, [dispatch, pixelsPerMs]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget as HTMLElement;

@@ -17,7 +17,7 @@ import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom, useEnginePlayhead } from "../engine/engine-provider";
 import { selectDuration, selectFps, selectAllClips } from "../engine/selectors";
-import { deleteClips, splitClip, cloneClip, setZoom, clearAll } from "../engine/commands";
+import { deleteClips, splitClip, cloneClip, setZoom, clearAll, setPlayhead, seekPlayer } from "../engine/commands";
 import { engineStore } from "../engine/engine-core";
 import { frameToMs, msToFrame } from "../engine/time-scale";
 
@@ -168,16 +168,22 @@ const Header = () => {
     playerRef?.current?.pause();
   };
 
-  const handleFrameBack = () => {
-    const newFrame = Math.max(0, (currentFrame || 0 ) - 1);
-    playerRef?.current?.seekTo(newFrame);
-    engineDispatch(setPlayhead(frameToMs(newFrame, safeFps)));
+const handleFrameBack = () => {
+    const engineState = engineStore.getState();
+    const currentMs = engineState.ui?.playheadTime ?? 0;
+    const newMs = Math.max(0, currentMs - (1000 / safeFps));
+    const newFrame = Math.floor((newMs / 1000) * safeFps);
+    engineDispatch(setPlayhead(newMs));
+    seekPlayer(newFrame);
   };
 
   const handleFrameForward = () => {
-    const newFrame = (currentFrame || 0) + 1;
-    playerRef?.current?.seekTo(newFrame);
-    engineDispatch(setPlayhead(frameToMs(newFrame, safeFps)));
+    const engineState = engineStore.getState();
+    const currentMs = engineState.ui?.playheadTime ?? 0;
+    const newMs = currentMs + (1000 / safeFps);
+    const newFrame = Math.floor((newMs / 1000) * safeFps);
+    engineDispatch(setPlayhead(newMs));
+    seekPlayer(newFrame);
   };
 
   useEffect(() => {
@@ -227,7 +233,7 @@ const Header = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentFrame, playing, safeFps, playerRef]);
+  }, [handleFrameBack, handleFrameForward, handlePlay, handlePause, safeFps]);
 
   return (
     <div
