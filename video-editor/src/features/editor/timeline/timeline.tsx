@@ -223,23 +223,41 @@ const Timeline = () => {
         className="flex flex-1 min-h-0 timeline-area"
         onClick={handleTimelineClick}
       >
-        {/* Track headers */}
+        {/* Track headers with vertical scroll */}
         <div 
-          className="shrink-0 bg-sidebar border-r border-border overflow-y-auto track-header"
+          className="shrink-0 bg-sidebar border-r border-border overflow-y-auto"
           style={{ width: 120 }}
+          id="track-headers"
+          onScroll={(e) => {
+            const scrollTop = e.currentTarget.scrollTop;
+            const timelineContent = document.getElementById('timeline-content');
+            if (timelineContent) {
+              timelineContent.scrollTop = scrollTop;
+            }
+          }}
         >
+          <TrackHeaders tracks={tracks} />
+        </div>
         
-        {/* Timeline content */}
+        {/* Timeline content with vertical scroll */}
         <div 
           className="flex-1 overflow-auto relative bg-card"
-          onScroll={onScroll}
+          id="timeline-content"
+          onScroll={(e) => {
+            const scrollTop = e.currentTarget.scrollTop;
+            const trackHeaders = document.getElementById('track-headers');
+            if (trackHeaders) {
+              trackHeaders.scrollTop = scrollTop;
+            }
+            if (onScroll) onScroll(e);
+          }}
           onClick={() => dispatch(setSelection([]))}
         >
           {/* Inner container */}
           <div 
             style={{ 
               width: timelineWidth, 
-              minHeight: "100%",
+              minHeight: `${Math.max(tracks.length * TRACK_HEIGHT, 300)}px`,
               position: "relative"
             }}
           >
@@ -308,11 +326,6 @@ const Timeline = () => {
           
           {/* Markers */}
           <TimelineMarkersLayer scrollLeft={scrollLeft} />
-        </div>
-        
-        {/* Vertical scrollbar */}
-        <div className="shrink-0 w-4 bg-sidebar border-l border-border">
-          <TimelineVerticalScrollbar />
         </div>
       </div>
       
