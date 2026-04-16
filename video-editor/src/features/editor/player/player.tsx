@@ -18,6 +18,7 @@ import {
   selectCanvasSize,
   selectRootSequence,
 } from "../engine/selectors";
+import { registerPlayerSeek } from "../engine/commands";
 import useStore from "../store/use-store";
 
 // Fallback constants
@@ -44,8 +45,8 @@ const Player = () => {
   const safeHeight = useMemo(() => canvasSize?.height > 0 ? canvasSize.height : DEFAULT_HEIGHT, [canvasSize?.height]);
   const safeDurationInFrames = useMemo(() => Math.max(1, Math.round((safeDuration / 1000) * safeFps)), [safeDuration, safeFps]);
   const bgColor = useMemo(() => sequence?.background?.value || "#000000", [sequence?.background?.value]);
-
-  // Stable key for RemotionPlayer
+  
+  // Key doesn't change on playhead - composition handles frame internally
   const playerKey = useMemo(() => `${safeWidth}x${safeHeight}@${safeFps}`, [safeWidth, safeHeight, safeFps]);
 
   const handleError = useCallback((error: Error) => {
@@ -58,7 +59,24 @@ const Player = () => {
     if (setPlayerRef && playerRef.current) {
       setPlayerRef(playerRef as React.RefObject<PlayerRef>);
     }
+    
+    // Register seek function for engine playhead sync
+    if (playerRef.current) {
+      registerPlayerSeek((frame: number) => {
+        try {
+          playerRef.current?.seekTo(frame);
+        } catch (e) {
+          console.warn('Player seek error:', e);
+        }
+      });
+    }
   }, [setPlayerRef]);
+  
+  // Sync player frame with engine playhead
+  const handlePlayerFrameChange = useCallback((newFrame: number) => {
+    const newMs = (newFrame / fps) * 1000;
+    // Note: This would cause infinite loop if we used it, so we don't dispatch back to engine
+  }, [fps]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -113,6 +131,10 @@ const Player = () => {
         style={{ width: safeWidth, height: safeHeight }}
         fps={safeFps}
         overflowVisible
+        showPlaybackControls={false}
+        autoPlay={false}
+        idlePaused={true}
+        loop={false}
         acknowledgeRemotionLicense
       />
     </div>

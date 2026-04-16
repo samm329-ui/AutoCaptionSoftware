@@ -32,7 +32,7 @@ const usePlayerEngineSync = (): void => {
       // Only update if the time has changed
       if (timeMs !== lastMsRef.current) {
         lastMsRef.current = timeMs;
-        engineStore.dispatch(setPlayhead(timeMs), { skipHistory: true });
+engineStore.dispatch(setPlayhead(timeMs));
       }
       
       // Continue updating if playing

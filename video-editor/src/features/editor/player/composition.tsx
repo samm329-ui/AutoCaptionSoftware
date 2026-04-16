@@ -27,20 +27,24 @@ import {
 } from "../engine/selectors";
 import { updateDetails } from "../engine/commands";
 import useStore from "../store/use-store";
+import { engineStore } from "../engine/engine-core";
 
 const Composition = () => {
   const [editableTextId, setEditableTextId] = useState<string | null>(null);
-
+  
+  // All engine data
   const clips     = useEngineSelector(selectAllClips);
   const tracks    = useEngineSelector(selectOrderedTracks);
   const canvasSize = useEngineSelector(selectCanvasSize);
   const fps       = useEngineSelector(selectFps);
   const dispatch  = useEngineDispatch();
+  const enginePlayheadMs = useEngineSelector(s => s.ui?.playheadTime ?? 0);
 
-  // Player ref is still runtime-only in Zustand (not project state)
+  // Player ref is still runtime-only in Zustand (not project data)
   const { sceneMoveableRef } = useStore();
-
-  const frame = useCurrentFrame();
+  
+  // Use engine playhead (not Remotion's internal frame)
+  const displayFrame = Math.round((enginePlayheadMs / 1000) * fps);
 
   // Build muted-track set from engine tracks
   const mutedTrackIds = new Set<string>(
@@ -118,9 +122,15 @@ const Composition = () => {
     sceneMoveableRef?.current?.moveable.forceUpdate();
   };
 
+  // Use engine playhead time (converted to frame) for filtering
+  const timeMs = enginePlayheadMs;
+
+  // Filter clips - show if current time is within clip duration
+  const activeClips = clips.filter(clip => clip.display.from <= timeMs && clip.display.to > timeMs);
+
   return (
     <>
-      {clips.map((clip) => {
+      {activeClips.map((clip) => {
         const SequenceItemFn = SequenceItem[clip.type];
         if (!SequenceItemFn) return null;
 
@@ -132,7 +142,7 @@ const Composition = () => {
           handleTextChange,
           onTextBlur,
           editableTextId,
-          frame,
+          frame: displayFrame,
           size: canvasSize,
           mutedTrackIds,
           owningTrackId: clip.trackId,
