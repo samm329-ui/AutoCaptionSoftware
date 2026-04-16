@@ -395,6 +395,14 @@ export function setFolderState(payload: {
   return { type: "SET_FOLDER_STATE", payload };
 }
 
+// ─── Tool selection ───────────────────────────────────────────────────────────
+
+export type EditorTool = "select" | "trackSelect" | "rippleEdit" | "razor" | "pen" | "rectangle" | "hand" | "text";
+
+export function setTool(tool: EditorTool): EditorCommand {
+  return { type: "SET_TOOL", payload: { tool } };
+}
+
 // ─── Upload/Files Commands ────────────────────────────────────────────────
 
 export function addUpload(upload: UploadedFile): EditorCommand {

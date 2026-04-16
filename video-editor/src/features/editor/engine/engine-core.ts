@@ -211,6 +211,8 @@ export interface UIState {
   // ── Folder State ───────────────────────────────────────────────────────────
   valueFolder: string;
   folderVideos: unknown[];
+  // ── Tool State ───────────────────────────────────────────────────────────
+  activeTool: "select" | "trackSelect" | "rippleEdit" | "razor" | "pen" | "rectangle" | "hand" | "text";
 }
 
 export interface AppliedEffect {
@@ -429,6 +431,9 @@ export type EditorCommand =
       valueFolder?: string;
       folderVideos?: unknown[];
     }}
+
+  // ── Tool Commands ─────────────────────────────────────────────────────────
+  | { type: "SET_TOOL"; payload: { tool: "select" | "trackSelect" | "rippleEdit" | "razor" | "pen" | "rectangle" | "hand" | "text" } }
 
   // ── Upload/Files Commands ────────────────────────────────────────────────
   | { type: "ADD_UPLOAD"; payload: { upload: UploadedFile } }
@@ -1105,6 +1110,9 @@ function reducer(state: Project, command: EditorCommand): Project {
           scrollY: command.payload.scrollY ?? state.ui.scrollY,
         },
       };
+
+    case "SET_TOOL":
+      return { ...state, ui: { ...state.ui, activeTool: command.payload.tool } };
 
     // ── Canvas ─────────────────────────────────────────────────────────────────
     case "SET_CANVAS": {
