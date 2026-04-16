@@ -150,7 +150,7 @@ caption-tool-master/
 
 Professional browser-based video editor with timeline, effects, and multi-track support.
 
-### Features
+### Features 
 
 - **Timeline Editing**: Multi-track timeline with drag-and-drop
 - **Keyframe Animation**: Linear, bezier, ease interpolation
@@ -161,6 +161,7 @@ Professional browser-based video editor with timeline, effects, and multi-track 
 - **Project Panel**: Media bin for assets
 - **Timeline Markers**: Color-coded markers for navigation
 - **Media Probing**: Auto-detect video/audio/image duration and dimensions
+- **Engine-First Architecture**: State management with pure reducers and selectors
 
 ### Tech Stack
 
@@ -168,8 +169,33 @@ Professional browser-based video editor with timeline, effects, and multi-track 
 - React + TypeScript
 - Tailwind CSS
 - Remotion (video rendering)
-- Zustand (state management)
+- Zustand (legacy) / Custom Engine (current)
 - @designcombo/timeline (canvas timeline)
+
+### Engine-First Architecture
+
+The video editor uses a custom engine-first architecture with pure reducers and selectors:
+
+```
+engine/
+├── engine-core.ts    # Core state management with reducer
+├── commands.ts      # Command builders
+└── selectors.ts    # State selection functions
+```
+
+**Key Concepts**:
+- **Track Groups**: 4 groups in order (subtitle → video → text → audio)
+- **Pure Reducers**: All state changes via explicit commands
+- **Group Selectors**: Filter tracks/clips by group
+- **Lane Commands**: Insert track above/below, clone to new lane
+
+### Timeline Constants
+
+```typescript
+const TIMELINE_GUTTER = 120;  // Left margin for track headers
+const TRACK_HEIGHT = 60;     // Default track height
+const RULER_HEIGHT = 30;    // Ruler height
+```
 
 ### Getting Started
 
@@ -191,3 +217,19 @@ Open: `http://localhost:3000/edit`
 | Ctrl+Z | Undo |
 | Ctrl+Shift+Z | Redo |
 | Delete | Delete Selected |
+
+### Engine Commands
+
+```typescript
+// Track commands
+addTrack(track)
+addClip(clip, trackId)
+moveClip(clipId, newStart, newTrackId)
+
+// Selection
+setSelection(clipIds[])
+setPlayheadTime(timeMs)
+
+// Zoom
+setZoom(zoomLevel)
+```
