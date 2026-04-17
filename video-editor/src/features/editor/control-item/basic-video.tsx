@@ -59,25 +59,24 @@ const BasicVideo = ({ type }: { type?: string }) => {
     {
       key: "crop",
       component: (
-        <div className="flex flex-col gap-2">
-          <Label className="font-sans text-xs font-semibold">Crop</Label>
-          <div className="mb-4">
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={() => setCropTarget(compat as any)}
-            >
-              <Crop size={18} />
-            </Button>
-          </div>
+        <div className="flex flex-col gap-1">
+          <Label className="font-sans text-[10px] font-semibold">Crop</Label>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setCropTarget(compat as any)}
+          >
+            <Crop size={14} />
+          </Button>
         </div>
       ),
     },
     {
       key: "basic",
       component: (
-        <div className="flex flex-col gap-2">
-          <Label className="font-sans text-xs font-semibold">Basic</Label>
+        <div className="flex flex-col gap-1">
+          <Label className="font-sans text-[10px] font-semibold">Basic</Label>
           <AspectRatio />
           <Volume
             onChange={(v: number) => dispatch(setVolume(clipId, v))}
