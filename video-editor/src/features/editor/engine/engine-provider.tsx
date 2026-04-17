@@ -119,10 +119,9 @@ export function useTimelineDuration() {
   // If no clips, default to 10 seconds
   if (clips.length === 0) return 10000;
   
-  // Find max clip end time across all tracks
+  // Find max clip end time across all tracks - exact match to clips
   const maxEnd = Math.max(...clips.map(c => c.display.to));
-  // Add 2 seconds buffer
-  return maxEnd + 2000;
+  return maxEnd;
 }
 
 export function useEngineFps() {
