@@ -44,7 +44,7 @@ export const ControlItem = () => {
   }
 
   return (
-    <div className="w-full flex-none border-l border-border/80 bg-card hidden lg:block">
+    <div className="w-full flex-none border-l border-border/80 bg-card hidden lg:block" style={{ padding: '4px', fontSize: '10px' }}>
       <ActiveControlItem trackItem={activeClip} />
     </div>
   );
