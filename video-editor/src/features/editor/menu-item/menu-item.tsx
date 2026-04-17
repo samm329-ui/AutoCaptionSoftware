@@ -62,7 +62,7 @@ const ActiveMenuItem = () => {
 
 export const MenuItem = () => {
   return (
-    <div className={`w-full flex-1 flex h-[calc(100%-50px)]`}>
+    <div className={`w-full flex-1 flex h-[calc(100%-50px)]`} style={{ fontSize: '10px', padding: '4px' }}>
       <ActiveMenuItem />
     </div>
   );
