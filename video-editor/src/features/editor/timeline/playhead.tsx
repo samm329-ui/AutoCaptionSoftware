@@ -28,10 +28,13 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
   
   // Use engine playheadTime (in ms) with shared conversion helper
+  // Position should account for scrollLeft to keep playhead in sync with timeline
   const position = useMemo(() => {
     const timeMs = enginePlayheadTime || 0;
-    return msToPx(timeMs, pixelsPerMs);
-  }, [enginePlayheadTime, pixelsPerMs]);
+    const rawPosition = msToPx(timeMs, pixelsPerMs);
+    // Subtract scrollLeft to position correctly in the scrolled timeline
+    return rawPosition - scrollLeft;
+  }, [enginePlayheadTime, pixelsPerMs, scrollLeft]);
   
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, startTimeMs: 0 });
