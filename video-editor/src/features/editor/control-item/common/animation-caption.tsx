@@ -9,7 +9,7 @@ const AnimationCaption = () => {
 
   return (
     <div className="flex flex-col gap-2 py-4">
-      <Label className="font-sans text-xs font-semibold">Animations</Label>
+      <Label className="font-sans text-[10px] font-semibold">Animations</Label>
 
       <div className="flex gap-2 py-0">
         <div className="flex flex-1 items-center text-sm text-muted-foreground">

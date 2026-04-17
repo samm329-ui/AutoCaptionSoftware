@@ -12,7 +12,7 @@ export default function PlaybackRate({ trackItem }: { trackItem: any }) {
   };
   return (
     <div className="flex flex-col gap-2 py-4">
-      <Label className="font-sans text-xs font-semibold">Aspect ratio</Label>
+      <Label className="font-sans text-[10px] font-semibold">Aspect ratio</Label>
       <div className="flex">
         <Button
           variant="outline"
