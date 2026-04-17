@@ -7,27 +7,17 @@ export default function AspectRatio() {
     setValue(value);
   };
   return (
-    <div className="flex gap-2">
-      <div className="flex flex-1 items-center text-sm text-muted-foreground">
-        Lock Ratio
-      </div>
-      <div className="w-32">
-        <ToggleGroup
-          value={value}
-          size="sm"
-          className="grid h-8 grid-cols-2 text-sm"
-          type="single"
-          onValueChange={onChangeAligment}
-          variant={"default"}
-        >
-          <ToggleGroupItem value="locked" aria-label="Toggle italic">
-            Yes
-          </ToggleGroupItem>
-          <ToggleGroupItem size="sm" value="unlocked" aria-label="Toggle left">
-            No
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
+    <div className="flex gap-1 items-center">
+      <div className="text-[10px] text-muted-foreground w-12 shrink-0">Lock</div>
+      <ToggleGroup
+        value={value}
+        className="h-5 text-[9px] grid grid-cols-2"
+        type="single"
+        onValueChange={onChangeAligment}
+      >
+        <ToggleGroupItem value="locked" className="h-4 px-1">Yes</ToggleGroupItem>
+        <ToggleGroupItem value="unlocked" className="h-4 px-1">No</ToggleGroupItem>
+      </ToggleGroup>
     </div>
   );
 }
