@@ -48,7 +48,7 @@ function Outline({
 
   return (
     <div className="flex flex-col gap-2 py-4">
-      <Label className="font-sans text-xs font-semibold">{label}</Label>
+      <Label className="font-sans text-[10px] font-semibold">{label}</Label>
 
       <div className="flex gap-2">
         <div className="flex flex-1 items-center text-sm text-muted-foreground">
