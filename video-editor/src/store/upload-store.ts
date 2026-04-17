@@ -18,6 +18,7 @@ import {
   addClip,
   selectClip,
   setCanvas,
+  setFps,
   addUpload as addUploadCmd,
   removeUpload as removeUploadCmd,
   clearUploads as clearUploadsCmd,
@@ -233,10 +234,15 @@ export function addFileToTimeline(upload: UploadedFile): void {
     }
   }
 
+  const seq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
+  if (seq && Object.keys(engineStore.getState().clips).length === 1 && upload.fps) {
+    engineStore.dispatch(setFps(upload.fps));
+  }
+
   const newEndMs = startMs + durationMs;
   const currentSeq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
   if (currentSeq && newEndMs > currentSeq.duration) {
-    const updatedSeq = { ...currentSeq, duration: newEndMs + 2000 };
+    const updatedSeq = { ...currentSeq, duration: newEndMs };
     engineStore.dispatch({
       type: "LOAD_PROJECT",
       payload: {
