@@ -66,7 +66,7 @@ export default function DecibelMeter() {
 
   return (
     <div
-      className="flex flex-col items-center bg-card/80 border-l border-border/40 h-full w-10 shrink-0 select-none relative"
+      className="flex flex-col items-center bg-sidebar border-l-2 border-r border-border h-full w-14 shrink-0 select-none relative shadow-sm"
       style={{ zIndex: 40 }}
     >
       {/* dB readout */}
