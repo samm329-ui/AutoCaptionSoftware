@@ -10,72 +10,50 @@ const Speed = ({
   value: number;
   onChange: (v: number) => void;
 }) => {
-  // Create local state to manage opacity
   const [localValue, setLocalValue] = useState<string | number>(value);
 
-  // Update local state when prop value changes
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
 
   const handleBlur = () => {
     if (localValue !== "") {
-      onChange(Number(localValue)); // Propagate as a number
+      onChange(Number(localValue));
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       if (localValue !== "") {
-        onChange(Number(localValue)); // Propagate as a number
+        onChange(Number(localValue));
       }
     }
   };
 
   return (
-    <div className="flex gap-2">
-      <div className="flex flex-1 items-center text-sm text-muted-foreground">
-        Speed
-      </div>
-      <div
-        className="w-32"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 80px"
+    <div className="flex gap-1 items-center">
+      <div className="text-[10px] text-muted-foreground w-12 shrink-0">Speed</div>
+      <Slider
+        value={[Number(localValue)]}
+        onValueChange={(e) => setLocalValue(e[0])}
+        onValueCommit={() => onChange(Number(localValue))}
+        min={0}
+        max={4}
+        step={0.1}
+        className="flex-1 h-1"
+      />
+      <Input
+        className="w-10 h-4 px-1 text-[10px] text-center"
+        value={localValue}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          if (newValue === "" || (!Number.isNaN(Number(newValue)) && Number(newValue) >= 0)) {
+            setLocalValue(newValue);
+          }
         }}
-      >
-        <Input
-          className="h-8 w-11 px-2 text-center text-sm"
-          value={localValue}
-          onChange={(e) => {
-            const newValue = e.target.value;
-
-            // Allow empty string or validate as a number
-            if (
-              newValue === "" ||
-              (!Number.isNaN(Number(newValue)) && Number(newValue) >= 0)
-            ) {
-              setLocalValue(newValue); // Update local state
-            }
-          }}
-          onBlur={handleBlur} // Trigger onBlur event
-          onKeyDown={handleKeyDown} // Trigger onKeyDown event
-        />
-        <Slider
-          id="opacity"
-          value={[Number(localValue)]} // Use local state for slider value
-          onValueChange={(e) => {
-            setLocalValue(e[0]); // Update local state
-          }}
-          onValueCommit={() => {
-            onChange(Number(localValue)); // Propagate value to parent when user commits change
-          }}
-          min={0}
-          max={4}
-          step={0.1}
-          aria-label="Opacity"
-        />
-      </div>
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+      />
     </div>
   );
 };
