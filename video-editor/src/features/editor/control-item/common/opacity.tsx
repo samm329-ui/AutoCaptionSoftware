@@ -9,54 +9,37 @@ const Opacity = ({
   value: number;
   onChange: (v: number) => void;
 }) => {
-  // Create local state to manage opacity
   const [localValue, setLocalValue] = useState(value);
 
-  // Update local state when prop value changes
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
 
   return (
-    <div className="flex gap-2">
-      <div className="flex flex-1 items-center text-sm text-muted-foreground">
-        Opacity
-      </div>
-      <div
-        className="w-32"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 80px"
+    <div className="flex gap-1 items-center">
+      <div className="text-[10px] text-muted-foreground w-12 shrink-0">Opacity</div>
+      <Slider
+        value={[localValue]}
+        onValueChange={(e) => setLocalValue(e[0])}
+        onValueCommit={() => onChange(localValue)}
+        min={0}
+        max={100}
+        step={1}
+        className="flex-1 h-1"
+      />
+      <Input
+        max={100}
+        className="w-10 h-4 px-1 text-[10px] text-center"
+        type="number"
+        onChange={(e) => {
+          const newValue = Number(e.target.value);
+          if (newValue >= 0 && newValue <= 100) {
+            setLocalValue(newValue);
+            onChange(newValue);
+          }
         }}
-      >
-        <Input
-          max={100}
-          className="h-8 w-11 px-2 text-center text-sm"
-          type="number"
-          onChange={(e) => {
-            const newValue = Number(e.target.value);
-            if (newValue >= 0 && newValue <= 100) {
-              setLocalValue(newValue); // Update local state
-              onChange(newValue); // Optionally propagate immediately, or adjust as needed
-            }
-          }}
-          value={localValue} // Use local state for input value
-        />
-        <Slider
-          id="opacity"
-          value={[localValue]} // Use local state for slider value
-          onValueChange={(e) => {
-            setLocalValue(e[0]); // Update local state
-          }}
-          onValueCommit={() => {
-            onChange(localValue); // Propagate value to parent when user commits change
-          }}
-          min={0}
-          max={100}
-          step={1}
-          aria-label="Opacity"
-        />
-      </div>
+        value={localValue}
+      />
     </div>
   );
 };
