@@ -11,20 +11,14 @@ import {
   getZoomByIndex
 } from "../utils/timeline";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom, useEnginePlayhead } from "../engine/engine-provider";
-import { selectDuration, selectFps, selectAllClips } from "../engine/selectors";
+import { selectDuration, selectFps } from "../engine/selectors";
 import { deleteClips, splitClip, cloneClip, setZoom, clearAll, setPlayhead, seekPlayer } from "../engine/commands";
 import { engineStore } from "../engine/engine-core";
-import { frameToMs, msToFrame } from "../engine/time-scale";
-
-interface ITimelineScaleState {
-  index: number;
-  zoom: number;
-}
 
 const IconPlayerPlayFilled = ({ size }: { size: number }) => (
   <svg
@@ -51,40 +45,6 @@ const IconPlayerPauseFilled = ({ size }: { size: number }) => (
   </svg>
 );
 
-const IconPlayerSkipBack = ({ size }: { size: number }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-    <path d="M20 5v14l-12 -7z" />
-    <path d="M4 5l0 14" />
-  </svg>
-);
-
-const IconPlayerSkipForward = ({ size }: { size: number }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-    <path d="M4 5v14l12 -7z" />
-    <path d="M20 5l0 14" />
-  </svg>
-);
-
 const Header = () => {
   const [playing, setPlaying] = useState(false);
   
@@ -92,13 +52,10 @@ const Header = () => {
   const engineSelection = useEngineSelection();
   const engineDispatch = useEngineDispatch();
   const engineZoom = useEngineZoom();
+  const sequenceDuration = useEngineSelector(selectDuration);
   const fps = useEngineSelector(selectFps);
-  const clips = useEngineSelector(selectAllClips);
   
-  // Use actual clip duration - fall back to 10s if no clips
-  const clipDuration = clips.length > 0 
-    ? Math.max(...clips.map(c => c.display.to)) + 2000  // add 2s buffer
-    : 10000;
+  const clipDuration = sequenceDuration;
   
   const isLargeScreen = useIsLargeScreen();
   useUpdateAnsestors({ playing, playerRef });
@@ -108,11 +65,7 @@ const Header = () => {
   const safeFps = fps || 30;
   const safeDuration = clipDuration;
   
-  // Force reactivity by reading clips directly in render
-  const allClips = useEngineSelector(selectAllClips);
-  const computedDuration = allClips.length > 0 
-    ? Math.max(...allClips.map(c => c.display.to)) + 2000 
-    : 10000;
+  const computedDuration = sequenceDuration;
 
   const doActiveDelete = () => {
     if (engineSelection.length === 0) return;
