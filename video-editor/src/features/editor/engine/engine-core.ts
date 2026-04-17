@@ -381,6 +381,7 @@ export type EditorCommand =
 
   // Canvas
   | { type: "SET_CANVAS"; payload: { width: number; height: number } }
+  | { type: "SET_FPS"; payload: { fps: number } }
 
   // History
   | { type: "UNDO" }
@@ -1128,6 +1129,21 @@ function reducer(state: Project, command: EditorCommand): Project {
           [state.rootSequenceId]: {
             ...seq,
             canvas: { width: command.payload.width, height: command.payload.height },
+          },
+        },
+      };
+    }
+
+    case "SET_FPS": {
+      const seq = state.sequences[state.rootSequenceId];
+      if (!seq) return state;
+      return {
+        ...state,
+        sequences: {
+          ...state.sequences,
+          [state.rootSequenceId]: {
+            ...seq,
+            fps: command.payload.fps,
           },
         },
       };
