@@ -263,6 +263,10 @@ export function setCanvas(width: number, height: number): EditorCommand {
   return { type: "SET_CANVAS", payload: { width, height } };
 }
 
+export function setFps(fps: number): EditorCommand {
+  return { type: "SET_FPS", payload: { fps: Math.max(1, Math.min(120, fps)) } };
+}
+
 // ─── History commands ─────────────────────────────────────────────────────────
 
 export function undo(): EditorCommand {
