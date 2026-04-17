@@ -8,7 +8,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useEngineSelector, useEngineDispatch } from "../engine/engine-provider";
 import { setScroll } from "../engine/commands";
-import { selectAllClips } from "../engine/selectors";
+import { selectAllClips, selectDuration } from "../engine/selectors";
 
 export function useTimelineScroll(containerRef: React.RefObject<HTMLDivElement | null>) {
   const dispatch = useEngineDispatch();
@@ -17,12 +17,9 @@ export function useTimelineScroll(containerRef: React.RefObject<HTMLDivElement |
   const scrollbarRef = useRef<HTMLDivElement>(null);
   
   const engineZoom = useEngineSelector((s) => s.ui.zoom);
-  const clips = useEngineSelector(selectAllClips);
+  const sequenceDuration = useEngineSelector(selectDuration);
   
-  // Use actual clip duration for total width
-  const duration = clips.length > 0 
-    ? Math.max(...clips.map(c => c.display.to)) + 2000
-    : 10000;
+  const duration = sequenceDuration > 0 ? sequenceDuration : 10000;
   
   // Calculate total width - engineZoom is already pixels per ms
   const totalWidth = duration * engineZoom;
