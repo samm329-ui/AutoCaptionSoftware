@@ -27,7 +27,9 @@ import {
 import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
 import { selectTrackClips } from "../engine/selectors";
-import { engineStore } from "../engine/engine-core";
+import { engineStore, nanoid } from "../engine/engine-core";
+import { getDragData } from "@/components/shared/drag-data";
+import { addFileToTimeline, type UploadedFile } from "@/store/upload-store";
 import useStore from "../store/use-store";
 
 const TRACK_HEIGHT = 50;
@@ -168,6 +170,73 @@ const Timeline = () => {
     }
   };
 
+  // Drag and drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragOverTime, setDragOverTime] = useState<number | null>(null);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    
+    const dragData = getDragData();
+    if (dragData && dragData.type) {
+      setIsDragOver(true);
+      
+      // Calculate time based on drop position
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left - 120; // Subtract track header width
+      if (x > 0) {
+        const timeMs = pxToMs(x, pixelsPerMs);
+        setDragOverTime(timeMs);
+      }
+    }
+  }, [pixelsPerMs]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    setDragOverTime(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const dragData = getDragData();
+    if (!dragData || !dragData.type) {
+      setDragOverTime(null);
+      return;
+    }
+
+    // Get duration from display.to - buildDragPayload uses file.duration which is in SECONDS
+    // So display.to is already in seconds (e.g., 7 for 7 seconds, not 7000)
+    // The default 5000 is also in seconds (5 seconds), not ms
+    const durationSec = dragData.display?.to || dragData.duration || 5;
+    const fileType = dragData.type;
+    
+    // Create a mock upload object from drag data to use addFileToTimeline
+    const mockUpload: UploadedFile = {
+      id: dragData.id || dragData.name || nanoid(),
+      fileName: dragData.name || "Media",
+      filePath: dragData.src || "",
+      fileSize: 0,
+      contentType: fileType,
+      objectUrl: dragData.src || "",
+      status: "completed",
+      progress: 100,
+      createdAt: Date.now(),
+      duration: durationSec,
+      width: dragData.width || 1920,
+      height: dragData.height || 1080,
+      fps: dragData.fps || 30,
+      type: fileType as "video" | "image" | "audio" | "adjustment" | "colormatte",
+    };
+
+    // Use the same addFileToTimeline function that the "+" button uses
+    addFileToTimeline(mockUpload);
+    setDragOverTime(null);
+  }, []);
+
   // Create track index map
   const trackIndexMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -204,28 +273,30 @@ const Timeline = () => {
   return (
     <div 
       className={`flex flex-col h-full w-full ${getCursorStyle()}`}
+      style={{ minWidth: 0, maxWidth: '100%' }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
       {/* Header */}
-      <div className="shrink-0">
+      <div className="shrink-0" style={{ minWidth: 0, overflow: 'hidden', width: '100%' }}>
         <Header />
       </div>
       
       {/* Ruler */}
-      <div className="shrink-0">
+      <div className="shrink-0" style={{ minWidth: 0, overflow: 'hidden', width: '100%' }}>
         <Ruler onClick={onRulerClick} scrollLeft={scrollLeft} onScroll={onScroll} />
       </div>
       
       {/* Main timeline area */}
       <div 
         className="flex flex-1 min-h-0 timeline-area"
+        style={{ overflow: "hidden" }}
         onClick={handleTimelineClick}
       >
         {/* Track headers with vertical scroll */}
         <div 
-          className="shrink-0 bg-sidebar border-r border-border overflow-y-auto"
+          className={`shrink-0 bg-sidebar border-r border-border overflow-y-auto ${isDragOver ? 'bg-primary/5' : ''}`}
           style={{ width: 120 }}
           id="track-headers"
           onScroll={(e) => {
@@ -235,13 +306,16 @@ const Timeline = () => {
               timelineContent.scrollTop = scrollTop;
             }
           }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
           <TrackHeaders tracks={tracks} />
         </div>
         
-        {/* Timeline content with vertical scroll */}
+        {/* Timeline content with vertical and horizontal scroll */}
         <div 
-          className="flex-1 overflow-auto relative bg-card"
+          className={`flex-1 overflow-x-auto overflow-y-auto relative bg-card ${isDragOver ? 'bg-primary/5 ring-2 ring-primary/30' : ''}`}
           id="timeline-content"
           onScroll={(e) => {
             const scrollTop = e.currentTarget.scrollTop;
@@ -252,6 +326,9 @@ const Timeline = () => {
             if (onScroll) onScroll(e);
           }}
           onClick={() => dispatch(setSelection([]))}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
           {/* Inner container */}
           <div 
@@ -327,11 +404,6 @@ const Timeline = () => {
           {/* Markers */}
           <TimelineMarkersLayer scrollLeft={scrollLeft} />
         </div>
-      </div>
-      
-      {/* Audio meter */}
-      <div className="shrink-0 h-6">
-        <DecibelMeter />
       </div>
     </div>
   );
