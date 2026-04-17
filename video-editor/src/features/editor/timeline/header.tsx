@@ -235,36 +235,40 @@ const handleFrameBack = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleFrameBack, handleFrameForward, handlePlay, handlePause, safeFps]);
 
-  return (
+return (
     <div
       id="timeline-header"
       style={{
         position: "relative",
         height: "50px",
-        flex: "none"
+        flex: "none",
+        width: "100%",
+        minWidth: "0"
       }}
     >
       <div
         style={{
           position: "absolute",
-          height: 50,
+          height: "50px",
           width: "100%",
           display: "flex",
-          alignItems: "center"
+          alignItems: "center",
+          color: "lab(96.8637 1.85886 8.51977)",
+          letterSpacing: "0.4px",
+          lineHeight: "24px"
         }}
       >
-        <div
+<div
           style={{
-            height: 36,
+            height: "36px",
             width: "100%",
-            display: "grid",
-            gridTemplateColumns: isLargeScreen
-              ? "1fr 300px 1fr"
-              : "1fr 1fr 1fr",
-            alignItems: "center"
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            minWidth: "0"
           }}
         >
-          <div className="flex px-2">
+          <div className="flex px-1 shrink-0 overflow-hidden">
             <Button
               onClick={doClearAll}
               variant={"ghost"}
@@ -362,10 +366,11 @@ const handleFrameBack = () => {
               </Button>
             </div>
             <div
-              className="text-xs font-light flex ml-3"
+              className="text-xs font-light flex ml-2 shrink-0"
               style={{
                 alignItems: "center",
-                justifyContent: "center"
+                justifyContent: "center",
+                minWidth: "180px"
               }}
             >
               <div
@@ -373,19 +378,19 @@ const handleFrameBack = () => {
                 style={{
                   display: "flex",
                   justifyContent: "center",
-                  minWidth: "60px"
+                  minWidth: "50px"
                 }}
                 id="video-current-time"
               >
                 {timeToString({ time: playheadTime || 0 })}
               </div>
-              <span className="px-1 text-muted-foreground">|</span>
+              <span className="px-0.5 text-muted-foreground">|</span>
               <div
                 className="text-muted-foreground tabular-nums"
                 style={{
                   display: "flex",
                   justifyContent: "center",
-                  minWidth: "60px"
+                  minWidth: "50px"
                 }}
               >
                 {timeToString({ time: computedDuration })}
@@ -450,12 +455,19 @@ const ZoomControl = ({
   };
 
   return (
-    <div className="flex items-center justify-end pr-2">
-      <div className="flex items-center gap-1">
-        <Button size={"icon"} variant={"ghost"} onClick={handleZoomOut} className="h-7 w-7" title="Zoom Out">
-          <ZoomOut size={14} />
+    <div 
+      className="flex items-center gap-1" 
+      style={{
+        color: "lab(96.8637 1.85886 8.51977)",
+        letterSpacing: "0.4px",
+        lineHeight: "24px"
+      }}
+    >
+      <div className="flex items-center gap-1" style={{ color: "lab(4.07343 0.899285 2.96464)" }}>
+        <Button size={"icon"} variant={"ghost"} onClick={handleZoomOut} className="h-6 w-6" title="Zoom Out">
+          <ZoomOut size={12} />
         </Button>
-        <div className="hidden lg:flex items-center gap-1">
+        <div className="flex items-center gap-1">
           <input
             type="range"
             min={0}
@@ -463,20 +475,20 @@ const ZoomControl = ({
             step={1}
             value={zoomIndex}
             onChange={handleSliderChange}
-            className="w-24 h-1 accent-primary"
+            className="w-16 h-1 accent-primary"
           />
-          <span className="text-[10px] text-muted-foreground w-8 text-center tabular-nums">
+          <span className="text-[9px] text-muted-foreground w-6 text-center tabular-nums">
             {zoom.toFixed(2)}
           </span>
         </div>
-        <Button size={"icon"} variant={"ghost"} onClick={handleZoomIn} className="h-7 w-7" title="Zoom In">
-          <ZoomIn size={14} />
+        <Button size={"icon"} variant={"ghost"} onClick={handleZoomIn} className="h-6 w-6" title="Zoom In">
+          <ZoomIn size={12} />
         </Button>
-        <Button onClick={handleZoomFit} variant={"ghost"} size={"icon"} className="h-7 w-7" title="Fit">
+        <Button onClick={handleZoomFit} variant={"ghost"} size={"icon"} className="h-6 w-6" title="Fit">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
+            width="12"
+            height="12"
             viewBox="0 0 24 24"
           >
             <path
