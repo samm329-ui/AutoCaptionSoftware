@@ -79,23 +79,23 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   }, [property, onChange]);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded group">
+    <div className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-white/5 rounded group">
       <button
         onClick={handleAddKeyframe}
         className={cn(
-          "w-3.5 h-3.5 flex-none flex items-center justify-center rounded-sm transition-colors",
+          "w-2.5 h-2.5 flex-none flex items-center justify-center rounded-sm transition-colors shrink-0",
           isAnimated
             ? "text-yellow-400 hover:text-yellow-300"
             : "text-muted-foreground hover:text-white"
         )}
         title={isAnimated ? "Add keyframe at playhead" : "Enable keyframing"}
       >
-        <Diamond className="w-2.5 h-2.5" fill={isAnimated ? "currentColor" : "none"} />
+        <Diamond className="w-1.5 h-1.5" fill={isAnimated ? "currentColor" : "none"} />
       </button>
 
-      <span className="text-xs text-muted-foreground w-20 flex-none">{label}</span>
+      <span className="text-[10px] text-muted-foreground w-12 flex-none truncate">{label}</span>
 
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <Slider
           value={[localValue]}
           min={min}
@@ -120,17 +120,17 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
             onChange(v);
           }
         }}
-        className="w-14 h-6 px-1.5 text-xs text-center bg-transparent border-border/40"
+        className="w-10 h-4 px-0.5 text-[10px] text-center bg-transparent border-border/40 shrink-0"
       />
 
-      {unit && <span className="text-xs text-muted-foreground w-4">{unit}</span>}
+      {unit && <span className="text-[9px] text-muted-foreground w-2 shrink-0">{unit}</span>}
 
       <button
         onClick={handleReset}
-        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-white"
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-white shrink-0"
         title="Reset to default"
       >
-        <RotateCcw className="w-3 h-3" />
+        <RotateCcw className="w-2 h-2" />
       </button>
     </div>
   );
@@ -256,15 +256,15 @@ const EffectSection: React.FC<{
 }> = ({ title, children, defaultOpen = true }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-border/40">
+    <div className="border-b border-border/30">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-white transition-colors"
+        className="flex items-center gap-1 w-full px-1.5 py-1 text-[10px] font-medium text-muted-foreground hover:text-white transition-colors"
       >
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        {title}
+        {open ? <ChevronDown className="w-2 h-2 shrink-0" /> : <ChevronRight className="w-2 h-2 shrink-0" />}
+        <span className="truncate">{title}</span>
       </button>
-      {open && <div className="pb-2">{children}</div>}
+      {open && <div className="pb-0.5">{children}</div>}
     </div>
   );
 };
@@ -328,26 +328,36 @@ const EffectControlsPanel: React.FC = () => {
 
   if (!clip) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs gap-2 px-4 text-center">
-        <Clock className="w-6 h-6 opacity-40" />
-        <p>Select a clip in the timeline to see its properties</p>
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-[9px] gap-1 px-2 text-center">
+        <Clock className="w-4 h-4 opacity-40" />
+        <p>Select a clip to see properties</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
+    <div 
+      className="flex flex-col h-full overflow-hidden"
+      style={{
+        color: "lab(69.9939 3.01382 12.8442)",
+        fontSize: "10px",
+        gap: "2px",
+        letterSpacing: "0.2px",
+        lineHeight: "12px",
+        padding: "0px 4px",
+      }}
+    >
+      <div className="flex items-center justify-between px-1.5 py-1 border-b border-border/40 shrink-0">
         <span
-          className="text-xs font-medium truncate max-w-[160px]"
+          className="text-[10px] font-medium truncate max-w-[80px]"
           title={clip.name ?? "Clip"}
         >
           {clip.name ?? "Clip"}
         </span>
-        <span className="text-[10px] text-muted-foreground">{clip.type?.toUpperCase()}</span>
+        <span className="text-[8px] text-muted-foreground shrink-0">{clip.type?.toUpperCase()}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <EffectSection title="Motion" defaultOpen>
           <PropertyRow
             clipId={clipId}
@@ -548,8 +558,8 @@ const EffectControlsPanel: React.FC = () => {
         {(clip.type === "video" || clip.type === "image") && (
           <EffectSection title={`Applied Effects (${appliedEffects.length})`} defaultOpen>
             {appliedEffects.length === 0 ? (
-              <div className="px-3 py-2 text-[10px] text-muted-foreground">
-                No effects applied. Use the Effects tab to add effects.
+              <div className="px-1.5 py-1 text-[8px] text-muted-foreground">
+                No effects applied.
               </div>
             ) : (
               appliedEffects.map((effect, index) => (
