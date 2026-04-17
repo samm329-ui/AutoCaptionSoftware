@@ -21,8 +21,9 @@ import {
 } from "../engine/engine-provider";
 import {
   selectOrderedTracks,
-  selectSelection,
   selectAllClips,
+  selectSelection,
+  selectDuration,
 } from "../engine/selectors";
 import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
@@ -40,6 +41,7 @@ const Timeline = () => {
   const clips = useEngineSelector(selectAllClips);
   const selection = useEngineSelector(selectSelection);
   const zoom = useEngineZoom();
+  const sequenceDuration = useEngineSelector(selectDuration);
   const activeTool = useEngineSelector((state) => state.ui?.activeTool ?? "select");
   const playheadTime = useEngineSelector((state) => state.ui?.playheadTime ?? 0);
   const scrollX = useEngineSelector((state) => state.ui?.scrollX ?? 0);
@@ -246,12 +248,10 @@ const Timeline = () => {
     return map;
   }, [tracks]);
 
-  // Calculate max time for timeline width
+  // Use sequence duration for timeline width
   const maxTime = useMemo(() => {
-    if (clips.length === 0) return 10000;
-    const max = Math.max(...clips.map(c => c.display.to));
-    return Math.max(max + 5000, 10000);
-  }, [clips]);
+    return sequenceDuration > 0 ? sequenceDuration : 10000;
+  }, [sequenceDuration]);
 
   const timelineWidth = Math.max(maxTime * pixelsPerMs, 1000);
 
