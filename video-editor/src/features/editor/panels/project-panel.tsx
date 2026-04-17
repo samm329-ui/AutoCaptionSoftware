@@ -271,12 +271,17 @@ function buildDragPayload(file: UploadedFile) {
     return JSON.stringify({ type: "video", src: "", name: "Unknown" });
   }
   const fileTypeForTimeline = file.type === "adjustment" ? "video" : file.type === "colormatte" ? "image" : file.type;
+  
+  // file.duration is in SECONDS from UploadedFile, so use it directly
+  // Default to 5 seconds (not 5000ms!)
+  const durationSec = file.duration ?? 5;
+  
   return JSON.stringify({
     type: fileTypeForTimeline,
     src: file.objectUrl || "",
     name: file.fileName || "Untitled",
     fileType: fileTypeForTimeline,
-    duration: file.duration || 5000,
+    duration: durationSec,
     width: file.width || 1920,
     height: file.height || 1080,
     color: file.color,
@@ -295,7 +300,7 @@ function buildDragPayload(file: UploadedFile) {
       height: file.height,
       fps: file.fps,
     },
-    display: { from: 0, to: (file.duration || 5000) },
+    display: { from: 0, to: durationSec },
   });
 }
 

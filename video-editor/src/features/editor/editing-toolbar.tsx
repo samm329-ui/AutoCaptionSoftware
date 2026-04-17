@@ -39,14 +39,19 @@ interface ToolButtonProps {
 }
 
 const tools: ToolButtonProps[] = [
-  { id: "select", icon: <MousePointer2 className="w-4 h-4" />, label: "Selection Tool", shortcut: "V" },
-  { id: "trackSelect", icon: <List className="w-4 h-4" />, label: "Track Select Forward", shortcut: "A" },
-  { id: "rippleEdit", icon: <ArrowRightLeft className="w-4 h-4" />, label: "Ripple Edit Tool", shortcut: "B" },
-  { id: "razor", icon: <Scissors className="w-4 h-4" />, label: "Razor Tool", shortcut: "C" },
-  { id: "pen", icon: <Pen className="w-4 h-4" />, label: "Pen Tool", shortcut: "P" },
-  { id: "rectangle", icon: <Square className="w-4 h-4" />, label: "Rectangle Tool", shortcut: "R" },
-  { id: "hand", icon: <Hand className="w-4 h-4" />, label: "Hand Tool", shortcut: "H" },
-  { id: "text", icon: <Type className="w-4 h-4" />, label: "Text Tool", shortcut: "T" },
+  { id: "select", icon: <MousePointer2 className="w-3 h-3" />, label: "Selection Tool", shortcut: "V" },
+  { id: "trackSelect", icon: <List className="w-3 h-3" />, label: "Track Select Forward", shortcut: "A" },
+  { id: "rippleEdit", icon: <ArrowRightLeft className="w-3 h-3" />, label: "Ripple Edit Tool", shortcut: "B" },
+  { id: "razor", icon: <Scissors className="w-3 h-3" />, label: "Razor Tool", shortcut: "C" },
+  { id: "pen", icon: <Pen className="w-3 h-3" />, label: "Pen Tool", shortcut: "P" },
+  { id: "rectangle", icon: <Square className="w-3 h-3" />, label: "Rectangle Tool", shortcut: "R" },
+  { id: "hand", icon: <Hand className="w-3 h-3" />, label: "Hand Tool", shortcut: "H" },
+  { id: "text", icon: <Type className="w-3 h-3" />, label: "Text Tool", shortcut: "T" },
+];
+
+const toolRows = [
+  tools.slice(0, 4),
+  tools.slice(4, 8),
 ];
 
 interface EditingToolbarProps {
@@ -163,39 +168,25 @@ export function EditingToolbar({ className }: EditingToolbarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setTool, selectionLength, doSplit, doDelete, doAddText]);
 
-  return (
-    <div className={cn("flex flex-col items-center py-2 px-1 gap-1 bg-card border-r border-border/80", className)}>
-      {tools.map((tool) => (
-        <button
-          key={tool.id}
-          onClick={() => handleToolClick(tool.id)}
-          className={cn(
-            "w-9 h-9 flex items-center justify-center rounded-md transition-all duration-150",
-            activeTool === tool.id
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-          title={`${tool.label} (${tool.shortcut})`}
-        >
-          {tool.icon}
-        </button>
-      ))}
-      
-      <div className="w-7 h-px bg-border/50 my-2" />
-      
-      <button
-        onClick={doDelete}
-        disabled={selectionLength === 0}
-        className={cn(
-          "w-9 h-9 flex items-center justify-center rounded-md transition-colors",
-          selectionLength > 0
-            ? "text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
-            : "text-muted-foreground/30 cursor-not-allowed"
-        )}
-        title="Delete (Del)"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+return (
+    <div className={cn("flex flex-col py-1 px-0.5 bg-card border-r border-border/80 w-10 flex-none", className)}>
+      <div className="flex flex-col justify-evenly h-full">
+        {tools.map((tool) => (
+          <button
+            key={tool.id}
+            onClick={() => handleToolClick(tool.id)}
+            className={cn(
+              "w-5 h-5 mx-auto flex items-center justify-center rounded-md transition-all duration-150",
+              activeTool === tool.id
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+            title={`${tool.label} (${tool.shortcut})`}
+          >
+            {tool.icon}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
