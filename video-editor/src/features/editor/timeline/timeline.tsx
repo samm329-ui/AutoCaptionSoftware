@@ -20,14 +20,15 @@ import {
   useEngineZoom,
 } from "../engine/engine-provider";
 import {
-  selectOrderedTracks,
   selectAllClips,
   selectSelection,
   selectDuration,
+  selectOrderedTracks,
+  selectTrackClips,
+  selectNaturalEndMs,
 } from "../engine/selectors";
 import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
-import { selectTrackClips } from "../engine/selectors";
 import { engineStore, nanoid } from "../engine/engine-core";
 import { getDragData } from "@/components/shared/drag-data";
 import { addFileToTimeline, type UploadedFile } from "@/store/upload-store";
@@ -42,6 +43,7 @@ const Timeline = () => {
   const selection = useEngineSelector(selectSelection);
   const zoom = useEngineZoom();
   const sequenceDuration = useEngineSelector(selectDuration);
+  const naturalEndMs = useEngineSelector(selectNaturalEndMs);
   const activeTool = useEngineSelector((state) => state.ui?.activeTool ?? "select");
   const playheadTime = useEngineSelector((state) => state.ui?.playheadTime ?? 0);
   const scrollX = useEngineSelector((state) => state.ui?.scrollX ?? 0);
@@ -248,10 +250,10 @@ const Timeline = () => {
     return map;
   }, [tracks]);
 
-  // Use sequence duration for timeline width
+  // Use calculated timeline duration (from clips) instead of sequence duration
   const maxTime = useMemo(() => {
-    return sequenceDuration > 0 ? sequenceDuration : 10000;
-  }, [sequenceDuration]);
+    return naturalEndMs > 0 ? naturalEndMs : (sequenceDuration > 0 ? sequenceDuration : 10000);
+  }, [naturalEndMs, sequenceDuration]);
 
   const timelineWidth = Math.max(maxTime * pixelsPerMs, 1000);
 
