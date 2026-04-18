@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Video as VideoIcon, Image as ImageIcon, Music, Upload, X } from "lucide-react";
+import { probeMediaFile } from "@/features/editor/utils/media-probe";
 
 export function extractVideoThumbnail(file: File): Promise<string> {
   return new Promise((resolve) => {
@@ -55,6 +56,26 @@ export function Uploads() {
       if (file.type.startsWith("image/")) type = "image";
       else if (file.type.startsWith("audio/")) type = "audio";
       
+      // Probe media file for ALL metadata (duration, fps, resolution)
+      let mediaInfo = {
+        duration: 5,
+        width: 1920,
+        height: 1080,
+        fps: 30
+      };
+      
+      try {
+        const probed = await probeMediaFile(file);
+        mediaInfo = {
+          duration: probed.duration,
+          width: probed.width,
+          height: probed.height,
+          fps: probed.fps
+        };
+      } catch (e) {
+        console.warn('Failed to probe media:', e);
+      }
+      
       const upload: UploadedFile = {
         id,
         fileName: file.name,
@@ -65,7 +86,11 @@ export function Uploads() {
         objectUrl,
         status: "completed",
         progress: 100,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        duration: mediaInfo.duration,
+        width: mediaInfo.width,
+        height: mediaInfo.height,
+        fps: mediaInfo.fps
       };
       
       addUpload(upload);
