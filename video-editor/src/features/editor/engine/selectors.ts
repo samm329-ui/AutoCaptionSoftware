@@ -257,10 +257,14 @@ export function selectIsEmpty(p: Project): boolean {
 
 export function selectNaturalEndMs(p: Project): number {
   const clips = getClips(p);
-  return Object.values(clips).reduce(
-    (max, c) => (c?.display?.to ? Math.max(max, c.display.to) : max),
-    0
-  );
+  const clipValues = Object.values(clips);
+  
+  if (clipValues.length > 0) {
+    const maxDisplayTo = Math.max(...clipValues.map(c => c?.display?.to ?? 0));
+    return Math.round(maxDisplayTo);
+  }
+  
+  return 0;
 }
 
 // ─── Equality helpers ─────────────────────────────────────────────────────────
