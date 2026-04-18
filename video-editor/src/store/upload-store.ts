@@ -109,7 +109,31 @@ export { type UploadedFile, type ProjectFolder };
 
 export function addFileToTimeline(upload: UploadedFile): void {
   const state = engineStore.getState();
-  const durationMs = upload.duration ? upload.duration * 1000 : 5000;
+  
+  // Check if this is the FIRST clip - if so, set project settings
+  const existingClips = Object.keys(state.clips || {}).length;
+  const rootSeqId = state.rootSequenceId;
+  const sequence = rootSeqId ? state.sequences[rootSeqId] : null;
+  
+  if (existingClips === 0 && upload.type === "video") {
+    // First video sets PROJECT settings (canvas size and fps)
+    const projectWidth = upload.width || 1920;
+    const projectHeight = upload.height || 1080;
+    const projectFps = upload.fps || 30;
+    
+    // Set canvas to match first video's resolution
+    if (projectWidth && projectHeight) {
+      engineStore.dispatch(setCanvas(projectWidth, projectHeight));
+    }
+    // Set FPS to match first video
+    if (projectFps) {
+      engineStore.dispatch(setFps(projectFps));
+    }
+  }
+  
+  // Use duration from upload (probed with correct metadata)
+  const durationSec = upload.duration || 5;
+  const durationMs = durationSec * 1000;
   const playheadTime = state.ui?.playheadTime ?? 0;
 
   type ClipType = Clip["type"];
