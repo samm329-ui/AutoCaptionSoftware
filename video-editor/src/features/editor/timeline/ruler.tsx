@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useEngineSelector, useEngineDispatch } from "../engine/engine-provider";
-import { selectAllClips, selectDuration } from "../engine/selectors";
+import { selectAllClips, selectDuration, selectNaturalEndMs } from "../engine/selectors";
 import { zoomToPixelsPerMs, pxToMs, msToFrame } from "../engine/time-scale";
 import { setPlayhead, seekPlayer } from "../engine/commands";
 
@@ -18,7 +18,8 @@ const Ruler = ({ scrollLeft = 0, onScroll }: RulerProps) => {
   
   const engineDispatch = useEngineDispatch();
   const clips = useEngineSelector(selectAllClips);
-  const timelineDuration = useEngineSelector(selectDuration);
+  const sequenceDuration = useEngineSelector(selectDuration);
+  const naturalEndMs = useEngineSelector(selectNaturalEndMs);
   const zoomState = useEngineSelector((state) => state.ui?.zoom ?? 0.1);
   const fpsState = useEngineSelector((state) => {
     const rootSeqId = state.rootSequenceId;
@@ -29,7 +30,7 @@ const Ruler = ({ scrollLeft = 0, onScroll }: RulerProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, startScrollLeft: 0 });
 
-  const timelineDurationMs = timelineDuration;
+  const timelineDurationMs = naturalEndMs > 0 ? naturalEndMs : sequenceDuration;
 
   useEffect(() => {
     const updateDimensions = () => {
