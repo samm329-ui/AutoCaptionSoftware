@@ -16,7 +16,7 @@ import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import { useEngineSelection, useEngineSelector, useEngineDispatch, useEngineZoom, useEnginePlayhead } from "../engine/engine-provider";
-import { selectDuration, selectFps } from "../engine/selectors";
+import { selectDuration, selectFps, selectNaturalEndMs } from "../engine/selectors";
 import { deleteClips, splitClip, cloneClip, setZoom, clearAll, setPlayhead, seekPlayer } from "../engine/commands";
 import { engineStore } from "../engine/engine-core";
 
@@ -54,6 +54,7 @@ const Header = () => {
   const engineZoom = useEngineZoom();
   const sequenceDuration = useEngineSelector(selectDuration);
   const fps = useEngineSelector(selectFps);
+  const naturalEndMs = useEngineSelector(selectNaturalEndMs);
   
   const clipDuration = sequenceDuration;
   
@@ -65,7 +66,7 @@ const Header = () => {
   const safeFps = fps || 30;
   const safeDuration = clipDuration;
   
-  const computedDuration = sequenceDuration;
+  const computedDuration = Math.round(naturalEndMs > 0 ? naturalEndMs : sequenceDuration);
 
   const doActiveDelete = () => {
     if (engineSelection.length === 0) return;
@@ -357,7 +358,7 @@ return (
           <ZoomControl
             zoom={engineZoom}
             onZoomChange={handleZoomChange}
-            duration={clipDuration}
+            duration={computedDuration}
           />
         </div>
       </div>
