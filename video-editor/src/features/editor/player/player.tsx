@@ -17,6 +17,7 @@ import {
   selectFps,
   selectCanvasSize,
   selectRootSequence,
+  selectNaturalEndMs,
 } from "../engine/selectors";
 import { registerPlayerSeek } from "../engine/commands";
 import useStore from "../store/use-store";
@@ -34,12 +35,16 @@ const Player = () => {
 
   // All project data from engine
   const duration   = useEngineSelector(selectDuration);
+  const naturalEndMs = useEngineSelector(selectNaturalEndMs);
   const fps        = useEngineSelector(selectFps);
   const canvasSize = useEngineSelector(selectCanvasSize);
   const sequence   = useEngineSelector(selectRootSequence);
 
+  // Use calculated duration from clips if available, otherwise use sequence duration
+  const computedDuration = naturalEndMs > 0 ? naturalEndMs : (duration > 0 ? duration : DEFAULT_DURATION);
+
   // Stable values with fallbacks
-  const safeDuration = useMemo(() => duration > 0 ? duration : DEFAULT_DURATION, [duration]);
+  const safeDuration = useMemo(() => computedDuration, [computedDuration]);
   const safeFps = useMemo(() => fps > 0 ? fps : DEFAULT_FPS, [fps]);
   const safeWidth = useMemo(() => canvasSize?.width > 0 ? canvasSize.width : DEFAULT_WIDTH, [canvasSize?.width]);
   const safeHeight = useMemo(() => canvasSize?.height > 0 ? canvasSize.height : DEFAULT_HEIGHT, [canvasSize?.height]);
