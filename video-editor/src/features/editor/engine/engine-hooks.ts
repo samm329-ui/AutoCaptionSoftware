@@ -244,10 +244,34 @@ export function useClipKeyframes(clipId: string) {
 }
 
 // ─── Runtime Refs ─────────────────────────────────────────────────────────
+import type { PlayerRef } from "@remotion/player";
+import { useRef, useEffect } from "react";
 
-export function usePlayerRef() {
+function getPlayerRefFromState(state: any): PlayerRef | null {
+  const stored = state.playerRef;
+  if (!stored) return null;
+  // Handle both direct PlayerRef and { current: PlayerRef } format
+  if (typeof stored === 'object' && 'current' in stored) {
+    return stored.current as PlayerRef;
+  }
+  return stored as PlayerRef;
+}
+
+export function usePlayerRef(): PlayerRef | null {
   const state = useEngineState();
-  return useMemo(() => state.playerRef ?? null, [state.playerRef]);
+  return useMemo(() => getPlayerRefFromState(state), [state.playerRef]);
+}
+
+// Hook for code that needs a ref object like { current: PlayerRef }
+export function usePlayerRefWrapper(): React.RefObject<PlayerRef> {
+  const playerRef = usePlayerRef();
+  const ref = useRef<PlayerRef | null>(null);
+  
+  useEffect(() => {
+    ref.current = playerRef;
+  }, [playerRef]);
+  
+  return ref;
 }
 
 export function useSceneMoveableRef() {
