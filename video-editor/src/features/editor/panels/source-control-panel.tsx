@@ -275,17 +275,8 @@ export default function SourceControlPanel() {
       keyframeIds: [],
     };
 
-    // Set canvas to match first video dimensions
-    const existingClips = Object.keys(state.clips || {}).length;
-    if (existingClips === 0 && ft === "video") {
-      const videoW = videoDimensions?.width || 1920;
-      const videoH = videoDimensions?.height || 1080;
-      engineStore.dispatch({ 
-        type: "SET_CANVAS", 
-        payload: { width: videoW, height: videoH } 
-      });
-    }
-
+    // Note: We do NOT set canvas here to preserve existing project settings
+    // The clip details include width/height for proper rendering
     engineStore.dispatch(addClip(clip, targetTrack.id));
   }, [sourceSrc, sourceType, sourceName, duration, inFrameClamped, outFrameClamped, videoDimensions]);
 
