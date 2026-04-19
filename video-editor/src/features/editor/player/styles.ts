@@ -26,19 +26,27 @@ interface ITrackItem {
 
 export const calculateCropStyles = (
   details: IImage["details"],
-  crop: IImage["details"]["crop"]
-) => ({
-  width: details.width || "100%",
-  height: details.height || "auto",
-  top: -crop.y || 0,
-  left: -crop.x || 0,
-  position: "absolute",
-  borderRadius: `${Math.min(crop.width, crop.height) * ((details.borderRadius || 0) / 100)}px`
-});
+  crop: IImage["details"]["crop"],
+  canvasSize?: { width: number; height: number }
+) => {
+  // Use canvas dimensions if available for proper scaling, otherwise use details
+  const targetWidth = canvasSize?.width || details.width;
+  const targetHeight = canvasSize?.height || details.height;
+  
+  return {
+    width: targetWidth || "100%",
+    height: targetHeight || "100%",
+    top: -crop.y || 0,
+    left: -crop.x || 0,
+    position: "absolute",
+    borderRadius: `${Math.min(Number(crop.width) || Number(details.width) || 1920, Number(crop.height) || Number(details.height) || 1080) * ((details.borderRadius || 0) / 100)}px`
+  };
+};
 
 export const calculateMediaStyles = (
   details: ITrackItem["details"],
-  crop: ITrackItem["details"]["crop"]
+  crop: ITrackItem["details"]["crop"],
+  canvasSize?: { width: number; height: number }
 ) => {
   return {
     pointerEvents: "none",
@@ -50,7 +58,7 @@ export const calculateMediaStyles = (
     ]
       .filter(Boolean)
       .join(", "),
-    ...calculateCropStyles(details, crop),
+    ...calculateCropStyles(details, crop, canvasSize),
     overflow: "hidden"
   } as React.CSSProperties;
 };
@@ -84,7 +92,8 @@ export const calculateContainerStyles = (
   details: ITrackItem["details"],
   crop: ITrackItem["details"]["crop"] = {},
   overrides: React.CSSProperties = {},
-  type?: string
+  type?: string,
+  canvasSize?: { width: number; height: number }
 ): React.CSSProperties => {
   const appliedEffects = (details as any).appliedEffects ?? [];
   const effectStyle = buildEffectStyle(appliedEffects);
@@ -92,15 +101,19 @@ export const calculateContainerStyles = (
   const baseFilter = `brightness(${details.brightness ?? 100}%) blur(${details.blur ?? 0}px)`;
   const combinedFilters = [baseFilter, effectStyle.filter].filter(Boolean).join(" ");
 
+  // Use canvas dimensions for proper fill
+  const targetWidth = canvasSize?.width || crop.width || details.width || "100%";
+  const targetHeight = canvasSize?.height || crop.height || details.height || "100%";
+
   return {
     pointerEvents: "auto",
     top: details.top || 0,
     left: details.left || 0,
-    width: crop.width || details.width || "100%",
+    width: targetWidth,
     height:
       type === "text" || type === "caption"
         ? "max-content"
-        : crop.height || details.height || "max-content",
+        : targetHeight,
     transform: details.transform || "none",
     opacity: details.opacity !== undefined ? details.opacity / 100 : 1,
     transformOrigin: details.transformOrigin || "center center",

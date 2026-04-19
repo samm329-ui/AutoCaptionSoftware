@@ -26,7 +26,7 @@ export const BaseSequence = ({
   children: React.ReactNode;
 }) => {
   const { details } = item as ITrackItem;
-  const { fps } = options;
+  const { fps, size: canvasSize } = options;
   const { from, durationInFrames } = calculateFrames(
     {
       from: item.display.from,
@@ -73,7 +73,8 @@ export const BaseSequence = ({
                 ? "hidden"
                 : "visible"
           },
-          item.type
+          item.type,
+          canvasSize
         )}
       >
         {children}

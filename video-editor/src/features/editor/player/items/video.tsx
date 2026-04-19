@@ -11,7 +11,7 @@ export const Video = ({
   item: IVideo;
   options: SequenceItemOptions;
 }) => {
-  const { fps, mutedTrackIds, owningTrackId } = options;
+  const { fps, mutedTrackIds, owningTrackId, size: canvasSize } = options;
   const { details } = item;
   const playbackRate = (details as any).playbackRate || 1;
   
@@ -31,9 +31,9 @@ export const Video = ({
     <div
       style={calculateContainerStyles(details, crop, {
         overflow: "hidden"
-      })}
+      }, undefined, canvasSize)}
     >
-      <div style={calculateMediaStyles(details, crop)}>
+      <div style={calculateMediaStyles(details, crop, canvasSize)}>
         <OffthreadVideo
           startFrom={((item.trim?.from ?? 0) / 1000) * fps}
           endAt={(item.trim?.to ?? 0) / 1000 * fps || 1 / fps}
