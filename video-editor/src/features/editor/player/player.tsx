@@ -19,8 +19,8 @@ import {
   selectRootSequence,
   selectNaturalEndMs,
 } from "../engine/selectors";
-import { registerPlayerSeek } from "../engine/commands";
-import useStore from "../store/use-store";
+import { registerPlayerSeek, setPlayerRef } from "../engine/commands";
+import { useEngineDispatch } from "../engine/engine-provider";
 
 // Fallback constants
 const DEFAULT_WIDTH = 1080;
@@ -30,7 +30,7 @@ const DEFAULT_DURATION = 10000;
 
 const Player = () => {
   const playerRef = useRef<PlayerRef>(null);
-  const { setPlayerRef } = useStore();
+  const engineDispatch = useEngineDispatch();
   const [hasError, setHasError] = useState(false);
 
   // All project data from engine
@@ -59,23 +59,24 @@ const Player = () => {
     setHasError(true);
   }, []);
 
-  // Register runtime ref in Zustand (UI-only state, not project data)
+  // Register runtime ref in engine store
+  console.log("Player component mounting, registering playerRef, current:", playerRef.current);
   useEffect(() => {
-    if (setPlayerRef && playerRef.current) {
-      setPlayerRef(playerRef as React.RefObject<PlayerRef>);
+    if (playerRef.current) {
+      console.log("Registering playerRef to engine:", playerRef.current);
+      engineDispatch(setPlayerRef(playerRef.current));
     }
     
     // Register seek function for engine playhead sync
-    if (playerRef.current) {
-      registerPlayerSeek((frame: number) => {
-        try {
-          playerRef.current?.seekTo(frame);
-        } catch (e) {
-          console.warn('Player seek error:', e);
-        }
-      });
-    }
-  }, [setPlayerRef]);
+    registerPlayerSeek((frame: number) => {
+      try {
+        console.log("seekPlayer called with frame:", frame);
+        playerRef.current?.seekTo(frame);
+      } catch (e) {
+        console.warn('Player seek error:', e);
+      }
+    });
+  }, [engineDispatch]);
   
   // Sync player frame with engine playhead
   const handlePlayerFrameChange = useCallback((newFrame: number) => {
