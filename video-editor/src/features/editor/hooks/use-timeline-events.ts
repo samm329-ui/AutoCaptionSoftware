@@ -3,17 +3,19 @@
  *
  * WATCHES: engine ui.playheadTime → player.seekTo() when it changes.
  * LISTENS: player-bus events → call player methods.
+ * SYNC: player frame → engine playhead when playing
  */
 
-import { useEffect, useRef } from "react";
-import useStore from "../store/use-store";
+import { useEffect, useRef, useCallback } from "react";
+import { usePlayerRef } from "../engine/engine-hooks";
 import { engineStore } from "../engine/engine-core";
 import { onPlayerEvent } from "./player-bus";
 import { setPlayhead } from "../engine/commands";
 
 const useTimelineEvents = (): void => {
-  const { playerRef } = useStore();
+  const playerRef = usePlayerRef();
   const fpsRef = useRef<number>(30);
+  const isPlayingRef = useRef<boolean>(false);
 
   useEffect(() => {
     const unsub = engineStore.subscribe((state) => {
@@ -31,7 +33,7 @@ const useTimelineEvents = (): void => {
       if (timeMs === lastMs) return;
       lastMs = timeMs;
 
-      const ref = playerRef?.current;
+      const ref = playerRef;
       if (!ref) return;
 
       const frame = Math.round((timeMs / 1000) * fpsRef.current);
@@ -43,9 +45,44 @@ const useTimelineEvents = (): void => {
     return unsub;
   }, [playerRef]);
 
+  // Sync player frame → engine playhead when playing
+  useEffect(() => {
+    if (!playerRef) return;
+    
+    const player = playerRef as any;
+    if (!player?.addEventListener) return;
+    
+    const handleFrameUpdate = () => {
+      if (!isPlayingRef.current) return;
+      try {
+        const frame = player.getCurrentFrame?.() ?? 0;
+        const timeMs = (frame / fpsRef.current) * 1000;
+        engineStore.dispatch(setPlayhead(timeMs), { skipHistory: true });
+      } catch {}
+    };
+    
+    const handlePlay = () => {
+      isPlayingRef.current = true;
+    };
+    
+    const handlePause = () => {
+      isPlayingRef.current = false;
+    };
+    
+    player.addEventListener("frameupdate", handleFrameUpdate);
+    player.addEventListener("play", handlePlay);
+    player.addEventListener("pause", handlePause);
+    
+    return () => {
+      player.removeEventListener("frameupdate", handleFrameUpdate);
+      player.removeEventListener("play", handlePlay);
+      player.removeEventListener("pause", handlePause);
+    };
+  }, [playerRef]);
+
   useEffect(() => {
     const unsub = onPlayerEvent((event) => {
-      const ref = playerRef?.current;
+      const ref = playerRef;
 
       switch (event.type) {
         case "SEEK": {
