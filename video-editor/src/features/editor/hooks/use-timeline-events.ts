@@ -45,20 +45,29 @@ const useTimelineEvents = (): void => {
     return unsub;
   }, [playerRef]);
 
-  // Sync player frame → engine playhead when playing
+  // Sync player frame → engine playhead when playing (one-way to avoid loops)
   useEffect(() => {
     if (!playerRef) return;
     
     const player = playerRef as any;
     if (!player?.addEventListener) return;
     
+    let isSyncing = false;
+    
     const handleFrameUpdate = () => {
-      if (!isPlayingRef.current) return;
+      // Skip if we're already seeking (to avoid loops)
+      if (isSyncing || !isPlayingRef.current) return;
+      
       try {
+        isSyncing = true;
         const frame = player.getCurrentFrame?.() ?? 0;
         const timeMs = (frame / fpsRef.current) * 1000;
         engineStore.dispatch(setPlayhead(timeMs), { skipHistory: true });
-      } catch {}
+      } catch {
+        // ignore
+      } finally {
+        isSyncing = false;
+      }
     };
     
     const handlePlay = () => {
