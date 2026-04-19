@@ -7,16 +7,18 @@ export const useCurrentPlayerFrame = (
 ) => {
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
-      const { current } = ref || {};
-      if (!current) {
+      if (!ref || !ref.current) {
         return () => undefined;
       }
+      const current = ref.current;
       const updater: CallbackListener<"frameupdate"> = () => {
         onStoreChange();
       };
       current.addEventListener("frameupdate", updater);
       return () => {
-        current.removeEventListener("frameupdate", updater);
+        if (current) {
+          current.removeEventListener("frameupdate", updater);
+        }
       };
     },
     [ref]
