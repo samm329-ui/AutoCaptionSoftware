@@ -98,9 +98,52 @@ function loadProjectFromStorage(): Project {
         return createEmptyProject();
       }
       
+      // Filter out uploads with invalid blob URLs (development mode issue)
+      const validUploads = (parsed.uploads || []).filter((upload) => {
+        if (!upload.objectUrl) return false;
+        // Check if the objectUrl is a valid blob URL that still works
+        try {
+          // blob: URLs don't survive page refresh in development
+          if (upload.objectUrl.startsWith('blob:')) {
+            return false;
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      
+      // Clear clips that reference invalid upload URLs
+      const validClipIds = new Set<string>();
+      const validClips = { ...parsed.clips };
+      for (const [clipId, clip] of Object.entries(validClips)) {
+        const clipAny = clip as any;
+        const src = clipAny?.details?.src || clipAny?.metadata?.previewUrl;
+        if (src && !src.startsWith('blob:')) {
+          validClipIds.add(clipId);
+        } else {
+          delete validClips[clipId];
+        }
+      }
+      
+      // Clear mediaAssets with invalid URLs
+      const validMediaAssets = (parsed.mediaAssets || []).filter((asset: any) => {
+        const url = asset?.url || asset?.src;
+        if (!url) return false;
+        try {
+          if (url.startsWith('blob:')) return false;
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      
       return {
         ...parsed,
         rootSequenceId: rootSeqId,
+        uploads: validUploads,
+        clips: validClips,
+        mediaAssets: validMediaAssets,
         ui: parsed.ui || { selection: [], playheadTime: 0, zoom: 0.1, scrollX: 0, scrollY: 0, timelineVisible: true },
       } as Project;
     }
@@ -194,16 +237,7 @@ const LeftSidebar = () => (
       </ResizablePanel>
       <ResizableHandle className="bg-border/90" withHandle />
       <ResizablePanel defaultSize={55} minSize={5}>
-        <ResizablePanelWrapper id="project">
-          <Tabs defaultValue="media" className="flex flex-col h-full">
-            <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
-              <TabsTrigger value="media" className="text-[11px] h-7 px-3 rounded-sm">Media</TabsTrigger>
-              <TabsTrigger value="project" className="text-[11px] h-7 px-3 rounded-sm">Project</TabsTrigger>
-            </TabsList>
-            <TabsContent value="media" className="flex-1 overflow-hidden mt-0"><MenuList /></TabsContent>
-            <TabsContent value="project" className="flex-1 overflow-hidden mt-0"><ProjectPanel /></TabsContent>
-          </Tabs>
-        </ResizablePanelWrapper>
+        <ResizablePanelWrapper id="project"><ProjectPanel /></ResizablePanelWrapper>
       </ResizablePanel>
     </ResizablePanelGroup>
   </div>
