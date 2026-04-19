@@ -32,7 +32,7 @@ import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-sca
 import { engineStore, nanoid } from "../engine/engine-core";
 import { getDragData } from "@/components/shared/drag-data";
 import { addFileToTimeline, type UploadedFile } from "@/store/upload-store";
-import useStore from "../store/use-store";
+import { usePlayerRef } from "../engine/engine-hooks";
 
 const TRACK_HEIGHT = 50;
 
@@ -47,7 +47,7 @@ const Timeline = () => {
   const activeTool = useEngineSelector((state) => state.ui?.activeTool ?? "select");
   const playheadTime = useEngineSelector((state) => state.ui?.playheadTime ?? 0);
   const scrollX = useEngineSelector((state) => state.ui?.scrollX ?? 0);
-  const { playerRef } = useStore();
+  const playerRef = usePlayerRef();
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -207,7 +207,9 @@ const Timeline = () => {
     setIsDragOver(false);
     
     const dragData = getDragData();
+    console.log("Timeline handleDrop, dragData:", dragData);
     if (!dragData || !dragData.type) {
+      console.log("No drag data, returning");
       setDragOverTime(null);
       return;
     }

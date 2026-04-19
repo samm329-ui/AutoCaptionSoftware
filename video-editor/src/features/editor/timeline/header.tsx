@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import useStore from "../store/use-store";
+import { usePlayerRef } from "../engine/engine-hooks";
 import { LAYER_DELETE, ACTIVE_SPLIT, LAYER_CLONE, PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
 import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AudioLines, XCircle } from "lucide-react";
@@ -48,7 +48,7 @@ const IconPlayerPauseFilled = ({ size }: { size: number }) => (
 const Header = () => {
   const [playing, setPlaying] = useState(false);
   
-  const { playerRef } = useStore();
+  const playerRef = usePlayerRef();
   const engineSelection = useEngineSelection();
   const engineDispatch = useEngineDispatch();
   const engineZoom = useEngineZoom();
@@ -115,11 +115,21 @@ const Header = () => {
   };
 
   const handlePlay = () => {
-    playerRef?.current?.play();
+    const ref = playerRef;
+    if (ref && typeof ref.play === "function") {
+      ref.play();
+    } else {
+      console.error("Player ref not available or play method missing - playerRef:", ref);
+    }
   };
 
   const handlePause = () => {
-    playerRef?.current?.pause();
+    const ref = playerRef;
+    if (ref && typeof ref.pause === "function") {
+      ref.pause();
+    } else {
+      console.error("Player ref not available or pause method missing - playerRef:", ref);
+    }
   };
 
 const handleFrameBack = () => {

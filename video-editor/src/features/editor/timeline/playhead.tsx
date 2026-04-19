@@ -1,5 +1,5 @@
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import useStore from "../store/use-store";
+import { usePlayerRef } from "../engine/engine-hooks";
 import {
   MouseEvent,
   TouchEvent,
@@ -20,7 +20,7 @@ interface PlayheadProps {
 
 const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   const playheadRef = useRef<HTMLDivElement>(null);
-  const { playerRef } = useStore();
+  const playerRef = usePlayerRef();
   const fps = useEngineFps();
   const engineDispatch = useEngineDispatch();
   const enginePlayheadTime = useEnginePlayhead(); // Read from engine

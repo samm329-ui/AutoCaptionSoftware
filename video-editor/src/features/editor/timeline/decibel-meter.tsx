@@ -15,14 +15,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { audioDataManager } from "../player/lib/audio-data";
 import { getRMS, toDecibel, range, clamp } from "../player/items/audio-bars/audio-utils";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import useStore from "../store/use-store";
+import { usePlayerRef, useEngineSelector } from "../engine/engine-hooks";
 
 const MIN_DB = -60;
 const MAX_DB = 0;
 const PEAK_HOLD_FRAMES = 30;
 
 export default function DecibelMeter() {
-  const { playerRef, fps } = useStore();
+  const playerRef = usePlayerRef();
+  const fps = useEngineSelector((state) => state.ui?.fps ?? 30);
   const currentFrame = useCurrentPlayerFrame(playerRef);
   const [level, setLevel] = useState(0);
   const [peakLevel, setPeakLevel] = useState(0);
