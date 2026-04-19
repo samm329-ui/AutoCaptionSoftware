@@ -19,24 +19,16 @@ import {
   Pause,
   SkipBack,
   SkipForward,
-  RotateCcw,
   Film,
-  AudioLines,
+  Volume2,
   Video,
+  AudioLines,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const ADD_VIDEO = "ADD_VIDEO";
-const ADD_AUDIO = "ADD_AUDIO";
-const ADD_IMAGE = "ADD_IMAGE";
-
-const dispatch = (key: string, payload: { payload?: unknown; options?: unknown }) => {
-  console.log("dispatch", key, payload);
-};
-
-const generateId = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
+import { extractAudioOnly, extractVideoOnly } from "../utils/media-extraction";
+import { engineStore, createTrack, type Clip, type Track, addTrack, addClip, selectOrderedTracks, setCanvas } from "../engine";
+import { setDragData } from "@/components/shared/drag-data";
+import { nanoid } from "nanoid";
 
 const DEFAULT_FPS = 30;
 
@@ -53,6 +45,8 @@ export default function SourceControlPanel() {
   const [sourceType, setSourceType] = useState<"video" | "audio" | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const [extracting, setExtracting] = useState<"audio" | "video" | null>(null);
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
   const totalFrames = Math.floor(duration * DEFAULT_FPS);
@@ -62,6 +56,13 @@ export default function SourceControlPanel() {
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+      // Store video dimensions for clip
+      if (videoRef.current.videoWidth) {
+        setVideoDimensions({
+          width: videoRef.current.videoWidth,
+          height: videoRef.current.videoHeight
+        });
+      }
     }
   }, []);
 
@@ -114,20 +115,36 @@ export default function SourceControlPanel() {
     }
   }, [inFrameClamped, outFrameClamped, startPlaybackLoop, stopPlaybackLoop]);
 
-  const togglePlay = useCallback(() => {
-    if (!videoRef.current) return;
-    if (playing) {
-      videoRef.current.pause();
+  const togglePlay = useCallback(async () => {
+    const video = videoRef.current;
+    console.log("togglePlay called, video:", video, "playing:", playing, "in:", inFrameClamped, "out:", outFrameClamped);
+    if (!video) {
+      console.error("No video ref");
+      return;
+    }
+    
+    try {
+      if (playing) {
+        video.pause();
+        setPlaying(false);
+        stopPlaybackLoop();
+        console.log("Paused video");
+      } else {
+        if (inFrameClamped !== null && outFrameClamped !== null) {
+          const startTime = inFrameClamped / DEFAULT_FPS;
+          video.currentTime = startTime;
+          setCurrentFrame(inFrameClamped);
+          console.log("Seeking to inPoint:", startTime);
+        }
+        await video.play();
+        setPlaying(true);
+        startPlaybackLoop();
+        console.log("Playing video");
+      }
+    } catch (err) {
+      console.error("Play/Pause error:", err);
       setPlaying(false);
       stopPlaybackLoop();
-    } else {
-      if (inFrameClamped !== null && outFrameClamped !== null) {
-        videoRef.current.currentTime = inFrameClamped / DEFAULT_FPS;
-        setCurrentFrame(inFrameClamped);
-      }
-      videoRef.current.play();
-      setPlaying(true);
-      startPlaybackLoop();
     }
   }, [playing, inFrameClamped, outFrameClamped, startPlaybackLoop, stopPlaybackLoop]);
 
@@ -182,38 +199,95 @@ export default function SourceControlPanel() {
     goToFrame(frame);
   }, [isScrubbing, totalFrames, goToFrame]);
 
-  const insertToTimeline = useCallback((fileType?: string) => {
+  const insertToTimeline = useCallback(async (fileType?: string) => {
     if (!sourceSrc || !sourceType) return;
 
     const ft = fileType || sourceType;
-    const id = generateId();
     const inSec = inFrameClamped !== null ? inFrameClamped / DEFAULT_FPS : 0;
     const outSec = outFrameClamped !== null ? outFrameClamped / DEFAULT_FPS : duration;
     const clipDur = (outSec - inSec) * 1000;
+    const actualDuration = clipDur > 0 ? clipDur : duration * 1000;
 
-    const payload = {
-      id,
-      details: { src: sourceSrc },
-      metadata: { previewUrl: sourceSrc, duration: duration * 1000 },
-      display: { from: 0, to: clipDur > 0 ? clipDur : duration * 1000 },
-      trim: { from: inSec * 1000, to: outSec * 1000 },
+    let finalSrc = sourceSrc;
+    let finalDuration = actualDuration / 1000;
+
+    if (ft === "audio" && sourceType === "video") {
+      setExtracting("audio");
+      try {
+        const extracted = await extractAudioOnly(sourceSrc, inSec, outSec);
+        finalSrc = extracted.url;
+        finalDuration = extracted.duration;
+      } catch (err) {
+        console.error("Failed to extract audio:", err);
+        setExtracting(null);
+        return;
+      }
+    } else if (ft === "video" && sourceType === "video") {
+      setExtracting("video");
+      try {
+        const extracted = await extractVideoOnly(sourceSrc, inSec, outSec);
+        finalSrc = extracted.url;
+        finalDuration = extracted.duration;
+      } catch (err) {
+        console.error("Failed to extract video:", err);
+        setExtracting(null);
+        return;
+      }
+    }
+    setExtracting(null);
+
+    const state = engineStore.getState();
+    const orderedTracks = selectOrderedTracks(state);
+    const trackType = ft === "audio" ? "audio" : ft === "video" || ft === "image" ? "video" : "video";
+    let targetTrack = orderedTracks.find(t => t.type === trackType);
+
+    if (!targetTrack) {
+      targetTrack = createTrack(trackType, { name: trackType === "audio" ? "A1" : "V1", order: orderedTracks.length });
+      engineStore.dispatch(addTrack(targetTrack));
+    }
+
+    const trackClips = Object.values(state.clips).filter(c => c?.trackId === targetTrack!.id);
+    const startMs = trackClips.length > 0 ? Math.max(...trackClips.map(c => c!.display.to)) : 0;
+    const durationMs = finalDuration * 1000;
+
+    const clipId = nanoid();
+    const videoW = videoDimensions?.width || 1920;
+    const videoH = videoDimensions?.height || 1080;
+    const clip: Clip = {
+      id: clipId,
+      trackId: targetTrack.id,
+      type: ft as "video" | "audio" | "image",
+      name: sourceName || "Clip",
+      display: { from: startMs, to: startMs + durationMs },
+      trim: { from: inSec * 1000, to: inSec * 1000 + durationMs },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1, flipX: false, flipY: false },
+      details: { 
+        src: finalSrc,
+        width: videoW,
+        height: videoH,
+        originalWidth: videoW,
+        originalHeight: videoH,
+        name: sourceName || "Clip",
+        duration: finalDuration,
+      },
+      appliedEffects: [],
+      effectIds: [],
+      keyframeIds: [],
     };
 
-    switch (ft) {
-      case "video":
-        dispatch(ADD_VIDEO, { payload, options: { resourceId: "main", scaleMode: "fit" } });
-        bridgePush(ADD_VIDEO, payload);
-        break;
-      case "audio":
-        dispatch(ADD_AUDIO, { payload: { ...payload, type: "audio" }, options: {} });
-        bridgePush(ADD_AUDIO, payload);
-        break;
-      case "image":
-        dispatch(ADD_IMAGE, { payload: { ...payload, type: "image" }, options: {} });
-        bridgePush(ADD_IMAGE, payload);
-        break;
+    // Set canvas to match first video dimensions
+    const existingClips = Object.keys(state.clips || {}).length;
+    if (existingClips === 0 && ft === "video") {
+      const videoW = videoDimensions?.width || 1920;
+      const videoH = videoDimensions?.height || 1080;
+      engineStore.dispatch({ 
+        type: "SET_CANVAS", 
+        payload: { width: videoW, height: videoH } 
+      });
     }
-  }, [sourceSrc, sourceType, duration, inFrameClamped, outFrameClamped]);
+
+    engineStore.dispatch(addClip(clip, targetTrack.id));
+  }, [sourceSrc, sourceType, sourceName, duration, inFrameClamped, outFrameClamped, videoDimensions]);
 
   const buildDragPayload = useCallback((fileType?: string) => {
     if (!sourceSrc || !sourceType) return null;
@@ -235,9 +309,15 @@ export default function SourceControlPanel() {
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     const payload = buildDragPayload();
-    if (!payload) return;
+    console.log("handleDragStart, payload:", payload);
+    if (!payload) {
+      console.log("No payload to drag");
+      return;
+    }
+    setDragData(payload);
     e.dataTransfer.setData("text/plain", JSON.stringify(payload));
     e.dataTransfer.effectAllowed = "copy";
+    console.log("Drag data set, type:", payload.type);
   }, [buildDragPayload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -257,42 +337,60 @@ export default function SourceControlPanel() {
     e.stopPropagation();
     setDragOver(false);
 
-    try {
-      const data = e.dataTransfer.getData("text/plain");
-      if (!data || typeof data !== "string" || data === "text/plain") return;
-      let item;
+    // First, try to parse drag data from project panel
+    const data = e.dataTransfer.getData("text/plain");
+    if (data) {
       try {
-        item = JSON.parse(data);
-      } catch {
-        return;
-      }
-      if (item && typeof item === "object" && item.type === "track-item" && item.src) {
-        setSourceSrc(item.src);
-        setSourceName(item.name || "Dropped clip");
-        setSourceType(item.fileType || "video");
-        setInFrame(null);
-        setOutFrame(null);
-        setCurrentFrame(0);
-        setPlaying(false);
-        stopPlaybackLoop();
-        if (videoRef.current) videoRef.current.currentTime = 0;
-      }
-    } catch {
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        const file = files[0];
-        if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
-          const url = URL.createObjectURL(file);
-          setSourceSrc(url);
-          setSourceName(file.name);
-          setSourceType(file.type.startsWith("video/") ? "video" : "audio");
+        const item = JSON.parse(data);
+        if (item && typeof item === "object" && item.src) {
+          // Handle track-item from project panel or internal drag
+          const fileType = item.fileType || item.type || "video";
+          const isVideo = fileType === "video" || fileType === "image";
+          const isAudio = fileType === "audio";
+          
+          setSourceSrc(item.src);
+          setSourceName(item.name || "Dropped clip");
+          setSourceType(isAudio ? "audio" : "video");
+          
+          // Set duration from metadata (in seconds)
+          const dur = item.duration || item.metadata?.duration || 5;
+          setDuration(dur);
+          
+          // Clear video dimensions - will be set when metadata loads
+          setVideoDimensions(null);
+          
           setInFrame(null);
           setOutFrame(null);
           setCurrentFrame(0);
           setPlaying(false);
           stopPlaybackLoop();
-          if (videoRef.current) videoRef.current.currentTime = 0;
+          if (videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.load();
+          }
+          return;
         }
+      } catch {
+        // Not JSON, continue to file drop
+      }
+    }
+
+    // Fall back to file drop from file system
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
+        const url = URL.createObjectURL(file);
+        setSourceSrc(url);
+        setSourceName(file.name);
+        setSourceType(file.type.startsWith("video/") ? "video" : "audio");
+        setInFrame(null);
+        setOutFrame(null);
+        setVideoDimensions(null);
+        setCurrentFrame(0);
+        setPlaying(false);
+        stopPlaybackLoop();
+        if (videoRef.current) videoRef.current.currentTime = 0;
       }
     }
   }, [stopPlaybackLoop]);
@@ -361,11 +459,16 @@ export default function SourceControlPanel() {
             <video
               ref={videoRef}
               src={sourceSrc}
-              className="w-full h-full object-contain pointer-events-none"
+              className="w-full h-full object-contain cursor-pointer"
               muted
+              playsInline
+              autoPlay={playing}
               onLoadedMetadata={handleLoadedMetadata}
+              onTimeUpdate={() => syncFrameFromVideo()}
               onEnded={handleEnded}
               onClick={togglePlay}
+              onPlay={() => { setPlaying(true); console.log("Video onPlay fired"); }}
+              onPause={() => { setPlaying(false); console.log("Video onPause fired"); }}
             />
           </div>
         ) : sourceSrc && sourceType === "audio" ? (
@@ -389,44 +492,19 @@ export default function SourceControlPanel() {
             <span className="text-[10px]">Drop media here</span>
           </div>
         )}
-
-        {sourceSrc && totalFrames > 0 && (inPct !== null || outPct !== null) && (
-          <div className="absolute inset-0 pointer-events-none">
-            {inPct !== null && (
-              <div
-                className="absolute top-0 bottom-0 w-[2px] bg-emerald-400"
-                style={{ left: `${inPct}%` }}
-              >
-                <span className="absolute top-1 -translate-x-1/2 bg-emerald-400 text-[9px] text-black px-0.5 font-bold">
-                  {"{"}
-                </span>
-              </div>
-            )}
-            {outPct !== null && (
-              <div
-                className="absolute top-0 bottom-0 w-[2px] bg-red-400"
-                style={{ left: `${outPct}%` }}
-              >
-                <span className="absolute top-1 -translate-x-1/2 bg-red-400 text-[9px] text-black px-0.5 font-bold">
-                  {"}"}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Frame-based timeline */}
       <div className="px-2 py-1.5 border-t border-border/40">
         {/* Timecode display */}
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
+          <span className="text-[10px] font-mono text-yellow-400 tabular-nums">
             {inFrameClamped !== null ? formatTimecode(inFrameClamped) : "--:--:--:--"}
           </span>
           <span className="text-[11px] font-mono text-foreground tabular-nums font-bold">
             {formatTimecode(currentFrame)}
           </span>
-          <span className="text-[10px] font-mono text-red-400 tabular-nums">
+          <span className="text-[10px] font-mono text-yellow-400 tabular-nums">
             {outFrameClamped !== null ? formatTimecode(outFrameClamped) : "--:--:--:--"}
           </span>
         </div>
@@ -447,7 +525,7 @@ export default function SourceControlPanel() {
           {/* In/Out range highlight */}
           {inPct !== null && outPct !== null && (
             <div
-              className="absolute top-0 bottom-0 bg-emerald-400/10"
+              className="absolute top-0 bottom-0 bg-yellow-400/10"
               style={{
                 left: `${inPct}%`,
                 width: `${outPct - inPct}%`,
@@ -472,6 +550,26 @@ export default function SourceControlPanel() {
             );
           })}
 
+          {/* In marker */}
+          {inPct !== null && (
+            <div
+              className="absolute top-0 bottom-0 w-[2px] bg-yellow-400"
+              style={{ left: `${inPct}%`, transform: "translateX(-1px)" }}
+            >
+              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1 bg-yellow-400 rounded-sm" />
+            </div>
+          )}
+
+          {/* Out marker */}
+          {outPct !== null && (
+            <div
+              className="absolute top-0 bottom-0 w-[2px] bg-yellow-400"
+              style={{ left: `${outPct}%`, transform: "translateX(-1px)" }}
+            >
+              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1 bg-yellow-400 rounded-sm" />
+            </div>
+          )}
+
           {/* Playhead */}
           <div
             className="absolute top-0 bottom-0 w-[2px] bg-white transition-none"
@@ -492,7 +590,16 @@ export default function SourceControlPanel() {
       </div>
 
       {/* Transport controls */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-t border-border/40">
+      <div className="flex items-center justify-center gap-1 px-2 py-1.5 border-t border-border/40">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 shrink-0 font-mono text-[10px]"
+          onClick={setIn}
+          title="Set In Point (I)"
+        >
+          [
+        </Button>
         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => stepFrame(-1)} title="Previous Frame (Left)">
           <SkipBack className="w-3 h-3" />
         </Button>
@@ -502,75 +609,40 @@ export default function SourceControlPanel() {
         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => stepFrame(1)} title="Next Frame (Right)">
           <SkipForward className="w-3 h-3" />
         </Button>
-
-        <div className="w-px h-4 bg-border/40 mx-0.5" />
-
         <Button
           variant="ghost"
           size="sm"
-          className={cn(
-            "h-6 w-6 shrink-0 p-0 font-mono",
-            inFrameClamped !== null ? "text-emerald-400 bg-emerald-400/10" : "text-muted-foreground"
-          )}
-          onClick={setIn}
-          title="Set In Point (I)"
-        >
-          <span className="text-[10px]">{"{"}</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "h-6 w-6 shrink-0 p-0 font-mono",
-            outFrameClamped !== null ? "text-red-400 bg-red-400/10" : "text-muted-foreground"
-          )}
+          className="h-6 w-6 shrink-0 font-mono text-[10px]"
           onClick={setOut}
           title="Set Out Point (O)"
         >
-          <span className="text-[10px]">{"}"}</span>
+          ]
         </Button>
-        {(inFrameClamped !== null || outFrameClamped !== null) && (
-          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={clearInOut} title="Clear In/Out">
-            <RotateCcw className="w-2.5 h-2.5" />
-          </Button>
-        )}
-
         <div className="w-px h-4 bg-border/40 mx-0.5" />
-
         <Button
           variant="ghost"
           size="icon"
           className="h-6 w-6 shrink-0"
-          disabled={!sourceSrc}
-          onClick={() => insertToTimeline()}
-          title="Insert to timeline"
+          disabled={!sourceSrc || extracting !== null}
+          onClick={() => insertToTimeline("audio")}
+          title="Extract audio only"
         >
-          <Film className="w-3.5 h-3.5" />
+          {extracting === "audio" ? (
+            <div className="w-3.5 h-3.5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Volume2 className="w-3.5 h-3.5" />
+          )}
         </Button>
-        {sourceType === "video" && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 text-purple-400"
-              disabled={!sourceSrc}
-              onClick={() => insertToTimeline("audio")}
-              title="Insert audio only"
-            >
-              <AudioLines className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 text-blue-400"
-              disabled={!sourceSrc}
-              onClick={() => insertToTimeline("video")}
-              title="Insert video only"
-            >
-              <Video className="w-3.5 h-3.5" />
-            </Button>
-          </>
-        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0"
+          disabled={!sourceSrc || extracting !== null}
+          onClick={() => insertToTimeline("video")}
+          title="Extract video only"
+        >
+          <Video className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </div>
   );
