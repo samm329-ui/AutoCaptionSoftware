@@ -203,38 +203,15 @@ export default function SourceControlPanel() {
     if (!sourceSrc || !sourceType) return;
 
     const ft = fileType || sourceType;
+    // Use original source without extraction - add directly to timeline
     const inSec = inFrameClamped !== null ? inFrameClamped / DEFAULT_FPS : 0;
     const outSec = outFrameClamped !== null ? outFrameClamped / DEFAULT_FPS : duration;
     const clipDur = (outSec - inSec) * 1000;
     const actualDuration = clipDur > 0 ? clipDur : duration * 1000;
 
-    let finalSrc = sourceSrc;
-    let finalDuration = actualDuration / 1000;
-
-    if (ft === "audio" && sourceType === "video") {
-      setExtracting("audio");
-      try {
-        const extracted = await extractAudioOnly(sourceSrc, inSec, outSec);
-        finalSrc = extracted.url;
-        finalDuration = extracted.duration;
-      } catch (err) {
-        console.error("Failed to extract audio:", err);
-        setExtracting(null);
-        return;
-      }
-    } else if (ft === "video" && sourceType === "video") {
-      setExtracting("video");
-      try {
-        const extracted = await extractVideoOnly(sourceSrc, inSec, outSec);
-        finalSrc = extracted.url;
-        finalDuration = extracted.duration;
-      } catch (err) {
-        console.error("Failed to extract video:", err);
-        setExtracting(null);
-        return;
-      }
-    }
-    setExtracting(null);
+    // Use original source directly - no extraction needed
+    const finalSrc = sourceSrc;
+    const finalDuration = actualDuration / 1000;
 
     const state = engineStore.getState();
     const orderedTracks = selectOrderedTracks(state);
@@ -453,13 +430,9 @@ export default function SourceControlPanel() {
               className="w-full h-full object-contain cursor-pointer"
               muted
               playsInline
-              autoPlay={playing}
               onLoadedMetadata={handleLoadedMetadata}
-              onTimeUpdate={() => syncFrameFromVideo()}
               onEnded={handleEnded}
               onClick={togglePlay}
-              onPlay={() => { setPlaying(true); console.log("Video onPlay fired"); }}
-              onPause={() => { setPlaying(false); console.log("Video onPause fired"); }}
             />
           </div>
         ) : sourceSrc && sourceType === "audio" ? (
