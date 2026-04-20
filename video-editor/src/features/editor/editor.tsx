@@ -223,15 +223,17 @@ function ResizablePanelWrapper({
   return (
     <div
       className={cn(
-        "relative group",
-        isFullscreen ? "fixed inset-0 z-[9999] bg-card" : "h-full",
-        isSelected ? "ring-2 ring-white ring-inset" : "",
+        "relative group h-full min-h-0 overflow-hidden",
+        isFullscreen ? "fixed inset-0 z-[9999] bg-card" : "",
         className
       )}
       onDoubleClick={toggle}
       onClick={handleClick}
     >
       {children}
+      {isSelected && (
+        <div className="absolute inset-0 pointer-events-none ring-1 ring-white ring-inset z-50" />
+      )}
       {isFullscreen && (
         <div className="absolute top-2 right-2 z-[10000] flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground bg-black/50 px-2 py-1 rounded">
@@ -254,39 +256,41 @@ function ResizablePanelWrapper({
 // ──────────────────────────────────────────────────────────────────────────────
 // Layout components
 
-const LeftSidebar = () => {
-  const { selectedPanel, setSelectedPanel } = usePanelSelection();
-  return (
-    <div className={cn("bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]", (selectedPanel === "source" || selectedPanel === "project") ? "ring-2 ring-white ring-inset" : "")} onMouseDown={() => setSelectedPanel("source")}>
-      <ResizablePanelGroup direction="vertical" className="w-full">
-        <ResizablePanel defaultSize={45} minSize={5}>
-          <ResizablePanelWrapper id="source"><SourceControlPanel /></ResizablePanelWrapper>
-        </ResizablePanel>
-        <ResizableHandle className="bg-border/90" withHandle />
-        <ResizablePanel defaultSize={55} minSize={5}>
-          <ResizablePanelWrapper id="project"><ProjectPanel /></ResizablePanelWrapper>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
-  );
-};
+const LeftSidebar = () => (
+  <div className="bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]">
+    <ResizablePanelGroup direction="vertical" className="w-full min-h-0">
+<ResizablePanel defaultSize={59} minSize={5} className="min-h-0">
+        <ResizablePanelWrapper id="source"><SourceControlPanel /></ResizablePanelWrapper>
+      </ResizablePanel>
+      <ResizableHandle className="bg-border/90 w-px" withHandle />
+      <ResizablePanel defaultSize={41} minSize={5} className="min-h-0">
+        <ResizablePanelWrapper id="project"><ProjectPanel /></ResizablePanelWrapper>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  </div>
+);
 
 const RightSidebar = () => {
   const { selectedPanel, setSelectedPanel } = usePanelSelection();
   return (
-    <div className={cn("bg-card flex flex-col border-l-2 border-border/80 h-[calc(100vh-52px)] w-full", (selectedPanel === "effects" || selectedPanel === "properties") ? "ring-2 ring-white ring-inset" : "")} onClick={(e) => { e.stopPropagation(); setSelectedPanel("effects"); }}>
-      <Tabs defaultValue="effects" className="flex flex-col h-full">
-        <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
-          <TabsTrigger value="effects" className="text-[11px] h-7 px-3 rounded-sm" onClick={() => setSelectedPanel("effects")}>Effect Controls</TabsTrigger>
-          <TabsTrigger value="properties" className="text-[11px] h-7 px-3 rounded-sm" onClick={() => setSelectedPanel("properties")}>Properties</TabsTrigger>
-        </TabsList>
-        <TabsContent value="effects" className="flex-1 overflow-hidden mt-0">
-          <EffectControlsPanel />
-        </TabsContent>
-        <TabsContent value="properties" className="flex-1 overflow-auto mt-0">
-          <ControlItem />
-        </TabsContent>
-      </Tabs>
+    <div className="bg-card flex flex-col border-l-2 border-border/80 h-[calc(100vh-52px)] w-full min-w-0 overflow-hidden">
+      <div className="flex flex-col h-full min-h-0 relative">
+        {selectedPanel === "effects" && (
+          <div className="absolute inset-0 pointer-events-none ring-1 ring-white ring-inset z-50" />
+        )}
+        <Tabs defaultValue="effects" className="flex flex-col h-full" onClick={(e) => { e.stopPropagation(); setSelectedPanel("effects"); }}>
+          <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
+            <TabsTrigger value="effects" className="text-[11px] h-7 px-3 rounded-sm" onClick={() => setSelectedPanel("effects")}>Effect Controls</TabsTrigger>
+            <TabsTrigger value="properties" className="text-[11px] h-7 px-3 rounded-sm" onClick={() => setSelectedPanel("properties")}>Properties</TabsTrigger>
+          </TabsList>
+          <TabsContent value="effects" className="flex-1 overflow-hidden mt-0">
+            <EffectControlsPanel />
+          </TabsContent>
+          <TabsContent value="properties" className="flex-1 overflow-auto mt-0">
+            <ControlItem />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };
@@ -295,38 +299,35 @@ const CenterArea = ({
   sceneRef,
 }: {
   sceneRef: RefObject<SceneRef>;
-}) => {
-  const { selectedPanel, setSelectedPanel } = usePanelSelection();
-  return (
-    <div className={cn("flex flex-col bg-background h-full", (selectedPanel === "scene" || selectedPanel === "timeline") ? "ring-2 ring-white ring-inset" : "")} onMouseDown={() => setSelectedPanel("scene")}>
-      <ResizablePanelGroup direction="vertical" className="h-full">
-        <ResizablePanel defaultSize={65} minSize={10}>
-          <ResizablePanelWrapper id="scene">
-            <div className="flex-1 relative overflow-hidden w-full h-full">
-              <CropModal />
-              <Scene ref={sceneRef} />
-            </div>
-          </ResizablePanelWrapper>
-        </ResizablePanel>
-        <ResizableHandle className="bg-border/90" withHandle />
-        <ResizablePanel defaultSize={35} minSize={10}>
-          <ResizablePanelWrapper id="timeline">
-            <div className="w-full h-full flex flex-col overflow-hidden ml-0.5">
-              <MediaToolbar />
-              <div className="flex-1 min-h-0 flex overflow-hidden">
-                <EditingToolbar className="flex-none" />
-                <div className="flex-1 min-h-0 border-r border-border/40 relative overflow-hidden">
-                  <Timeline />
-                  <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-border/60 cursor-col-resize hover:bg-primary/50 transition-colors z-50" />
-                </div>
+}) => (
+  <div className="flex flex-col bg-background h-full min-w-0 overflow-hidden">
+    <ResizablePanelGroup direction="vertical" className="h-full min-h-0 min-w-0">
+      <ResizablePanel defaultSize={60} minSize={10} className="min-h-0 min-w-0">
+        <ResizablePanelWrapper id="scene">
+          <div className="flex-1 relative overflow-hidden w-full h-full min-h-0">
+            <CropModal />
+            <Scene ref={sceneRef} />
+          </div>
+        </ResizablePanelWrapper>
+      </ResizablePanel>
+      <ResizableHandle className="bg-border/90 w-px" withHandle />
+      <ResizablePanel defaultSize={40} minSize={10} className="min-h-0 min-w-0">
+        <ResizablePanelWrapper id="timeline">
+          <div className="w-full h-full flex flex-col overflow-hidden ml-0.5 min-h-0">
+            <MediaToolbar />
+            <div className="flex-1 min-h-0 flex overflow-hidden">
+              <EditingToolbar className="flex-none" />
+              <div className="flex-1 min-h-0 border-r border-border/40 relative overflow-hidden">
+                <Timeline />
+                <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-border/60 cursor-col-resize hover:bg-primary/50 transition-colors z-50" />
               </div>
             </div>
-          </ResizablePanelWrapper>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
-  );
-};
+          </div>
+        </ResizablePanelWrapper>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  </div>
+);
 
 const SceneContainer = ({
   sceneRef,
@@ -344,7 +345,7 @@ const SceneContainer = ({
             </div>
           </ResizablePanelWrapper>
         </ResizablePanel>
-        <ResizableHandle className="bg-border/90" withHandle />
+        <ResizableHandle className="bg-border/90 w-px" withHandle />
         <ResizablePanel defaultSize={35} minSize={10}>
           <ResizablePanelWrapper id="media-toolbar">
             <MediaToolbar />
@@ -439,15 +440,15 @@ function EditorShell() {
           <Navbar {...navbarProps} />
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <ResizablePanelGroup direction="horizontal" className="flex-1">
-              <ResizablePanel defaultSize={15} minSize={5}>
+              <ResizablePanel defaultSize={22} minSize={5}>
                 <LeftSidebar />
               </ResizablePanel>
-              <ResizableHandle className="bg-border/60" />
-              <ResizablePanel defaultSize={55} minSize={20}>
+              <ResizableHandle className="bg-border/60 w-px" />
+              <ResizablePanel defaultSize={62} minSize={20}>
                 <CenterArea sceneRef={sceneRef} />
               </ResizablePanel>
-              <ResizableHandle className="bg-border/80 w-1 cursor-col-resize hover:bg-primary/50 transition-colors z-50" withHandle />
-              <ResizablePanel defaultSize={18} minSize={10}>
+              <ResizableHandle className="bg-border/80 w-px cursor-col-resize hover:bg-primary/50 transition-colors z-50" withHandle />
+              <ResizablePanel defaultSize={16} minSize={10}>
                 <RightSidebar />
               </ResizablePanel>
             </ResizablePanelGroup>
