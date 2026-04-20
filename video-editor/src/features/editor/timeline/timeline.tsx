@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Header from "./header";
+import { Magnet, Bookmark } from "lucide-react";
 import Ruler from "./ruler";
 import Playhead from "./playhead";
 import TrackHeaders from "./track-headers";
@@ -18,6 +19,7 @@ import {
   useEngineSelector,
   useEngineDispatch,
   useEngineZoom,
+  useEnginePlayhead,
 } from "../engine/engine-provider";
 import {
   selectAllClips,
@@ -34,7 +36,30 @@ import { getDragData } from "@/components/shared/drag-data";
 import { addFileToTimeline, type UploadedFile } from "@/store/upload-store";
 import { usePlayerRef } from "../engine/engine-hooks";
 
-const TRACK_HEIGHT = 50;
+const TRACK_HEIGHT = 36;
+
+function getTrackGroups(tracks: { id: string; type: string; group?: string }[]) {
+  const groups: { group: string; tracks: { id: string; type: string; group?: string }[] }[] = [];
+  
+  const groupMap = new Map<string, { id: string; type: string; group?: string }[]>();
+  
+  for (const track of tracks) {
+    const group = track.group || (track.type === "audio" ? "audio" : track.type === "caption" ? "subtitle" : track.type === "text" ? "text" : "video");
+    if (!groupMap.has(group)) {
+      groupMap.set(group, []);
+    }
+    groupMap.get(group)!.push(track);
+  }
+  
+  for (const group of ["video", "text", "subtitle", "audio"]) {
+    const groupTracks = groupMap.get(group);
+    if (groupTracks && groupTracks.length > 0) {
+      groups.push({ group, tracks: groupTracks });
+    }
+  }
+  
+  return groups;
+}
 
 const Timeline = () => {
   const dispatch = useEngineDispatch();
@@ -42,10 +67,33 @@ const Timeline = () => {
   const clips = useEngineSelector(selectAllClips);
   const selection = useEngineSelector(selectSelection);
   const zoom = useEngineZoom();
+  const playheadTime = useEnginePlayhead();
   const sequenceDuration = useEngineSelector(selectDuration);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [segmentHeights, setSegmentHeights] = useState<Record<string, number>>({});
+
+  // Calculate total timeline inner height from all segment heights
+  const timelineInnerHeight = useMemo(() => {
+    let height = 0;
+    const trackGroups = getTrackGroups(tracks);
+    for (const { group, tracks: groupTracks } of trackGroups) {
+      const trackHeight = segmentHeights[group] ?? 36;
+      height += groupTracks.length * trackHeight;
+    }
+    return Math.max(height, 200);
+  }, [tracks, segmentHeights]);
+
+  const getTrackHeight = (group: string) => segmentHeights[group] ?? 36;
+  
+  const handleSegmentResize = useCallback((group: string, deltaY: number) => {
+    setSegmentHeights(prev => {
+      const current = prev[group] ?? 36;
+      const newHeight = Math.max(24, Math.min(72, current + deltaY));
+      return { ...prev, [group]: newHeight };
+    });
+  }, []);
   const naturalEndMs = useEngineSelector(selectNaturalEndMs);
   const activeTool = useEngineSelector((state) => state.ui?.activeTool ?? "select");
-  const playheadTime = useEngineSelector((state) => state.ui?.playheadTime ?? 0);
   const scrollX = useEngineSelector((state) => state.ui?.scrollX ?? 0);
   const playerRef = usePlayerRef();
 
@@ -66,6 +114,22 @@ const Timeline = () => {
     dispatch(setPlayhead(timeMs));
     seekPlayer(frame);
   }, [dispatch, pixelsPerMs]);
+
+  const toggleSnap = useCallback(() => {
+    setSnapEnabled(prev => !prev);
+  }, []);
+
+  const addMarker = useCallback(() => {
+    // Add marker at current playhead position - create marker object locally
+    const marker = {
+      id: nanoid(),
+      timeMs: playheadTime,
+      label: `Marker ${Date.now()}`,
+      color: "green" as const,
+      type: "sequence" as const,
+    };
+    dispatch({ type: "ADD_MARKER", payload: { marker } });
+  }, [dispatch, playheadTime]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget as HTMLElement;
@@ -188,7 +252,7 @@ const Timeline = () => {
       
       // Calculate time based on drop position
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left - 120; // Subtract track header width
+      const x = e.clientX - rect.left - 140; // Subtract track header width
       if (x > 0) {
         const timeMs = pxToMs(x, pixelsPerMs);
         setDragOverTime(timeMs);
@@ -243,14 +307,33 @@ const Timeline = () => {
     setDragOverTime(null);
   }, []);
 
-  // Create track index map
+  // Create track index map with dynamic group heights
   const trackIndexMap = useMemo(() => {
     const map = new Map<string, number>();
-    tracks.forEach((track, index) => {
-      map.set(track.id, index);
-    });
+    const trackGroups = getTrackGroups(tracks);
+    let offset = 0;
+    for (const { group, tracks: groupTracks } of trackGroups) {
+      for (const track of groupTracks) {
+        map.set(track.id, offset);
+        offset += getTrackHeight(group);
+      }
+    }
     return map;
-  }, [tracks]);
+  }, [tracks, segmentHeights]);
+
+  // Exact track positions calculated from heights
+  const trackPositions = useMemo(() => {
+    const positions = new Map<string, number>();
+    let y = 0;
+    const trackGroups = getTrackGroups(tracks);
+    for (const { group, tracks: groupTracks } of trackGroups) {
+      for (const track of groupTracks) {
+        positions.set(track.id, y);
+        y += getTrackHeight(group);
+      }
+    }
+    return positions;
+  }, [tracks, segmentHeights]);
 
   // Use calculated timeline duration (from clips) instead of sequence duration
   const maxTime = useMemo(() => {
@@ -283,73 +366,89 @@ const Timeline = () => {
       onMouseLeave={handleMouseUp}
     >
       {/* Header */}
-      <div className="shrink-0" style={{ minWidth: 0, overflow: 'hidden', width: '100%' }}>
+      <div className="shrink-0 border-b border-border" style={{ minWidth: 0, overflow: 'hidden', width: '100%' }}>
         <Header />
       </div>
       
-      {/* Ruler */}
-      <div className="shrink-0" style={{ minWidth: 0, overflow: 'hidden', width: '100%' }}>
-        <Ruler onClick={onRulerClick} scrollLeft={scrollLeft} onScroll={onScroll} />
+      {/* Ruler space - tools can be added here */}
+      <div className="shrink-0 border-b border-border flex items-center gap-1 px-2" style={{ minWidth: 0, overflow: 'hidden', width: '100%', height: 24 }}>
+        <button
+          onClick={toggleSnap}
+          className={`p-1 rounded transition-colors ${snapEnabled ? 'text-amber-400' : 'text-muted-foreground/50'}`}
+          title={snapEnabled ? "Snap Enabled" : "Snap Disabled"}
+        >
+          <Magnet className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={addMarker}
+          className="p-1 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          title="Add Marker"
+        >
+          <Bookmark className="w-3.5 h-3.5" />
+        </button>
       </div>
       
-      {/* Main timeline area */}
+{/* Main timeline area - unified scroll */}
       <div 
-        className="flex flex-1 min-h-0 timeline-area"
-        style={{ overflow: "hidden" }}
+        className="flex flex-1 min-h-0 timeline-area overflow-auto"
         onClick={handleTimelineClick}
       >
-        {/* Track headers with vertical scroll */}
+        {/* Left column - track labels */}
         <div 
-          className={`shrink-0 bg-sidebar border-r border-border overflow-y-auto ${isDragOver ? 'bg-primary/5' : ''}`}
-          style={{ width: 120 }}
-          id="track-headers"
-          onScroll={(e) => {
-            const scrollTop = e.currentTarget.scrollTop;
-            const timelineContent = document.getElementById('timeline-content');
-            if (timelineContent) {
-              timelineContent.scrollTop = scrollTop;
-            }
-          }}
+          className={`bg-sidebar border-r border-border ${isDragOver ? 'bg-primary/5' : ''}`}
+          style={{ width: 140 }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <TrackHeaders tracks={tracks} />
+          <TrackHeaders 
+            tracks={tracks} 
+            segmentHeights={segmentHeights} 
+            onSegmentResize={handleSegmentResize} 
+          />
         </div>
         
-        {/* Timeline content with vertical and horizontal scroll */}
+        {/* Timeline content */}
         <div 
-          className={`flex-1 overflow-x-auto overflow-y-auto relative bg-card ${isDragOver ? 'bg-primary/5 ring-2 ring-primary/30' : ''}`}
-          id="timeline-content"
-          onScroll={(e) => {
-            const scrollTop = e.currentTarget.scrollTop;
-            const trackHeaders = document.getElementById('track-headers');
-            if (trackHeaders) {
-              trackHeaders.scrollTop = scrollTop;
-            }
-            if (onScroll) onScroll(e);
-          }}
+          className={`flex-1 relative bg-card ${isDragOver ? 'bg-primary/5 ring-2 ring-primary/30' : ''}`}
           onClick={() => dispatch(setSelection([]))}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {/* Inner container */}
+          {/* Inner container - match left column height */}
           <div 
+            className="relative"
             style={{ 
               width: timelineWidth, 
-              minHeight: `${Math.max(tracks.length * TRACK_HEIGHT, 300)}px`,
+              minHeight: '100%',
               position: "relative"
             }}
           >
-            {/* Track lanes */}
-            {tracks.map((track, index) => (
-              <div
-                key={`lane-${track.id}`}
-                className="border-b border-border/30 bg-muted/5"
-                style={{ height: TRACK_HEIGHT }}
-              />
-            ))}
+            {/* Track lanes with group separators */}
+            {(() => {
+              const trackGroups = getTrackGroups(tracks);
+              let cumulativeHeight = 0;
+              return trackGroups.map(({ group, tracks: groupTracks }) => {
+                const trackHeight = getTrackHeight(group) - 10;
+                return (
+                  <div key={group}>
+                    {groupTracks.map((track) => {
+                      const trackTop = cumulativeHeight;
+                      cumulativeHeight += trackHeight;
+                      return (
+                        <div
+                          key={`lane-${track.id}`}
+                          className="border-b border-border/30 bg-muted/5"
+                          style={{ height: trackHeight }}
+                          data-track-top={trackTop}
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
             
             {/* Show message if no tracks */}
             {tracks.length === 0 && (
@@ -360,13 +459,13 @@ const Timeline = () => {
             
             {/* Render clips */}
             {clips.map((clip) => {
-              const trackIndex = trackIndexMap.get(clip.trackId);
+              const trackTop = trackPositions.get(clip.trackId);
+              const track = tracks.find(t => t.id === clip.trackId);
+              const trackGroup = track?.group || (track?.type === "audio" ? "audio" : track?.type === "caption" ? "subtitle" : track?.type === "text" ? "text" : "video");
+              const clipHeight = getTrackHeight(trackGroup) - 8;
               
-              // If no track found, try to find any track to place it on
-              let displayIndex = trackIndex;
-              if (displayIndex === undefined) {
-                displayIndex = 0; // Place on first track as fallback
-              }
+              // Fallback if track not found
+              const displayY = trackTop !== undefined ? trackTop : 0;
               
               const isSelected = selection.includes(clip.id);
               const left = clip.display.from * pixelsPerMs;
@@ -388,8 +487,8 @@ const Timeline = () => {
                   style={{
                     left: `${left}px`,
                     width: `${Math.max(width, 20)}px`,
-                    height: TRACK_HEIGHT - 10,
-                    top: `${displayIndex * TRACK_HEIGHT + 5}px`,
+                    height: clipHeight,
+                    top: `${displayY}px`,
                   }}
                   onClick={(e) => handleClipClick(e, clip.id)}
                   onMouseDown={(e) => handleClipMouseDown(e, clip.id)}
