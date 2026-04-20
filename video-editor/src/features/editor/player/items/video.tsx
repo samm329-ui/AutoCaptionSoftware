@@ -1,7 +1,6 @@
 import type { IVideo } from "@/features/editor/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
-import { calculateFrames } from "../../utils/frames";
-import { OffthreadVideo, AbsoluteFill } from "remotion";
+import { AbsoluteFill, Video as RemotionVideo } from "remotion";
 
 export const Video = ({
   item,
@@ -18,15 +17,18 @@ export const Video = ({
   const baseVolume = (details.volume ?? 100) as number;
   const effectiveVolume = isTrackMuted ? 0 : baseVolume;
 
+  const startFrame = Math.floor(((item.trim?.from ?? 0) / 1000) * fps);
+  const endFrame = Math.floor(((item.trim?.to ?? 0) / 1000) * fps);
+
   const children = (
     <AbsoluteFill>
-      <OffthreadVideo
-        startFrom={((item.trim?.from ?? 0) / 1000) * fps}
-        endAt={(item.trim?.to ?? 0) / 1000 * fps || 1 / fps}
+      <RemotionVideo
+        startFrom={startFrame}
+        endAt={endFrame || startFrame + 1}
         playbackRate={playbackRate}
         src={details.src as string}
         volume={effectiveVolume / 100}
-        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        crossOrigin="anonymous"
       />
     </AbsoluteFill>
   );
