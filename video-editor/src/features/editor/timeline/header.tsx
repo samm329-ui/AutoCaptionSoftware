@@ -298,26 +298,17 @@ return (
                 <ChevronLeft size={14} />
               </Button>
               <Button
-                onClick={handlePlay}
+                onClick={() => playing ? handlePause() : handlePlay()}
                 variant={"ghost"}
                 size={"icon"}
                 className="h-7 w-7"
-                title="Play/Pause"
+                title={playing ? "Pause (Space)" : "Play (Space)"}
               >
                 {playing ? (
                   <IconPlayerPauseFilled size={14} />
                 ) : (
                   <IconPlayerPlayFilled size={14} />
                 )}
-              </Button>
-              <Button
-                onClick={handlePause}
-                variant={"ghost"}
-                size={"icon"}
-                className="h-7 w-7"
-                title="Pause"
-              >
-                <IconPlayerPauseFilled size={14} />
               </Button>
               <Button
                 onClick={handleFrameForward}
