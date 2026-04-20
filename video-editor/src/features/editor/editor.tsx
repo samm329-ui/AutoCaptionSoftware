@@ -169,8 +169,19 @@ const FullscreenContext = createContext<FullscreenCtx>({
 });
 const useFullscreen = () => useContext(FullscreenContext);
 
+interface PanelSelectionCtx {
+  selectedPanel: string | null;
+  setSelectedPanel: (p: string | null) => void;
+}
+const PanelSelectionContext = createContext<PanelSelectionCtx>({
+  selectedPanel: null,
+  setSelectedPanel: () => {},
+});
+const usePanelSelection = () => useContext(PanelSelectionContext);
+
 function FullscreenProvider({ children }: { children: ReactNode }) {
   const [fullscreenPanel, setFullscreenPanel] = useState<string | null>(null);
+  const [selectedPanel, setSelectedPanel] = useState<string | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setFullscreenPanel(null);
@@ -180,7 +191,9 @@ function FullscreenProvider({ children }: { children: ReactNode }) {
   }, []);
   return (
     <FullscreenContext.Provider value={{ fullscreenPanel, setFullscreenPanel }}>
-      {children}
+      <PanelSelectionContext.Provider value={{ selectedPanel, setSelectedPanel }}>
+        {children}
+      </PanelSelectionContext.Provider>
     </FullscreenContext.Provider>
   );
 }
@@ -195,16 +208,28 @@ function ResizablePanelWrapper({
   className?: string;
 }) {
   const { fullscreenPanel, setFullscreenPanel } = useFullscreen();
+  const { selectedPanel, setSelectedPanel } = usePanelSelection();
   const isFullscreen = fullscreenPanel === id;
   const isAnyFullscreen = fullscreenPanel !== null;
+  const isSelected = selectedPanel === id;
   const toggle = useCallback(() => setFullscreenPanel(isFullscreen ? null : id), [id, isFullscreen, setFullscreenPanel]);
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedPanel(id);
+  }, [id, setSelectedPanel]);
 
   if (isAnyFullscreen && !isFullscreen) return null;
 
   return (
     <div
-      className={cn("relative group", isFullscreen ? "fixed inset-0 z-[9999] bg-card" : "h-full", className)}
+      className={cn(
+        "relative group",
+        isFullscreen ? "fixed inset-0 z-[9999] bg-card" : "h-full",
+        isSelected ? "ring-2 ring-white ring-inset" : "",
+        className
+      )}
       onDoubleClick={toggle}
+      onClick={handleClick}
     >
       {children}
       {isFullscreen && (
@@ -229,44 +254,51 @@ function ResizablePanelWrapper({
 // ──────────────────────────────────────────────────────────────────────────────
 // Layout components
 
-const LeftSidebar = () => (
-  <div className="bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]">
-    <ResizablePanelGroup direction="vertical" className="w-full">
-      <ResizablePanel defaultSize={45} minSize={5}>
-        <ResizablePanelWrapper id="source"><SourceControlPanel /></ResizablePanelWrapper>
-      </ResizablePanel>
-      <ResizableHandle className="bg-border/90" withHandle />
-      <ResizablePanel defaultSize={55} minSize={5}>
-        <ResizablePanelWrapper id="project"><ProjectPanel /></ResizablePanelWrapper>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  </div>
-);
+const LeftSidebar = () => {
+  const { selectedPanel, setSelectedPanel } = usePanelSelection();
+  return (
+    <div className={cn("bg-card w-full flex flex-none border-r border-border/80 h-[calc(100vh-52px)]", (selectedPanel === "source" || selectedPanel === "project") ? "ring-2 ring-white ring-inset" : "")} onMouseDown={() => setSelectedPanel("source")}>
+      <ResizablePanelGroup direction="vertical" className="w-full">
+        <ResizablePanel defaultSize={45} minSize={5}>
+          <ResizablePanelWrapper id="source"><SourceControlPanel /></ResizablePanelWrapper>
+        </ResizablePanel>
+        <ResizableHandle className="bg-border/90" withHandle />
+        <ResizablePanel defaultSize={55} minSize={5}>
+          <ResizablePanelWrapper id="project"><ProjectPanel /></ResizablePanelWrapper>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
+  );
+};
 
-const RightSidebar = () => (
-  <div className="bg-card flex flex-col border-l-2 border-border/80 h-[calc(100vh-52px)] w-full">
-    <Tabs defaultValue="effects" className="flex flex-col h-full">
-      <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
-        <TabsTrigger value="effects" className="text-[11px] h-7 px-3 rounded-sm">Effect Controls</TabsTrigger>
-        <TabsTrigger value="properties" className="text-[11px] h-7 px-3 rounded-sm">Properties</TabsTrigger>
-      </TabsList>
-      <TabsContent value="effects" className="flex-1 overflow-hidden mt-0">
-        <EffectControlsPanel />
-      </TabsContent>
-      <TabsContent value="properties" className="flex-1 overflow-auto mt-0">
-        <ControlItem />
-      </TabsContent>
-    </Tabs>
-  </div>
-);
+const RightSidebar = () => {
+  const { selectedPanel, setSelectedPanel } = usePanelSelection();
+  return (
+    <div className={cn("bg-card flex flex-col border-l-2 border-border/80 h-[calc(100vh-52px)] w-full", (selectedPanel === "effects" || selectedPanel === "properties") ? "ring-2 ring-white ring-inset" : "")} onClick={(e) => { e.stopPropagation(); setSelectedPanel("effects"); }}>
+      <Tabs defaultValue="effects" className="flex flex-col h-full">
+        <TabsList className="flex-none px-2 pt-2 pb-0 justify-start gap-1 h-auto bg-transparent border-b border-border/40 rounded-none">
+          <TabsTrigger value="effects" className="text-[11px] h-7 px-3 rounded-sm" onClick={() => setSelectedPanel("effects")}>Effect Controls</TabsTrigger>
+          <TabsTrigger value="properties" className="text-[11px] h-7 px-3 rounded-sm" onClick={() => setSelectedPanel("properties")}>Properties</TabsTrigger>
+        </TabsList>
+        <TabsContent value="effects" className="flex-1 overflow-hidden mt-0">
+          <EffectControlsPanel />
+        </TabsContent>
+        <TabsContent value="properties" className="flex-1 overflow-auto mt-0">
+          <ControlItem />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
 
 const CenterArea = ({
   sceneRef,
 }: {
   sceneRef: RefObject<SceneRef>;
-}) => (
-  <div className="flex flex-col bg-background h-full">
-    <div className="flex-1 min-h-0">
+}) => {
+  const { selectedPanel, setSelectedPanel } = usePanelSelection();
+  return (
+    <div className={cn("flex flex-col bg-background h-full", (selectedPanel === "scene" || selectedPanel === "timeline") ? "ring-2 ring-white ring-inset" : "")} onMouseDown={() => setSelectedPanel("scene")}>
       <ResizablePanelGroup direction="vertical" className="h-full">
         <ResizablePanel defaultSize={65} minSize={10}>
           <ResizablePanelWrapper id="scene">
@@ -279,7 +311,7 @@ const CenterArea = ({
         <ResizableHandle className="bg-border/90" withHandle />
         <ResizablePanel defaultSize={35} minSize={10}>
           <ResizablePanelWrapper id="timeline">
-            <div className="w-full h-full flex flex-col overflow-hidden">
+            <div className="w-full h-full flex flex-col overflow-hidden ml-0.5">
               <MediaToolbar />
               <div className="flex-1 min-h-0 flex overflow-hidden">
                 <EditingToolbar className="flex-none" />
@@ -293,8 +325,8 @@ const CenterArea = ({
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
-  </div>
-);
+  );
+};
 
 const SceneContainer = ({
   sceneRef,
