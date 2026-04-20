@@ -150,20 +150,30 @@ export function addFileToTimeline(upload: UploadedFile): void {
   let trackGroup: "video" | "audio" | "text" | "subtitle";
   let trackName: string;
   
+  // Enforce strict track assignment based on file type
   if (upload.type === "audio") {
+    // Audio MUST go to audio track only
     trackType = "audio";
     trackGroup = "audio";
     trackName = "A1";
   } else if (upload.type === "image") {
+    // Image goes to video track (for display)
+    trackType = "video";
+    trackGroup = "video";
+    trackName = "V1";
+  } else if (upload.type === "video") {
+    // Video MUST go to video track only
     trackType = "video";
     trackGroup = "video";
     trackName = "V1";
   } else {
+    // Default to video track for unknown types
     trackType = "video";
     trackGroup = "video";
     trackName = "V1";
   }
 
+  // Get tracks ONLY from the correct group - enforce segregation
   const existingTracks = selectTracksByGroup(trackGroup)(state);
   
   let track: ReturnType<typeof createTrack> | undefined;
