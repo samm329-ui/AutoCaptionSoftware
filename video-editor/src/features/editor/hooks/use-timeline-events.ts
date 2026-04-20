@@ -1,12 +1,11 @@
 /**
- * hooks/use-timeline-events.ts — FIXED
+ * hooks/use-timeline-events.ts
  *
- * WATCHES: engine ui.playheadTime → player.seekTo() when it changes.
- * LISTENS: player-bus events → call player methods.
- * SYNC: player frame → engine playhead when playing
+ * Listen for player-bus events and sync player state
+ * Only sync player → engine during playback (not engine → player constantly)
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { usePlayerRef } from "../engine/engine-hooks";
 import { engineStore } from "../engine/engine-core";
 import { onPlayerEvent } from "./player-bus";
@@ -25,27 +24,7 @@ const useTimelineEvents = (): void => {
     return unsub;
   }, []);
 
-  useEffect(() => {
-    let lastMs = -1;
-
-    const unsub = engineStore.subscribe((state) => {
-      const timeMs = state.ui.playheadTime;
-      if (timeMs === lastMs) return;
-      lastMs = timeMs;
-
-      const ref = playerRef;
-      if (!ref) return;
-
-      const frame = Math.round((timeMs / 1000) * fpsRef.current);
-      try {
-        ref.seekTo(frame);
-      } catch { /* ignore if player not ready */ }
-    });
-
-    return unsub;
-  }, [playerRef]);
-
-  // Sync player frame → engine playhead when playing (one-way to avoid loops)
+  // Sync player frame → engine playhead when playing
   useEffect(() => {
     if (!playerRef) return;
     
