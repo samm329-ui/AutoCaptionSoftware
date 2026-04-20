@@ -236,22 +236,27 @@ export function nanoid(): string {
 
 export function createEmptyProject(overrides?: Partial<Project>): Project {
   const seqId = nanoid();
+  
+  const videoTrack = createTrack("video", { order: 2 });
+  const audioTrack = createTrack("audio", { order: 3 });
+  
   const seq: Sequence = {
     id: seqId,
     name: "Main",
     duration: 10000,
     fps: 30,
     canvas: { width: 1080, height: 1920 },
-    trackIds: [],
+    trackIds: [videoTrack.id, audioTrack.id], // Video above, Audio at bottom
     background: { type: "color", value: "#000000" },
   };
+  
   return {
     id: nanoid(),
     name: "Untitled Project",
     version: 1,
     rootSequenceId: seqId,
     sequences: { [seqId]: seq },
-    tracks: {},
+    tracks: { [videoTrack.id]: videoTrack, [audioTrack.id]: audioTrack },
     clips: {},
     assets: {},
     effects: {},
