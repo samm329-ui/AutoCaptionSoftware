@@ -19,7 +19,7 @@ import {
   selectRootSequence,
   selectNaturalEndMs,
 } from "../engine/selectors";
-import { registerPlayerSeek, setPlayerRef } from "../engine/commands";
+import { registerPlayerSeek, setPlayerRef, setPlayhead, seekPlayer } from "../engine/commands";
 import { useEngineDispatch } from "../engine/engine-provider";
 
 // Fallback constants
@@ -117,6 +117,22 @@ const Player = () => {
     );
   }
 
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Player clicked", e.clientX, e.clientY);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = clickX / safeWidth;
+    const clickMs = ratio * safeDuration;
+    const clickFrame = Math.floor(clickMs / 1000 * safeFps);
+    console.log("Seeking to frame:", clickFrame, "ms:", clickMs);
+    
+    playerRef.current?.seekTo(clickFrame);
+    engineDispatch(setPlayhead(clickMs));
+    console.log("Playhead set to:", clickMs);
+  }, [safeWidth, safeDuration, safeFps, engineDispatch]);
+
   return (
     <div
       style={{
@@ -124,7 +140,9 @@ const Player = () => {
         top: 0, left: 0,
         width: safeWidth,
         height: safeHeight,
+        cursor: "pointer",
       }}
+      onClick={handleClick}
     >
       <RemotionPlayer
         key={playerKey}
