@@ -1,7 +1,8 @@
 import type { IVideo } from "@/features/editor/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
-import { calculateContainerStyles, calculateMediaStyles } from "../styles";
+import { calculateMediaStyles } from "../styles";
 import { AbsoluteFill, Video as RemotionVideo } from "remotion";
+import React, { useRef, useLayoutEffect } from "react";
 
 export const Video = ({
   item,
@@ -10,22 +11,18 @@ export const Video = ({
   item: IVideo;
   options: SequenceItemOptions;
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const { fps, mutedTrackIds, owningTrackId, size: canvasSize } = options;
-  const { details } = item;
+  const details = item.details || {};
   const playbackRate = (details as any).playbackRate || 1;
   
   const isTrackMuted = owningTrackId && mutedTrackIds?.has(owningTrackId);
-  const baseVolume = details.volume !== undefined ? Number(details.volume) : 1;
+  let baseVolume = details.volume !== undefined ? Number(details.volume) : 1;
+  if (baseVolume > 2) baseVolume = baseVolume / 100;
   const effectiveVolume = isTrackMuted ? 0 : baseVolume;
 
   const startFrame = Math.floor(((item.trim?.from ?? 0) / 1000) * fps);
   const endFrame = Math.floor(((item.trim?.to ?? 0) / 1000) * fps);
-
-  const clipOpacity = details.opacity !== undefined ? Number(details.opacity) : 1;
-  const clipBlur = details.blur !== undefined ? Number(details.blur) : 0;
-  const clipBrightness = details.brightness !== undefined ? Number(details.brightness) : 100;
-  const clipContrast = details.contrast !== undefined ? Number(details.contrast) : 100;
-  const clipSaturation = details.saturation !== undefined ? Number(details.saturation) : 100;
 
   const crop = details?.crop || {
     x: 0,
@@ -34,21 +31,34 @@ export const Video = ({
     height: details.height || canvasSize?.height || 1080
   };
 
-  const filterStyle: React.CSSProperties = {
-    opacity: clipOpacity,
-    filter: `blur(${clipBlur}px) brightness(${clipBrightness}%) contrast(${clipContrast}%) saturate(${clipSaturation}%)`,
-  };
-
-  const containerStyle = calculateContainerStyles(details, crop, {
-    ...filterStyle,
-    overflow: "hidden",
-  }, item.type, canvasSize);
-
   const mediaStyle = calculateMediaStyles(details, crop, canvasSize);
 
+  const rawScale = details?.scale;
+  const scaleNum = rawScale !== undefined && rawScale !== null ? parseFloat(String(rawScale)) : 100;
+  const scaleValue = isNaN(scaleNum) ? 1 : scaleNum / 100;
+  const rotateValue = details?.rotate !== undefined && details?.rotate !== null ? parseFloat(String(details.rotate)) : 0;
+  
+  // Apply scale and rotate to DOM when they change (synchronous before paint)
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    console.log("SCALE APPLY:", scaleValue, "el:", !!el);
+    if (el) {
+      el.style.transform = `scale(${scaleValue}) rotate(${rotateValue}deg)`;
+      console.log("SCALE APPLIED:", el.style.transform);
+    }
+  }, [scaleValue, rotateValue]);
+  
   const children = (
-    <AbsoluteFill style={containerStyle}>
-      <div style={mediaStyle}>
+    <AbsoluteFill>
+      <div 
+        ref={containerRef}
+        className={`video-scale-container video-${item.id}`}
+        style={{ 
+          ...mediaStyle, 
+          transformOrigin: "center center", 
+          overflow: "visible" 
+        }}
+      >
         <RemotionVideo
           startFrom={startFrame}
           endAt={endFrame || startFrame + 1}
