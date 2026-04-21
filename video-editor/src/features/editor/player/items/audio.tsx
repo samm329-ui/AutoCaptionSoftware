@@ -13,7 +13,8 @@ export default function Audio({
   const { details } = item;
   const playbackRate = ((details as any).playbackRate || 1) as number;
   const isTrackMuted = owningTrackId && mutedTrackIds?.has(owningTrackId);
-  const effectiveVolume = isTrackMuted ? 0 : ((details.volume ?? 100) as number);
+  const baseVolume = details.volume !== undefined ? Number(details.volume) : 1;
+  const effectiveVolume = isTrackMuted ? 0 : baseVolume;
 
   const children = (
     <RemotionAudio
@@ -21,7 +22,7 @@ export default function Audio({
       endAt={((item.trim?.to ?? 0) / 1000) * fps || 1 / fps}
       playbackRate={playbackRate}
       src={details.src as string}
-      volume={effectiveVolume / 100}
+      volume={effectiveVolume}
     />
   );
   return BaseSequence({ item, options, children });

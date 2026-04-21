@@ -19,6 +19,17 @@ export default function Image({
     height: details.height
   };
 
+  const clipOpacity = details.opacity !== undefined ? Number(details.opacity) : 1;
+  const clipBlur = details.blur !== undefined ? Number(details.blur) : 0;
+  const clipBrightness = details.brightness !== undefined ? Number(details.brightness) : 100;
+  const clipContrast = details.contrast !== undefined ? Number(details.contrast) : 100;
+  const clipSaturation = details.saturation !== undefined ? Number(details.saturation) : 100;
+
+  const filterStyle: React.CSSProperties = {
+    opacity: clipOpacity,
+    filter: `blur(${clipBlur}px) brightness(${clipBrightness}%) contrast(${clipContrast}%) saturate(${clipSaturation}%)`,
+  };
+
   const children = (
     <div
       style={calculateContainerStyles(details, crop, {
@@ -27,7 +38,10 @@ export default function Image({
     >
       <div
         id={`${item.id}-reveal-mask`}
-        style={calculateMediaStyles(details, crop)}
+        style={{
+          ...calculateMediaStyles(details, crop),
+          ...filterStyle,
+        }}
       >
         <Img data-id={item.id} src={details.src as string} />
       </div>

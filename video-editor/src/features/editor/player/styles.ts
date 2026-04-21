@@ -98,12 +98,15 @@ export const calculateContainerStyles = (
   const appliedEffects = (details as any).appliedEffects ?? [];
   const effectStyle = buildEffectStyle(appliedEffects);
 
-  const baseFilter = `brightness(${details.brightness ?? 100}%) blur(${details.blur ?? 0}px)`;
+  const baseFilter = `blur(${details.blur ?? 0}px) brightness(${details.brightness ?? 100}%) contrast(${details.contrast ?? 100}%) saturate(${details.saturation ?? 100}%)`;
   const combinedFilters = [baseFilter, effectStyle.filter].filter(Boolean).join(" ");
 
   // Use canvas dimensions for proper fill
   const targetWidth = canvasSize?.width || crop.width || details.width || "100%";
   const targetHeight = canvasSize?.height || crop.height || details.height || "100%";
+
+  // Opacity is now stored as 0-1 (not 0-100) from effect controls panel
+  const opacityValue = details.opacity !== undefined ? Number(details.opacity) : 1;
 
   return {
     pointerEvents: "auto",
@@ -115,7 +118,7 @@ export const calculateContainerStyles = (
         ? "max-content"
         : targetHeight,
     transform: details.transform || "none",
-    opacity: details.opacity !== undefined ? details.opacity / 100 : 1,
+    opacity: opacityValue,
     transformOrigin: details.transformOrigin || "center center",
     filter: combinedFilters,
     rotate: details.rotate || "0deg",
