@@ -47,9 +47,38 @@ export const calculateMediaStyles = (
   details: ITrackItem["details"],
   crop: ITrackItem["details"]["crop"],
   canvasSize?: { width: number; height: number }
-) => {
+): React.CSSProperties => {
+  const targetWidth = canvasSize?.width || details.width;
+  const targetHeight = canvasSize?.height || details.height;
+  
+  // Support both old crop object and new individual crop properties
+  let cropLeft = 0, cropTop = 0, cropRight = 0, cropBottom = 0;
+  
+  if (details.cropLeft !== undefined || details.cropRight !== undefined || details.cropTop !== undefined || details.cropBottom !== undefined) {
+    // New individual crop properties (percentages)
+    cropLeft = Number(details.cropLeft ?? 0);
+    cropRight = Number(details.cropRight ?? 0);
+    cropTop = Number(details.cropTop ?? 0);
+    cropBottom = Number(details.cropBottom ?? 0);
+  } else if (crop) {
+    // Old crop object format
+    const cw = Number(crop.width || targetWidth || 1920);
+    const ch = Number(crop.height || targetHeight || 1080);
+    cropLeft = crop.x ? (Number(crop.x) / cw) * 100 : 0;
+    cropTop = crop.y ? (Number(crop.y) / ch) * 100 : 0;
+    cropRight = crop.width ? ((cw - Number(crop.width)) / cw) * 100 : 0;
+    cropBottom = crop.height ? ((ch - Number(crop.height)) / ch) * 100 : 0;
+  }
+  
+  const clipPath = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%)`;
+  
   return {
     pointerEvents: "none",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: targetWidth || "100%",
+    height: targetHeight || "100%",
     boxShadow: [
       `0 0 0 ${details.borderWidth}px ${details.borderColor}`,
       details.boxShadow
@@ -58,7 +87,7 @@ export const calculateMediaStyles = (
     ]
       .filter(Boolean)
       .join(", "),
-    ...calculateCropStyles(details, crop, canvasSize),
+    clipPath,
     overflow: "hidden"
   } as React.CSSProperties;
 };
@@ -108,20 +137,44 @@ export const calculateContainerStyles = (
   // Opacity is now stored as 0-1 (not 0-100) from effect controls panel
   const opacityValue = details.opacity !== undefined ? Number(details.opacity) : 1;
 
+  // Build transform with position, scale, and rotation
+  const posX = details.left || 0;
+  const posY = details.top || 0;
+  const rotate = details.rotate || 0;
+  
+  // Scale - use direct scale property if set
+  const scaleValue = details.scale !== undefined ? Number(details.scale) / 100 : 1;
+  console.log("Scale value:", details.scale, scaleValue);
+  
+  // Build transform string
+  const transformParts: string[] = [];
+  
+  // Scale first, then position, then rotate
+  if (scaleValue !== 1) {
+    transformParts.push(`scale(${scaleValue})`);
+  }
+  if (posX !== 0 || posY !== 0) {
+    transformParts.push(`translate(${posX}px, ${posY}px)`);
+  }
+  if (rotate !== 0) {
+    transformParts.push(`rotate(${rotate}deg)`);
+  }
+  
+  const finalTransform = transformParts.length > 0 ? transformParts.join(" ") : "none";
+
   return {
     pointerEvents: "auto",
-    top: details.top || 0,
-    left: details.left || 0,
+    top: 0,
+    left: 0,
     width: targetWidth,
     height:
       type === "text" || type === "caption"
         ? "max-content"
         : targetHeight,
-    transform: details.transform || "none",
+    transform: finalTransform,
     opacity: opacityValue,
     transformOrigin: details.transformOrigin || "center center",
     filter: combinedFilters,
-    rotate: details.rotate || "0deg",
     ...effectStyle.style,
     ...overrides
   };

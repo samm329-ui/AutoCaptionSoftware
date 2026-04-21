@@ -11,12 +11,13 @@ export default function Image({
   options: SequenceItemOptions;
 }) {
   const { details } = item;
+  const { size: canvasSize } = options;
 
   const crop = details?.crop || {
     x: 0,
     y: 0,
-    width: details.width,
-    height: details.height
+    width: details.width || canvasSize?.width || 1920,
+    height: details.height || canvasSize?.height || 1080
   };
 
   const clipOpacity = details.opacity !== undefined ? Number(details.opacity) : 1;
@@ -30,20 +31,34 @@ export default function Image({
     filter: `blur(${clipBlur}px) brightness(${clipBrightness}%) contrast(${clipContrast}%) saturate(${clipSaturation}%)`,
   };
 
+  const containerStyle = calculateContainerStyles(details, crop, {
+    ...filterStyle,
+    overflow: "hidden",
+  }, item.type, canvasSize);
+
+  const mediaStyle = calculateMediaStyles(details, crop, canvasSize);
+
+  // Apply scale directly to the container
+  const scaleValue = details.scale !== undefined ? Number(details.scale) / 100 : 1;
+  const rotateValue = details.rotate || 0;
+  
+  console.log("Image scale:", details.scale, scaleValue);
+  
+  const transformStr = `${scaleValue !== 1 ? `scale(${scaleValue})` : ''} ${rotateValue !== 0 ? `rotate(${rotateValue}deg)` : ''}`.trim();
+  
+  const wrapperStyle: React.CSSProperties = {
+    ...(transformStr && { transform: transformStr }),
+    transformOrigin: "center center",
+    width: "100%",
+    height: "100%",
+  };
+
   const children = (
-    <div
-      style={calculateContainerStyles(details, crop, {
-        transform: "scale(1)"
-      })}
-    >
-      <div
-        id={`${item.id}-reveal-mask`}
-        style={{
-          ...calculateMediaStyles(details, crop),
-          ...filterStyle,
-        }}
-      >
-        <Img data-id={item.id} src={details.src as string} />
+    <div style={wrapperStyle}>
+      <div style={containerStyle}>
+        <div style={mediaStyle}>
+          <Img data-id={item.id} src={details.src as string} />
+        </div>
       </div>
     </div>
   );
