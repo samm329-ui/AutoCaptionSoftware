@@ -32,11 +32,13 @@ import {
 import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
 import { engineStore, nanoid } from "../engine/engine-core";
+import { snapEngine } from "../engine/subsystems/snap-engine";
 import { getDragData } from "@/components/shared/drag-data";
 import { addFileToTimeline, type UploadedFile } from "@/store/upload-store";
 import { usePlayerRef } from "../engine/engine-hooks";
 
 const TRACK_HEIGHT = 36;
+const TRACK_LABEL_WIDTH = 140;
 
 function getTrackGroups(tracks: { id: string; type: string; group?: string }[]) {
   const groups: { group: string; tracks: { id: string; type: string; group?: string }[] }[] = [];
@@ -71,6 +73,10 @@ const Timeline = () => {
   const sequenceDuration = useEngineSelector(selectDuration);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [segmentHeights, setSegmentHeights] = useState<Record<string, number>>({});
+  
+  useEffect(() => {
+    snapEngine.setEnabled(true);
+  }, []);
 
   // Calculate total timeline inner height from all segment heights
   const timelineInnerHeight = useMemo(() => {
@@ -116,7 +122,11 @@ const Timeline = () => {
   }, [dispatch, pixelsPerMs]);
 
   const toggleSnap = useCallback(() => {
-    setSnapEnabled(prev => !prev);
+    setSnapEnabled(prev => {
+      const newValue = !prev;
+      snapEngine.setEnabled(newValue);
+      return newValue;
+    });
   }, []);
 
   const addMarker = useCallback(() => {
@@ -177,7 +187,7 @@ const Timeline = () => {
   const handleClipMouseDown = useCallback((e: React.MouseEvent, clipId: string) => {
     if (activeTool === "select" || activeTool === "rippleEdit") {
       e.stopPropagation();
-      const clip = clips.find(c => c.id === clipId);
+      const clip = engineStore.getState().clips[clipId];
       if (!clip) return;
       
       setIsDraggingClip(true);
@@ -185,13 +195,43 @@ const Timeline = () => {
       setDragStartX(e.clientX);
       setDragStartTime(clip.display.from);
     }
-  }, [activeTool, clips]);
+  }, [activeTool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isDraggingClip && dragClipId) {
       const deltaX = e.clientX - dragStartX;
       const deltaTime = deltaX / pixelsPerMs;
-      const newStart = Math.max(0, dragStartTime + deltaTime);
+      let newStart = Math.max(0, dragStartTime + deltaTime);
+      
+      if (snapEnabled) {
+        const state = engineStore.getState();
+        const clip = state.clips[dragClipId];
+        if (clip && clip.trackId) {
+          const clipDuration = clip.display.to - clip.display.from;
+          const myTrackId = clip.trackId;
+          const myEnd = newStart + clipDuration;
+          
+          let leftBound = 0;
+          let rightBound = 999999;
+          
+          for (const otherId of Object.keys(state.clips)) {
+            const other = state.clips[otherId];
+            if (other.id === dragClipId) continue;
+            if (other.trackId !== myTrackId) continue;
+            
+            if (other.display.to <= newStart) {
+              leftBound = Math.max(leftBound, other.display.to);
+            }
+            if (other.display.from >= myEnd) {
+              rightBound = Math.min(rightBound, other.display.from);
+            }
+          }
+          
+          newStart = Math.max(leftBound, newStart);
+          newStart = Math.min(rightBound - clipDuration, newStart);
+          newStart = Math.max(0, newStart);
+        }
+      }
       
       dispatch(moveClip(dragClipId, newStart));
     }
@@ -202,7 +242,7 @@ const Timeline = () => {
       const newScrollX = Math.max(0, scrollX - deltaX);
       dispatch(setScroll(newScrollX, undefined));
     }
-  }, [isDraggingClip, dragClipId, dragStartX, dragStartTime, pixelsPerMs, activeTool, scrollX, dispatch]);
+  }, [isDraggingClip, dragClipId, dragStartX, dragStartTime, pixelsPerMs, snapEnabled, activeTool, scrollX, dispatch]);
 
   const handleMouseUp = useCallback(() => {
     setIsDraggingClip(false);
@@ -213,10 +253,18 @@ const Timeline = () => {
     const target = e.target as HTMLElement;
     if (target.closest('.track-header') || target.closest('.clip')) return;
     
+    const timelineArea = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = e.clientX - timelineArea.left - TRACK_LABEL_WIDTH;
+    const clickTime = Math.max(0, (clickX + scrollLeft) / pixelsPerMs);
+    
+    if (clickTime >= 0) {
+      dispatch(setPlayhead(clickTime));
+      seekPlayer(Math.floor(clickTime / 1000 * 30));
+    }
+    
     if (activeTool === "select") {
       dispatch(setSelection([]));
     } else if (activeTool === "trackSelect") {
-      const clickTime = (e.nativeEvent.offsetX - 120) / pixelsPerMs;
       if (clickTime > 0) {
         const forwardClips = clips.filter(c => c.display.from >= clickTime);
         const clipIds = forwardClips.map(c => c.id);
@@ -225,7 +273,7 @@ const Timeline = () => {
         }
       }
     }
-  }, [dispatch, activeTool, clips, pixelsPerMs]);
+  }, [dispatch, activeTool, clips, pixelsPerMs, scrollLeft]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -252,7 +300,7 @@ const Timeline = () => {
       
       // Calculate time based on drop position
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left - 140; // Subtract track header width
+      const x = e.clientX - rect.left - TRACK_LABEL_WIDTH;
       if (x > 0) {
         const timeMs = pxToMs(x, pixelsPerMs);
         setDragOverTime(timeMs);
@@ -357,6 +405,20 @@ const Timeline = () => {
     }
   };
 
+  const handleContainerClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) return;
+    
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = e.clientX - rect.left - TRACK_LABEL_WIDTH;
+    const clickTime = Math.max(0, (clickX + scrollLeft) / pixelsPerMs);
+    
+    if (clickTime >= 0) {
+      dispatch(setPlayhead(clickTime));
+      seekPlayer(Math.floor(clickTime / 1000 * 30));
+    }
+  }, [dispatch, scrollLeft, pixelsPerMs]);
+
   return (
     <div 
       className={`flex flex-col h-full w-full ${getCursorStyle()}`}
@@ -364,6 +426,7 @@ const Timeline = () => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onClick={handleContainerClick}
     >
       {/* Header */}
       <div className="shrink-0 border-b border-border" style={{ minWidth: 0, overflow: 'hidden', width: '100%' }}>
@@ -391,12 +454,11 @@ const Timeline = () => {
 {/* Main timeline area - unified scroll */}
       <div 
         className="flex flex-1 min-h-0 timeline-area overflow-auto"
-        onClick={handleTimelineClick}
       >
         {/* Left column - track labels */}
         <div 
           className={`bg-sidebar border-r border-border ${isDragOver ? 'bg-primary/5' : ''}`}
-          style={{ width: 140 }}
+          style={{ width: TRACK_LABEL_WIDTH }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -416,12 +478,12 @@ const Timeline = () => {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {/* Inner container - match left column height */}
+{/* Inner container - match left column height */}
           <div 
             className="relative"
             style={{ 
               width: timelineWidth, 
-              minHeight: '100%',
+              minHeight: timelineInnerHeight,
               position: "relative"
             }}
           >
@@ -430,7 +492,7 @@ const Timeline = () => {
               const trackGroups = getTrackGroups(tracks);
               let cumulativeHeight = 0;
               return trackGroups.map(({ group, tracks: groupTracks }) => {
-                const trackHeight = getTrackHeight(group) - 10;
+                const trackHeight = getTrackHeight(group);
                 return (
                   <div key={group}>
                     {groupTracks.map((track) => {
@@ -462,7 +524,7 @@ const Timeline = () => {
               const trackTop = trackPositions.get(clip.trackId);
               const track = tracks.find(t => t.id === clip.trackId);
               const trackGroup = track?.group || (track?.type === "audio" ? "audio" : track?.type === "caption" ? "subtitle" : track?.type === "text" ? "text" : "video");
-              const clipHeight = getTrackHeight(trackGroup) - 8;
+              const clipHeight = getTrackHeight(trackGroup);
               
               // Fallback if track not found
               const displayY = trackTop !== undefined ? trackTop : 0;
