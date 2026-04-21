@@ -101,8 +101,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
           min={min}
           max={max}
           step={step}
-          onValueChange={([v]) => setLocalValue(v)}
-          onValueCommit={([v]) => onChange(v)}
+          onValueChange={([v]) => {
+            setLocalValue(v);
+            onChange(v);
+          }}
           className="h-1"
         />
       </div>
@@ -293,6 +295,7 @@ const EffectControlsPanel: React.FC = () => {
     (property: string, value: any) => {
       if (!clipId) return;
       const safeValue = Number.isFinite(value) ? value : 0;
+      console.log("dispatchEdit:", property, safeValue, "clipId:", clipId);
       engineDispatch({
         type: "UPDATE_CLIP",
         payload: {
@@ -387,21 +390,15 @@ const EffectControlsPanel: React.FC = () => {
             clipId={clipId}
             property="scale"
             label="Scale"
-            value={
-              details.width && details.naturalWidth
-                ? Math.round((details.width / details.naturalWidth) * 100)
-                : 100
-            }
+            value={details.scale !== undefined ? Number(details.scale) : 100}
             min={1}
             max={500}
             step={1}
             unit="%"
             currentTimeMs={clipLocalTime}
             onChange={(v) => {
-              const w = details.naturalWidth ? (details.naturalWidth * v) / 100 : v;
-              const h = details.naturalHeight ? (details.naturalHeight * v) / 100 : v;
-              dispatchEdit("width", w);
-              dispatchEdit("height", h);
+              console.log("SCALE CHANGE:", v);
+              dispatchEdit("scale", v);
             }}
           />
           <PropertyRow
@@ -423,13 +420,13 @@ const EffectControlsPanel: React.FC = () => {
             clipId={clipId}
             property="opacity"
             label="Opacity"
-            value={details.opacity !== undefined ? details.opacity * 100 : 100}
+            value={details.opacity !== undefined ? Math.min(100, Math.max(0, Number(details.opacity) * 100)) : 100}
             min={0}
             max={100}
             step={1}
             unit="%"
             currentTimeMs={clipLocalTime}
-            onChange={(v) => dispatchEdit("opacity", v / 100)}
+            onChange={(v) => dispatchEdit("opacity", Math.min(1, Math.max(0, v / 100)))}
           />
         </EffectSection>
 
@@ -491,13 +488,13 @@ const EffectControlsPanel: React.FC = () => {
               clipId={clipId}
               property="volume"
               label="Volume"
-              value={(details.volume ?? 1) * 100}
+              value={Math.min(200, Math.max(0, (details.volume ?? 1) * 100))}
               min={0}
               max={200}
               step={1}
               unit="%"
               currentTimeMs={clipLocalTime}
-              onChange={(v) => dispatchEdit("volume", v / 100)}
+              onChange={(v) => dispatchEdit("volume", Math.min(2, Math.max(0, v / 100)))}
             />
           </EffectSection>
         )}
