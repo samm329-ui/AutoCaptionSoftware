@@ -12,7 +12,7 @@
  */
 
 import { SequenceItem } from "./sequence-item";
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { calculateTextHeight } from "../utils/text";
 import { useCurrentFrame } from "remotion";
 import {
@@ -50,6 +50,8 @@ const Composition = () => {
   const mutedTrackIds = new Set<string>(
     tracks.filter((t) => t.muted).map((t) => t.id)
   );
+  
+  
 
   const handleTextChange = (id: string, _: string) => {
     const elRef = document.querySelector(`.id-${id}`) as HTMLDivElement;
@@ -127,9 +129,15 @@ const Composition = () => {
 
   // Filter clips - show if current time is within clip duration
   const activeClips = clips.filter(clip => clip.display.from <= timeMs && clip.display.to > timeMs);
+  
+  // Debug: log EVERY render
+  console.log("=== COMPOSITION RENDER === clips:", activeClips.length, "playhead:", timeMs);
 
+  // Force re-render when scale/rotate changes
+  const effectVersion = clips.reduce((sum, c) => sum + ((c.details?.scale || 0) + (c.details?.rotate || 0)), 0);
+  
   return (
-    <>
+    <div key={effectVersion}>
       {activeClips.map((clip) => {
         const SequenceItemFn = SequenceItem[clip.type];
         if (!SequenceItemFn) return null;
@@ -148,7 +156,7 @@ const Composition = () => {
           owningTrackId: clip.trackId,
         });
       })}
-    </>
+    </div>
   );
 };
 
