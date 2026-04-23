@@ -5,6 +5,16 @@ export interface ITrackItem {
   display: { from: number; to: number };
   trim: { from: number; to: number };
   details: Record<string, unknown>;
+  transform?: {
+    x?: number;
+    y?: number;
+    scaleX?: number;
+    scaleY?: number;
+    rotate?: number;
+    opacity?: number;
+    flipX?: boolean;
+    flipY?: boolean;
+  };
   metadata?: Record<string, unknown>;
 }
 
