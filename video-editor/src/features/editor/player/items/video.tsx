@@ -2,7 +2,7 @@ import type { IVideo } from "@/features/editor/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
 import { calculateMediaStyles } from "../styles";
 import { AbsoluteFill, Video as RemotionVideo } from "remotion";
-import React, { useRef, useLayoutEffect } from "react";
+import React from "react";
 
 export const Video = ({
   item,
@@ -11,7 +11,6 @@ export const Video = ({
   item: IVideo;
   options: SequenceItemOptions;
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const { fps, mutedTrackIds, owningTrackId, size: canvasSize } = options;
   const details = item.details || {};
   const playbackRate = (details as any).playbackRate || 1;
@@ -32,26 +31,10 @@ export const Video = ({
   };
 
   const mediaStyle = calculateMediaStyles(details, crop, canvasSize);
-
-  const rawScale = details?.scale;
-  const scaleNum = rawScale !== undefined && rawScale !== null ? parseFloat(String(rawScale)) : 100;
-  const scaleValue = isNaN(scaleNum) ? 1 : scaleNum / 100;
-  const rotateValue = details?.rotate !== undefined && details?.rotate !== null ? parseFloat(String(details.rotate)) : 0;
-  
-  // Apply scale and rotate to DOM when they change (synchronous before paint)
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    console.log("SCALE APPLY:", scaleValue, "el:", !!el);
-    if (el) {
-      el.style.transform = `scale(${scaleValue}) rotate(${rotateValue}deg)`;
-      console.log("SCALE APPLIED:", el.style.transform);
-    }
-  }, [scaleValue, rotateValue]);
   
   const children = (
     <AbsoluteFill>
       <div 
-        ref={containerRef}
         className={`video-scale-container video-${item.id}`}
         style={{ 
           ...mediaStyle, 
