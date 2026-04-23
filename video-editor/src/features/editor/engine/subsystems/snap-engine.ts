@@ -18,7 +18,7 @@ export interface SnapResult {
   snapType?: SnapPoint["type"];
 }
 
-const SNAP_THRESHOLD_PX = 8;
+export const SNAP_THRESHOLD_PX = 8;
 
 class SnapEngine {
   private enabled: boolean = true;
@@ -40,6 +40,22 @@ class SnapEngine {
 
   setSnapToClips(enabled: boolean): void {
     this.snapToClips = enabled;
+  }
+
+  get isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  get snapToGrid(): boolean {
+    return this.snapToGrid;
+  }
+
+  get snapToPlayhead(): boolean {
+    return this.snapToPlayhead;
+  }
+
+  get snapToClips(): boolean {
+    return this.snapToClips;
   }
 
   getSnapPoints(excludeClipId?: string): SnapPoint[] {
