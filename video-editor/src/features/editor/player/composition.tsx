@@ -11,7 +11,7 @@
  * so we can cast directly.
  */
 
-import { SequenceItem } from "./sequence-item";
+import { SequenceItem, SequenceItemRenderer } from "./sequence-item";
 import React, { useState, useEffect } from "react";
 import { calculateTextHeight } from "../utils/text";
 import { useCurrentFrame } from "remotion";
@@ -139,22 +139,25 @@ const Composition = () => {
   return (
     <div key={effectVersion}>
       {activeClips.map((clip) => {
-        const SequenceItemFn = SequenceItem[clip.type];
-        if (!SequenceItemFn) return null;
-
         // Cast engine Clip → ITrackItem (structurally compatible)
-        const item = clip as unknown as Parameters<typeof SequenceItemFn>[0];
+        const item = clip as unknown as Parameters<typeof SequenceItemRenderer>[0];
 
-        return SequenceItemFn(item, {
-          fps,
-          handleTextChange,
-          onTextBlur,
-          editableTextId,
-          frame: displayFrame,
-          size: canvasSize,
-          mutedTrackIds,
-          owningTrackId: clip.trackId,
-        });
+        return (
+          <SequenceItemRenderer
+            key={clip.id}
+            item={item}
+            options={{
+              fps,
+              handleTextChange,
+              onTextBlur,
+              editableTextId,
+              frame: displayFrame,
+              size: canvasSize,
+              mutedTrackIds,
+              owningTrackId: clip.trackId,
+            }}
+          />
+        );
       })}
     </div>
   );
