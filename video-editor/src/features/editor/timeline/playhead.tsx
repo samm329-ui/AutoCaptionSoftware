@@ -11,7 +11,7 @@ import {
 import { useTheme } from "next-themes";
 import { useEngineFps, useEngineDispatch, useEnginePlayhead } from "../engine/engine-provider";
 import { setPlayhead } from "../engine/commands";
-import { msToPx, pxToMs, frameToMs, msToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
+import { msToPx, msToFrame } from "../engine/time-scale";
 
 interface PlayheadProps {
   scrollLeft: number;
@@ -27,14 +27,18 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   
   const currentFrame = useCurrentPlayerFrame(playerRef) || 0;
   
-  // Use engine playheadTime (in ms) with shared conversion helper
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, startTimeMs: 0, startClientX: 0 });
+  const dragPositionRef = useRef<number>(0);
+  
+  // Use local drag position when dragging, otherwise use engine position
   const position = useMemo(() => {
+    if (isDragging) {
+      return dragPositionRef.current;
+    }
     const timeMs = enginePlayheadTime || 0;
     return msToPx(timeMs, pixelsPerMs);
-  }, [enginePlayheadTime, pixelsPerMs]);
-  
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, startTimeMs: 0 });
+  }, [isDragging, enginePlayheadTime, pixelsPerMs]);
 
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -57,13 +61,16 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   ) => {
     e.preventDefault();
     e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
     setIsDragging(true);
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const currentTimeMs = enginePlayheadTime || 0;
     dragStartRef.current = { 
       x: clientX, 
-      startTimeMs: enginePlayheadTime || 0,
+      startTimeMs: currentTimeMs,
       startClientX: clientX 
     };
+    dragPositionRef.current = msToPx(currentTimeMs, pixelsPerMs);
   };
 
   useEffect(() => {
@@ -74,6 +81,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       const newTimeMs = Math.max(0, dragStartRef.current.startTimeMs + (deltaX / pixelsPerMs));
       const newFrame = msToFrame(newTimeMs, fps);
       
+      dragPositionRef.current = msToPx(newTimeMs, pixelsPerMs);
       playerRef.current?.seekTo(newFrame);
       engineDispatch(setPlayhead(newTimeMs));
     };
@@ -85,6 +93,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       const newTimeMs = Math.max(0, dragStartRef.current.startTimeMs + (deltaX / pixelsPerMs));
       const newFrame = msToFrame(newTimeMs, fps);
       
+      dragPositionRef.current = msToPx(newTimeMs, pixelsPerMs);
       playerRef.current?.seekTo(newFrame);
       engineDispatch(setPlayhead(newTimeMs));
     };
@@ -105,6 +114,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   }, [isDragging, pixelsPerMs, playerRef, fps, engineDispatch]);
 
   // Only render if in visible range
+  // Skip rendering if position is 0 to avoid showing at start on initial load
   if (position < -10 || position > 100000) {
     return null;
   }
@@ -119,17 +129,25 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       className="absolute top-0 z-50 pointer-events-auto"
       style={{
         left: `${position}px`,
-        width: "2px",
+        width: "14px",
         height: "100%",
         cursor: "col-resize",
+        transform: "translateX(-6px)",
       }}
     >
+      {/* Larger grab area at top - visible handle */}
       <div
-        className="absolute -top-1 -left-1 w-3 h-3 rounded-sm"
+        className="absolute -top-0 left-1/2 -translate-x-1/2 w-3 h-3 rounded-sm hover:scale-125 transition-transform"
         style={{ backgroundColor: color }}
+        title="Drag to move playhead"
+      />
+      {/* Invisible wider hit area above the visible handle for easier grabbing */}
+      <div
+        className="absolute -top-8 left-1/2 -translate-x-1/2 w-8 h-8"
+        style={{ cursor: "col-resize" }}
       />
       <div 
-        className="w-px h-full" 
+        className="w-px h-full mx-auto" 
         style={{ backgroundColor: color }}
       />
     </div>
