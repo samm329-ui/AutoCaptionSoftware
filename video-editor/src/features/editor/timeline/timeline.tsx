@@ -408,6 +408,7 @@ const Timeline = () => {
   const handleContainerClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button')) return;
+    if (target.closest('#playhead')) return;
     
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const clickX = e.clientX - rect.left - TRACK_LABEL_WIDTH;
