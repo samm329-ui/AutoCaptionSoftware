@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,6 +32,7 @@ import {
   type Clip,
 } from "../engine/engine-provider";
 import { selectFps } from "../engine/selectors";
+import { updateTransform } from "../engine/commands";
 
 interface PropertyRowProps {
   clipId: string;
@@ -64,9 +65,18 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
   const safeKfValue = Number.isFinite(rawKfValue) ? rawKfValue : (PROPERTY_DEFAULTS[property] ?? value);
 
   const [localValue, setLocalValue] = useState(safeKfValue);
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<number | null>(null);
+
   useEffect(() => {
     setLocalValue(safeKfValue);
   }, [safeKfValue]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   const handleAddKeyframe = useCallback(() => {
     addKeyframe(clipId, property, currentTimeMs, localValue);
@@ -103,7 +113,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
           step={step}
           onValueChange={([v]) => {
             setLocalValue(v);
-            onChange(v);
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            rafRef.current = requestAnimationFrame(() => {
+              onChange(v);
+            });
           }}
           className="h-1"
         />
@@ -119,7 +132,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({
           const v = parseFloat(e.target.value);
           if (!isNaN(v)) {
             setLocalValue(v);
-            onChange(v);
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            rafRef.current = requestAnimationFrame(() => {
+              onChange(v);
+            });
           }
         }}
         className="w-10 h-4 px-0.5 text-[10px] text-center bg-transparent border-border/40 shrink-0"
@@ -295,7 +311,6 @@ const EffectControlsPanel: React.FC = () => {
     (property: string, value: any) => {
       if (!clipId) return;
       const safeValue = Number.isFinite(value) ? value : 0;
-      console.log("dispatchEdit:", property, safeValue, "clipId:", clipId);
       engineDispatch({
         type: "UPDATE_CLIP",
         payload: {
@@ -372,7 +387,10 @@ const EffectControlsPanel: React.FC = () => {
             step={1}
             unit="px"
             currentTimeMs={clipLocalTime}
-            onChange={(v) => dispatchEdit("left", v)}
+            onChange={(v) => {
+              dispatchEdit("left", v);
+              engineDispatch(updateTransform(clipId, { x: v }));
+            }}
           />
           <PropertyRow
             clipId={clipId}
@@ -384,7 +402,10 @@ const EffectControlsPanel: React.FC = () => {
             step={1}
             unit="px"
             currentTimeMs={clipLocalTime}
-            onChange={(v) => dispatchEdit("top", v)}
+            onChange={(v) => {
+              dispatchEdit("top", v);
+              engineDispatch(updateTransform(clipId, { y: v }));
+            }}
           />
           <PropertyRow
             clipId={clipId}
@@ -398,6 +419,8 @@ const EffectControlsPanel: React.FC = () => {
             currentTimeMs={clipLocalTime}
             onChange={(v) => {
               console.log("SCALE CHANGE:", v);
+              const scaleFactor = v / 100;
+              engineDispatch(updateTransform(clipId, { scaleX: scaleFactor, scaleY: scaleFactor }));
               dispatchEdit("scale", v);
             }}
           />
@@ -411,7 +434,10 @@ const EffectControlsPanel: React.FC = () => {
             step={1}
             unit="°"
             currentTimeMs={clipLocalTime}
-            onChange={(v) => dispatchEdit("rotate", v)}
+            onChange={(v) => {
+              dispatchEdit("rotate", v);
+              engineDispatch(updateTransform(clipId, { rotate: v }));
+            }}
           />
         </EffectSection>
 
@@ -426,7 +452,11 @@ const EffectControlsPanel: React.FC = () => {
             step={1}
             unit="%"
             currentTimeMs={clipLocalTime}
-            onChange={(v) => dispatchEdit("opacity", Math.min(1, Math.max(0, v / 100)))}
+            onChange={(v) => {
+              const normalized = Math.min(1, Math.max(0, v / 100));
+              engineDispatch(updateTransform(clipId, { opacity: normalized }));
+              dispatchEdit("opacity", normalized);
+            }}
           />
         </EffectSection>
 
