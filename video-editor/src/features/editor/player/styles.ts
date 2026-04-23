@@ -22,6 +22,16 @@ interface IText {
 interface ITrackItem {
   type: string;
   details: Record<string, unknown>;
+  transform?: {
+    x?: number;
+    y?: number;
+    scaleX?: number;
+    scaleY?: number;
+    rotate?: number;
+    opacity?: number;
+    flipX?: boolean;
+    flipY?: boolean;
+  };
 }
 
 export const calculateCropStyles = (
@@ -122,7 +132,8 @@ export const calculateContainerStyles = (
   crop: ITrackItem["details"]["crop"] = {},
   overrides: React.CSSProperties = {},
   type?: string,
-  canvasSize?: { width: number; height: number }
+  canvasSize?: { width: number; height: number },
+  transform?: ITrackItem["transform"]
 ): React.CSSProperties => {
   const appliedEffects = (details as any).appliedEffects ?? [];
   const effectStyle = buildEffectStyle(appliedEffects);
@@ -134,17 +145,16 @@ export const calculateContainerStyles = (
   const targetWidth = canvasSize?.width || crop.width || details.width || "100%";
   const targetHeight = canvasSize?.height || crop.height || details.height || "100%";
 
-  // Opacity is now stored as 0-1 (not 0-100) from effect controls panel
-  const opacityValue = details.opacity !== undefined ? Number(details.opacity) : 1;
+  // Opacity - transform first, then legacy details
+  const opacityValue = transform?.opacity ?? (details.opacity !== undefined ? Number(details.opacity) : 1);
 
-  // Build transform with position, scale, and rotation
-  const posX = details.left || 0;
-  const posY = details.top || 0;
-  const rotate = details.rotate || 0;
+  // Transform values - transform first, then legacy details fallback
+  const posX = transform?.x ?? (details.left ?? 0);
+  const posY = transform?.y ?? (details.top ?? 0);
+  const rotate = transform?.rotate ?? (details.rotate ?? 0);
   
-  // Scale - use direct scale property if set
-  const scaleValue = details.scale !== undefined ? Number(details.scale) / 100 : 1;
-  console.log("Scale value:", details.scale, scaleValue);
+  // Scale - transform first, then legacy details
+  const scaleValue = transform?.scaleX ?? (details.scale !== undefined ? Number(details.scale) / 100 : 1);
   
   // Build transform string
   const transformParts: string[] = [];
