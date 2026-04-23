@@ -74,7 +74,8 @@ export const BaseSequence = ({
                 : "visible"
           },
           item.type,
-          canvasSize
+          canvasSize,
+          (item as any).transform
         )}
       >
         {children}
