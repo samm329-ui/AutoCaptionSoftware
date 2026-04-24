@@ -148,38 +148,39 @@ export function addFileToTimeline(upload: UploadedFile): void {
   
   let trackType: TrackType;
   let trackGroup: "video" | "audio" | "text" | "subtitle";
-  let trackName: string;
   
   // Enforce strict track assignment based on file type
   if (upload.type === "audio") {
     // Audio MUST go to audio track only
     trackType = "audio";
     trackGroup = "audio";
-    trackName = "A1";
   } else if (upload.type === "image") {
     // Image goes to video track (for display)
     trackType = "video";
     trackGroup = "video";
-    trackName = "V1";
   } else if (upload.type === "video") {
     // Video MUST go to video track only
     trackType = "video";
     trackGroup = "video";
-    trackName = "V1";
   } else {
     // Default to video track for unknown types
     trackType = "video";
     trackGroup = "video";
-    trackName = "V1";
   }
 
-  // Get tracks ONLY from the correct group - enforce segregation
+  // Get tracks from the correct group
   const existingTracks = selectTracksByGroup(trackGroup)(state);
+  
+  // Generate proper track name with increment (V1, V2, A1, A2, etc.)
+  const trackNumber = existingTracks.length + 1;
+  const prefix = trackGroup === "video" ? "V" : trackGroup === "audio" ? "A" : trackGroup === "text" ? "T" : "S";
+  const trackName = `${prefix}${trackNumber}`;
   
   let track: ReturnType<typeof createTrack> | undefined;
   let startMs = 0;
   
   if (existingTracks.length > 0) {
+    // Find the empty track or the one with lowest end time
     let bestTrack = existingTracks[0];
     let maxEndMs = 0;
     
@@ -208,9 +209,13 @@ export function addFileToTimeline(upload: UploadedFile): void {
       startMs = 0;
     }
   } else {
+    // Create new track with proper name and order
+    const newOrder = existingTracks.length;
+    const prefix = trackGroup === "video" ? "V" : trackGroup === "audio" ? "A" : trackGroup === "text" ? "T" : "S";
+    const newTrackName = `${prefix}${newOrder + 1}`;
     track = createTrack(trackType, {
-      name: trackName,
-      order: existingTracks.length,
+      name: newTrackName,
+      order: newOrder,
     });
     engineStore.dispatch(addTrack(track));
     startMs = 0;
