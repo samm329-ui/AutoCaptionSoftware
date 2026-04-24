@@ -32,6 +32,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   const dragPositionRef = useRef<number>(0);
   
   // Use local drag position when dragging, otherwise use engine position
+  // Position is based on time only - scroll is handled by container
   const position = useMemo(() => {
     if (isDragging) {
       return dragPositionRef.current;
@@ -113,13 +114,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
     };
   }, [isDragging, pixelsPerMs, playerRef, fps, engineDispatch]);
 
-  // Only render if in visible range
-  // Allow playhead to render at any position up to maxTimelineWidth
-  const maxTimelineWidth = Math.max(100000, (enginePlayheadTime || 0) * pixelsPerMs * 2);
-  if (position < -10 || position > maxTimelineWidth) {
-    return null;
-  }
-
+// Always render playhead (don't hide based on position)
   return (
     <div
       ref={playheadRef}
