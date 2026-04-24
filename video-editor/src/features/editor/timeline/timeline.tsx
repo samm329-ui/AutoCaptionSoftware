@@ -108,7 +108,9 @@ const Timeline = () => {
   const [isDraggingClip, setIsDraggingClip] = useState(false);
   const [dragClipId, setDragClipId] = useState<string | null>(null);
   const [dragStartX, setDragStartX] = useState(0);
+  const [dragStartY, setDragStartY] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
+  const [dragStartTrackId, setDragStartTrackId] = useState<string | null>(null);
   
   // Calculate pixels per millisecond using shared helper
   const pixelsPerMs = zoomToPixelsPerMs(zoom);
@@ -193,12 +195,34 @@ const Timeline = () => {
       setIsDraggingClip(true);
       setDragClipId(clipId);
       setDragStartX(e.clientX);
+      setDragStartY(e.clientY);
       setDragStartTime(clip.display.from);
+      setDragStartTrackId(clip.trackId);
     }
   }, [activeTool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isDraggingClip && dragClipId) {
+      const state = engineStore.getState();
+      const clip = state.clips[dragClipId];
+      if (!clip) return;
+      
+      // Detect which track we're hovering over while dragging
+      const trackElements = document.querySelectorAll('[data-track-id]');
+      let detectedTrackId: string | null = null;
+      for (const el of trackElements) {
+        const rect = el.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          detectedTrackId = (el as HTMLElement).dataset.trackId;
+          break;
+        }
+      }
+      
+      // Switch track if mouse moved to a different track
+      if (detectedTrackId && detectedTrackId !== clip.trackId) {
+        dispatch(moveClip(dragClipId, clip.display.from, detectedTrackId));
+      }
+      
       const deltaX = e.clientX - dragStartX;
       const deltaTime = deltaX / pixelsPerMs;
       let newStart = Math.max(0, dragStartTime + deltaTime);
@@ -492,18 +516,26 @@ const Timeline = () => {
             {(() => {
               const trackGroups = getTrackGroups(tracks);
               let cumulativeHeight = 0;
-              return trackGroups.map(({ group, tracks: groupTracks }) => {
+              return trackGroups.map(({ group, tracks: groupTracks }, groupIndex) => {
                 const trackHeight = getTrackHeight(group);
                 return (
                   <div key={group}>
-                    {groupTracks.map((track) => {
+                    {/* Group separator - thicker border between different track types */}
+                    {groupIndex > 0 && (
+                      <div 
+                        className="border-b-2 border-primary/40"
+                        style={{ height: 4 }}
+                      />
+                    )}
+                    {groupTracks.map((track, trackIndex) => {
                       const trackTop = cumulativeHeight;
                       cumulativeHeight += trackHeight;
                       return (
                         <div
                           key={`lane-${track.id}`}
-                          className="border-b border-border/30 bg-muted/5"
+                          className="border-b border-border"
                           style={{ height: trackHeight }}
+                          data-track-id={track.id}
                           data-track-top={trackTop}
                         />
                       );
