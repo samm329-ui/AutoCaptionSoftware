@@ -210,8 +210,9 @@ export function selectFps(p: Project): number {
 export function selectCanvasSize(p: Project): { width: number; height: number } {
   const seq = getRootSequence(p);
   const canvas = seq?.canvas;
+  // Default to 1920x1080 (landscape 16:9) instead of portrait
   if (!canvas?.width || !canvas?.height) {
-    return { width: 1080, height: 1920 };
+    return { width: 1920, height: 1080 };
   }
   return canvas;
 }
