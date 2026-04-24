@@ -28,6 +28,7 @@ import {
   selectOrderedTracks,
   selectTrackClips,
   selectNaturalEndMs,
+  selectFps,
 } from "../engine/selectors";
 import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
@@ -71,6 +72,7 @@ const Timeline = () => {
   const zoom = useEngineZoom();
   const playheadTime = useEnginePlayhead();
   const sequenceDuration = useEngineSelector(selectDuration);
+  const fps = useEngineSelector(selectFps) || 30;
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [segmentHeights, setSegmentHeights] = useState<Record<string, number>>({});
   
@@ -283,7 +285,7 @@ const Timeline = () => {
     
     if (clickTime >= 0) {
       dispatch(setPlayhead(clickTime));
-      seekPlayer(Math.floor(clickTime / 1000 * 30));
+      seekPlayer(Math.floor(clickTime / 1000 * fps));
     }
     
     if (activeTool === "select") {
@@ -438,11 +440,13 @@ const Timeline = () => {
     const clickX = e.clientX - rect.left - TRACK_LABEL_WIDTH;
     const clickTime = Math.max(0, (clickX + scrollLeft) / pixelsPerMs);
     
+    console.log("Timeline click - clickX:", clickX, "scrollLeft:", scrollLeft, "pixelsPerMs:", pixelsPerMs, "clickTime:", clickTime);
+    
     if (clickTime >= 0) {
       dispatch(setPlayhead(clickTime));
-      seekPlayer(Math.floor(clickTime / 1000 * 30));
+      seekPlayer(Math.floor(clickTime / 1000 * fps));
     }
-  }, [dispatch, scrollLeft, pixelsPerMs]);
+  }, [dispatch, scrollLeft, pixelsPerMs, fps]);
 
   return (
     <div 
