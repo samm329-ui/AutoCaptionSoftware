@@ -64,7 +64,7 @@ const Header = () => {
   const safeDuration = clipDuration;
   
   // Derive playing state from playerRef
-  const isPlaying = playerRef?.isPlaying?.() ?? false;
+  const isPlaying = playerRef?.current?.isPlaying?.() ?? false;
   
   const computedDuration = Math.round(naturalEndMs > 0 ? naturalEndMs : sequenceDuration);
 
@@ -115,7 +115,7 @@ const Header = () => {
   };
 
   const handlePlay = () => {
-    const ref = playerRef;
+    const ref = playerRef?.current;
     if (ref && typeof ref.play === "function") {
       ref.play();
     } else {
@@ -124,7 +124,7 @@ const Header = () => {
   };
 
   const handlePause = () => {
-    const ref = playerRef;
+    const ref = playerRef?.current;
     if (ref && typeof ref.pause === "function") {
       ref.pause();
     } else {
@@ -134,7 +134,7 @@ const Header = () => {
 
   // Space key handler for play/pause toggle
   const togglePlayPause = useCallback(() => {
-    if (playerRef?.isPlaying?.()) {
+    if (playerRef?.current?.isPlaying?.()) {
       handlePause();
     } else {
       handlePlay();
