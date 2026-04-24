@@ -46,8 +46,6 @@ const IconPlayerPauseFilled = ({ size }: { size: number }) => (
 );
 
 const Header = () => {
-  const [playing, setPlaying] = useState(false);
-  
   const playerRef = usePlayerRef();
   const engineSelection = useEngineSelection();
   const engineDispatch = useEngineDispatch();
@@ -59,12 +57,14 @@ const Header = () => {
   const clipDuration = sequenceDuration;
   
   const isLargeScreen = useIsLargeScreen();
-  useUpdateAnsestors({ playing, playerRef });
-
+  
   const currentFrame = useCurrentPlayerFrame(playerRef);
   const playheadTime = useEnginePlayhead(); // Get playhead time from engine
   const safeFps = fps || 30;
   const safeDuration = clipDuration;
+  
+  // Derive playing state from playerRef
+  const isPlaying = playerRef?.isPlaying?.() ?? false;
   
   const computedDuration = Math.round(naturalEndMs > 0 ? naturalEndMs : sequenceDuration);
 
@@ -131,6 +131,26 @@ const Header = () => {
       console.error("Player ref not available or pause method missing - playerRef:", ref);
     }
   };
+
+  // Space key handler for play/pause toggle
+  const togglePlayPause = useCallback(() => {
+    if (playerRef?.isPlaying?.()) {
+      handlePause();
+    } else {
+      handlePlay();
+    }
+  }, [playerRef]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlayPause();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [togglePlayPause]);
 
 const handleFrameBack = () => {
     const engineState = engineStore.getState();
@@ -298,13 +318,13 @@ return (
                 <ChevronLeft size={14} />
               </Button>
               <Button
-                onClick={() => playing ? handlePause() : handlePlay()}
+                onClick={() => isPlaying ? handlePause() : handlePlay()}
                 variant={"ghost"}
                 size={"icon"}
                 className="h-7 w-7"
-                title={playing ? "Pause (Space)" : "Play (Space)"}
+                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
               >
-                {playing ? (
+                {isPlaying ? (
                   <IconPlayerPauseFilled size={14} />
                 ) : (
                   <IconPlayerPlayFilled size={14} />

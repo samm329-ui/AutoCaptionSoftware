@@ -114,8 +114,9 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
   }, [isDragging, pixelsPerMs, playerRef, fps, engineDispatch]);
 
   // Only render if in visible range
-  // Skip rendering if position is 0 to avoid showing at start on initial load
-  if (position < -10 || position > 100000) {
+  // Allow playhead to render at any position up to maxTimelineWidth
+  const maxTimelineWidth = Math.max(100000, (enginePlayheadTime || 0) * pixelsPerMs * 2);
+  if (position < -10 || position > maxTimelineWidth) {
     return null;
   }
 
