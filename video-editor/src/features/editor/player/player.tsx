@@ -22,9 +22,9 @@ import {
 import { registerPlayerSeek, setPlayerRef, setPlayhead, seekPlayer } from "../engine/commands";
 import { useEngineDispatch } from "../engine/engine-provider";
 
-// Fallback constants
-const DEFAULT_WIDTH = 1080;
-const DEFAULT_HEIGHT = 1920;
+// Fallback constants - use landscape 16:9
+const DEFAULT_WIDTH = 1920;
+const DEFAULT_HEIGHT = 1080;
 const DEFAULT_FPS = 30;
 const DEFAULT_DURATION = 10000;
 
