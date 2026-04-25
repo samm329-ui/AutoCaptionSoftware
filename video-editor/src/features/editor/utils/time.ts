@@ -56,16 +56,32 @@ export const getCurrentTime = () => {
 
 /**
  * Safely gets the current frame from a player reference
- * @param playerRef - The player reference
+ * @param playerRef - The player reference (either direct PlayerRef or React.RefObject)
  * @returns The current frame as a finite number, or 0 if invalid
  */
-export const getSafeCurrentFrame = (playerRef: any): number => {
+export const getSafeCurrentFrame = (playerRef: PlayerRef | React.RefObject<PlayerRef> | null | undefined): number => {
   try {
-    if (!playerRef?.current) {
+    // Get the actual PlayerRef from either format
+    let player: PlayerRef | null = null;
+    
+    if (!playerRef) {
+      return 0;
+    }
+    
+    // Direct PlayerRef
+    if ('addEventListener' in playerRef) {
+      player = playerRef;
+    }
+    // React.RefObject format
+    else if (playerRef.current) {
+      player = playerRef.current;
+    }
+    
+    if (!player) {
       return 0;
     }
 
-    const frame = playerRef.current.getCurrentFrame();
+    const frame = player.getCurrentFrame();
 
     // Check if frame is a valid finite number
     if (typeof frame !== "number" || !Number.isFinite(frame)) {
@@ -76,7 +92,7 @@ export const getSafeCurrentFrame = (playerRef: any): number => {
     // Ensure frame is non-negative
     return Math.max(0, frame);
   } catch (error) {
-    console.error("Error getting current frame:", error instanceof Error ? error.message : String(error));
+    // Silently return 0 for errors (happens when player isn't ready)
     return 0;
   }
 };

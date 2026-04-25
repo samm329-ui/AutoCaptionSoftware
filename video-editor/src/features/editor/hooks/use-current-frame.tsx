@@ -1,32 +1,52 @@
 import { CallbackListener, PlayerRef } from "@remotion/player";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore, useMemo, useRef, useEffect } from "react";
 import { getSafeCurrentFrame } from "../utils/time";
 
+// Normalize input: accepts direct PlayerRef or React.RefObject<PlayerRef>
 export const useCurrentPlayerFrame = (
-  ref: React.RefObject<PlayerRef> | null
+  input: PlayerRef | React.RefObject<PlayerRef> | null
 ) => {
+  // Track the actual PlayerRef
+  const playerRef = useRef<PlayerRef | null>(null);
+  
+  useEffect(() => {
+    if (!input) {
+      playerRef.current = null;
+      return;
+    }
+    
+    // If input is direct PlayerRef
+    if ('addEventListener' in input) {
+      playerRef.current = input;
+    } 
+    // If input is React.RefObject with current
+    else if (input.current) {
+      playerRef.current = input.current;
+    }
+  }, [input]);
+
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
-      if (!ref || !ref.current) {
+      const player = playerRef.current;
+      if (!player) {
         return () => undefined;
       }
-      const current = ref.current;
       const updater: CallbackListener<"frameupdate"> = () => {
         onStoreChange();
       };
-      current.addEventListener("frameupdate", updater);
+      player.addEventListener("frameupdate", updater);
       return () => {
-        if (current) {
-          current.removeEventListener("frameupdate", updater);
-        }
+        player.removeEventListener("frameupdate", updater);
       };
     },
-    [ref]
+    []
   );
+  
   const data = useSyncExternalStore<number>(
     subscribe,
-    () => getSafeCurrentFrame(ref),
+    () => getSafeCurrentFrame(playerRef.current),
     () => 0
   );
+  
   return data;
 };
