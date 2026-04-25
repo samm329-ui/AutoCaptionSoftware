@@ -1,43 +1,67 @@
-# FYAP Pro - AI-Powered Video Captioning & Editing System
+# FYAP Pro - AI-Powered Video Captioning & Full Video Editing System
 
-## Project Vision & Goal
+## The Complete Story
 
-### The Beginning
+### How It All Started
 
-This project started as **Auto Caption Software** - an AI-powered captioning tool designed to automatically generate subtitles from audio/video files using Whisper, LLM refinement, and dual scoring systems.
+This project began as **Auto Caption Software** - a simple tool to automatically generate subtitles from audio/video files. We needed captions for videos but the existing solutions weren't good enough. We wanted 100% accuracy.
 
-### The Problem
+After building a sophisticated 15-stage transcription pipeline using Whisper, LLM refinement, and dual scoring systems, we achieved **99% accuracy**. But that remaining 1% haunted us - those edge cases where Whisper misrecognized technical terms, background noise caused errors, multiple speakers confused the system, or accent variations threw everything off.
 
-While the captioning system achieved 99% accuracy, there was always that remaining 1% of edge cases where captions needed manual correction:
-- Misrecognized technical terms
-- Background noise causing errors
-- Multiple speakers confusion
-- Accent variations
+### The Problem That Created Everything
 
-### The Solution - Video Editor
+Because of that 1% edge case issue, we thought:
 
-To handle that 1% manual corrections, I felt the need for an integrated video editor. Instead of just captioning, why not create a complete video editing solution that could:
-- Fix caption errors manually
-- Add graphics and overlays
-- Combine multiple media
+> "We need a video editor to fix these captions manually."
 
-### The Ultimate Vision - Full Automation
+So we started building a browser-based video editor. But once you have an editor, why just fix captions? Why not add graphics, overlays, combine media, create complete videos?
 
-But we didn't stop there. The real vision evolved into:
+### The Evolution
 
-> **"What if we could give an audio file or script and let AI generate the entire video automatically - with captions, graphics, effects, and everything - without any manual editing?"**
+1. **Caption Engine (Stage 1)** - Auto caption software with 99% accuracy
+   - Whisper transcription with retry logic
+   - LLM refinement (Groq)
+   - Dual scoring (semantic + keyword)
+   - 15-stage pipeline
 
-This led to the current **Engine-First Architecture** for the video editor, designed to eventually integrate with AI/ML for fully automated video generation.
+2. **Video Editor (Stage 2)** - Browser-based timeline editor
+   - Engine-first architecture
+   - Multi-track support (Video, Audio, Text, Subtitle)
+   - Real-time preview with Remotion
+   - Track type validation
+   - Premiere Pro-style context menus
+
+3. **Full Automation (Stage 3 - Future)** - One-click video creation
+   - AI generates entire video from audio/script
+   - Captions + graphics + effects + animations
+   - No editor, no designer, no agency, no skills
+   - Just upload and done
+
+---
+
+## The Ultimate Vision
+
+> **"Create a video in 13 seconds"**
+
+Then:
+
+> **"Create a video in 30 seconds"**
+
+Finally:
+
+> **"One click. Upload audio. Done. All sound effects, animations, captions, graphics - everything automatic. No editor needed. No designer needed. No agency needed. No skills needed. Just one click."**
+
+This is where we're heading. The video editor we're building today is the foundation for that future.
 
 ---
 
 ## Project Overview
 
-**FYAP Pro** is a comprehensive video editing and captioning system featuring:
+**FYAP Pro** is a comprehensive system featuring:
 
-1. **AI-Powered Captioning**: 15-stage transcription pipeline with Whisper, LLM refinement, and dual scoring (99% accuracy)
-2. **Professional Video Editor**: Browser-based timeline editor with multi-track support, keyframes, and effects
-3. **Future: AI Video Generation**: Automated video creation from audio/script using machine learning
+1. **AI-Powered Captioning Engine** - 15-stage transcription pipeline with Whisper, LLM refinement, and dual scoring (99% accuracy)
+2. **Professional Video Editor** - Browser-based timeline editor with multi-track support, keyframes, effects, and transitions
+3. **Future: AI Video Generation** - Automated video creation from audio/script using machine learning
 
 ---
 
@@ -45,184 +69,219 @@ This led to the current **Engine-First Architecture** for the video editor, desi
 
 ```
 caption-tool-master/
-├── backend/                    # FastAPI server (REST API + WebSocket)
-│   ├── api/                    # API routes (jobs, health)
-│   ├── main.py                 # Entry point, CORS, static file serving
-│   ├── database.py            # SQLite database
-│   └── pipeline_runner.py     # Background job runner
+├── backend/                    # FastAPI backend server
+│   ├── api/                    # API routes
+│   │   ├── jobs.py            # Job management (upload, status, export)
+│   │   └── health.py          # Health check endpoint
+│   ├── main.py               # FastAPI app entry point
+│   ├── database.py           # SQLite database operations
+│   ├── models.py             # Pydantic request/response models
+│   ├── pipeline_runner.py    # Background job runner (threaded)
+│   └── progress.py          # WebSocket connection manager
 │
-├── caption_engine/            # AI transcription pipeline
-│   ├── audio.py               # Audio extraction & chunking
-│   ├── transcriber.py         # Whisper transcription
-│   ├── lang_detector.py       # Language detection
-│   ├── llm_judge.py           # LLM refinement (Groq)
-│   ├── dual_scorer.py         # Semantic + keyword scoring
-│   ├── hallucination_guard.py # Hallucination detection
-│   ├── aligner.py             # Word-level timestamp alignment
-│   └── renderer.py            # SRT/VTT generation
+├── caption_engine/            # AI Transcription Pipeline
+│   ├── main.py              # 15-stage pipeline orchestrator
+│   ├── audio.py             # Audio extraction & chunking
+│   ├── quality_estimator.py  # Audio quality measurement
+│   ├── transcriber.py       # Whisper transcription with retry
+│   ├── lang_detector.py     # Language detection (en/hi/hinglish)
+│   ├── preprocessor.py     # Filler word removal
+│   ├── llm_judge.py       # LLM contextual refinement (Groq)
+│   ├── lm_check.py        # Lightweight language model check
+│   ├── dual_scorer.py     # Semantic + keyword scoring
+│   ├── hallucination_guard.py  # Hallucination detection
+│   ├── chunk_merger.py    # Order-safe parallel merge
+│   ├── sentence_splitter.py  # Natural sentence splitting
+│   ├── aligner.py         # Word-level timestamp alignment
+│   ├── alignment_models.py  # WhisperX models config
+│   ├── alignment_validator.py  # Alignment quality validation
+│   ├── drift_clamp.py    # Timestamp drift prevention
+│   ├── confidence.py     # Confidence threshold determination
+│   ├── renderer.py       # SRT/VTT format generation
+│   ├── config.py        # Configuration constants
+│   ├── cache.py        # Caching utilities
+│   ├── retry.py        # Retry logic with backoff
+│   ├── logger.py       # Pipeline logging
+│   └── normalizer.py  # Text normalization
 │
 ├── web_ui/                    # React frontend (CDN-based, no build)
+│   ├── app.jsx              # Main app component
+│   ├── api.js              # API client
+│   └── components/         # UI components
+│       ├── Dashboard.jsx
+│       ├── UploadCard.jsx
+│       ├── ResultCard.jsx
+│       ├── ProgressCard.jsx
+│       ├── LoadingScreen.jsx
+│       └── HistoryList.jsx
 │
 ├── video-editor/              # Next.js Video Editor
-│   ├── package.json
-│   ├── next.config.ts
-│   └── src/
-│       ├── app/               # Next.js app router
-│       │   ├── api/           # API routes (render, transcribe)
-│       │   ├── edit/          # Editor page
-│       │   └── layout.tsx
-│       │
-│       ├── components/       # Shared React components
-│       │   ├── shared/       # Drag data, uploads, etc.
-│       │   └── ui/           # UI primitives (button, input)
-│       │
-│       ├── store/            # Local state management
-│       │   ├── project-store.ts
-│       │   └── upload-store.ts
-│       │
-│       ├── features/          # Feature modules
-│       │   └���─ editor/       # Video editor features
-│       │       ├── engine/   # ENGINE-FIRST ARCHITECTURE
-│       │       │   ├── engine-core.ts     # Core reducer & state
-│       │       │   ├── commands.ts       # Command builders
-│       │       │   └── selectors.ts     # State selectors
-│       │       │
-│       │       ├── player/   # Video player
-│       │       │   ├── player.tsx        # Remotion player
-│       │       │   └── composition.tsx    # Video composition
-│       │       │
-│       │       ├── timeline/  # Timeline components
-│       │       │   ├── timeline.tsx
-│       │       │   ├── header.tsx
-│       │       │   ├── ruler.tsx
-│       │       │   └── track-headers.tsx
-│       │       │
-│       │       ├── panels/    # Editor panels
-│       │       │   ├── project-panel.tsx
-│       │       │   ├── effects-panel.tsx
-│       │       │   └── timeline-markers.tsx
-│       │       │
-│       │       ├── menu-item/  # Menu items
-│       │       │   ├── videos.tsx
-│       │       │   ├── audios.tsx
-│       │       │   ├── texts.tsx
-│       │       │   └── captions.tsx
-│       │       │
-│       │       ├── control-item/ # Property panels
-│       │       │   ├── clip-compat.ts
-│       │       │   └── common/
-│       │       │
-│       │       ├── data/       # Effects & transitions
-│       │       │   ├── video-effects.ts
-│       │       │   └── video-transitions.ts
-│       │       │
-│       │       ├── hooks/    # Custom React hooks
-│       │       │   └── use-player-engine-sync.ts
-│       │       │
-│       │       ├── store/    # Zustand store (legacy)
-│       │       │   └── use-store.ts
-│       │       │
-│       │       ├── utils/   # Utilities
-│       │       │   ├── media-probe.ts
-│       │       │   └── captions.ts
-│       │       │
-│       │       └── constants/
-│       │           └── scale.ts
-│       │
-│       └── constants/       # Global constants
-│           └── api.ts       # API configuration
+│   ├── src/
+│   │   ├── app/            # Next.js app router
+│   │   │   ├── api/        # API routes
+│   │   │   │   ├── render/     # Video rendering
+│   │   │   │   ├── transcribe/  # Transcription
+│   │   │   │   ├── uploads/    # File uploads
+│   │   │   │   ├── pexels/     # Stock media
+│   │   │   │   ├── audio/      # Music & SFX
+│   │   │   │   └── voices/     # AI voices
+│   │   │   └── edit/       # Editor page
+│   │   │
+│   │   ├── components/     # Shared React components
+│   │   │   ├── ui/        # Radix UI primitives (40+ components)
+│   │   │   ├── color-picker/  # Color picker with gradient support
+│   │   │   ├── shared/    # Icons, logos, drag utilities
+│   │   │   └── uploads/   # Upload component
+│   │   │
+│   │   ├── features/
+│   │   │   └── editor/   # Video Editor Feature Module
+│   │   │       ├── engine/    # Engine-first state management
+│   │   │       │   ├── engine-core.ts     # Core reducer
+│   │   │       │   ├── commands.ts       # Command builders
+│   │   │       │   ├── selectors.ts      # State selectors
+│   │   │       │   ├── keyframe-engine.ts # Keyframe logic
+│   │   │       │   ├── trim-engine.ts    # Trim operations
+│   │   │       │   ├── snap-engine.ts    # Snap-to-grid
+│   │   │       │   ├── time-scale.ts     # Zoom/pan
+│   │   │       │   └── subsystems/       # Sub-engines
+│   │   │       │
+│   │   │       ├── player/   # Video Player (Remotion)
+│   │   │       │   ├── player.tsx        # Main player
+│   │   │       │   ├── composition.tsx   # Video composition
+│   │   │       │   ├── sequence-item.tsx  # Sequence rendering
+│   │   │       │   ├── items/           # Media renderers
+│   │   │       │   │   ├── video.tsx
+│   │   │       │   │   ├── audio.tsx
+│   │   │       │   │   ├── image.tsx
+│   │   │       │   │   ├── text.tsx
+│   │   │       │   │   ├── caption.tsx
+│   │   │       │   │   ├── shape.tsx
+│   │   │       │   │   └── audio-bars/   # Audio visualizations
+│   │   │       │   ├── animated/        # Text animations
+│   │   │       │   │   ├── presets.ts
+│   │   │       │   │   └── text-animated-types/
+│   │   │       │   │       ├── animations-in/    # 14 in animations
+│   │   │       │   │       ├── animations-loop/   # 13 loop animations
+│   │   │       │   │       └── animations-out/   # 11 out animations
+│   │   │       │   └── transitions/      # Video transitions
+│   │   │       │       ├── circle.tsx
+│   │   │       │       ├── rectangle.tsx
+│   │   │       │       ├── slide.tsx
+│   │   │       │       ├── sliding-doors.tsx
+│   │   │       │       └── star.tsx
+│   │   │       │
+│   │   │       ├── timeline/  # Timeline Components
+│   │   │       │   ├── timeline.tsx     # Main timeline
+│   │   │       │   ├── header.tsx        # Controls
+│   │   │       │   ├── track-headers.tsx # Track labels
+│   │   │       │   ├── playhead.tsx     # Playhead
+│   │   │       │   ├── ruler.tsx        # Time ruler
+│   │   │       │   ├── context-menu.tsx  # Track context menu
+│   │   │       │   ├── add-tracks-modal.tsx
+│   │   │       │   ├── delete-track-modal.tsx
+│   │   │       │   ├── clip-context-menu.tsx # Premiere-style menu
+│   │   │       │   ├── decibel-meter.tsx
+│   │   │       │   ├── vertical-scrollbar.tsx
+│   │   │       │   ├── items/          # Clip renderers
+│   │   │       │   └── controls/       # Drawing controls
+│   │   │       │
+│   │   │       ├── control-item/  # Property Controls
+│   │   │       │   ├── basic-video.tsx
+│   │   │       │   ├── basic-audio.tsx
+│   │   │       │   ├── basic-text.tsx
+│   │   │       │   ├── basic-image.tsx
+│   │   │       │   ├── basic-caption.tsx
+│   │   │       │   ├── common/       # Shared controls
+│   │   │       │   │   ├── opacity.tsx
+│   │   │       │   │   ├── volume.tsx
+│   │   │       │   │   ├── speed.tsx
+│   │   │       │   │   ├── transform.tsx
+│   │   │       │   │   ├── blur.tsx
+│   │   │       │   │   ├── brightness.tsx
+│   │   │       │   │   ├── shadow.tsx
+│   │   │       │   │   ├── outline.tsx
+│   │   │       │   │   ├── text.tsx
+│   │   │       │   │   └── preset-picker.tsx
+│   │   │       │   ├── floating-controls/
+│   │   │       │   └── keyframes/
+│   │   │       │
+│   │   │       ├── menu-item/  # Media Menu Items
+│   │   │       │   ├── videos.tsx
+│   │   │       │   ├── images.tsx
+│   │   │       │   ├── audios.tsx
+│   │   │       │   ├── texts.tsx
+│   │   │       │   ├── captions.tsx
+│   │   │       │   ├── transitions.tsx
+│   │   │       │   ├── elements.tsx    # Adjustment layer, Color matte
+│   │   │       │   ├── sfx.tsx
+│   │   │       │   ├── voice-over.tsx
+│   │   │       │   └── ai-voice.tsx
+│   │   │       │
+│   │   │       ├── panels/   # Editor Panels
+│   │   │       │   ├── project-panel.tsx
+│   │   │       │   ├── source-control-panel.tsx
+│   │   │       │   ├── effect-controls-panel.tsx
+│   │   │       │   └── effects-tab.tsx
+│   │   │       │
+│   │   │       ├── hooks/   # Custom React Hooks (15+)
+│   │   │       ├── store/   # Zustand Stores
+│   │   │       ├── utils/   # Utilities (20+)
+│   │   │       ├── interfaces/  # TypeScript interfaces
+│   │   │       ├── types/      # Type definitions
+│   │   │       ├── constants/ # Constants
+│   │   │       ├── data/     # Mock data
+│   │   │       └── crop-modal/
+│   │   │
+│   │   └── constants/      # Global constants
+│   │
+│   └── README.md          # Video Editor documentation
 │
-├── data/                     # Database, uploads, cache, logs
+├── data/                     # Runtime data
+│   ├── database.sqlite     # SQLite database
+│   ├── uploads/            # Uploaded files
+│   └── logs/              # Pipeline logs
 │
-├── Readme.md                 # This file
-│
-└── requirements.txt          # Python dependencies
+├── Readme.md                # This file
+├── SESSION_NOTES.md         # Development session notes
+├── SESSION_SUMMARY.md      # Session summary
+└── requirements.txt         # Python dependencies
 ```
 
 ---
 
 ## System Architecture
 
-### High-Level Flow
+### High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        Client (Browser)                     │
-│                  http://localhost:8000 / 3000                │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ HTTP / WebSocket
-┌─────────────────────────▼───────────────────────────────────┐
-│                      FastAPI Backend                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │ REST API     │  │ WebSocket    │  │ Static Files     │   │
-│  │ /api/jobs/   │  │ Progress     │  │ /web_ui/*        │   │
-│  └──────┬───────┘  └──────┬───────┘  ��──────────────────┘   │
-│         │                 │                                 │
-│   ┌──────▼─────────────────▼───────┐                        │
-│   │     Pipeline Runner            │                        │
-│   │     (Background Thread)        │                        │
-│   └──────────────┬─────────────────┘                        │
-│                 │ Async Updates                             │
-│    ┌────────────▼──────────────────┐                        │
-│    │     SQLite Database           │                        │
-│    └───────────────────────────────┘                        │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│                   Caption Engine                             │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────────┐   │
-│  │ Audio   │→│ Chunk   │→│ Whisper │→│ Lang Detection  │   │
-│  │ Extract│ │ & Overlap│ │ Transcribe│                 │   │
-│  └─────────┘ └─────────┘ └─────────┘ └────────┬────────┘   │
-│                                                │             │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌───────▼─────────┐   │
-│  │ SRT/VTT │←│ Word    │←│ Dual    │←│ LLM Refinement  │   │
-│  │ Output  │ │ Align   │ │ Score   │ │ (Groq)          │   │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────────────┘   │
+│         ┌─────────────────┐     ┌─────────────────┐        │
+│         │  Web UI         │     │  Video Editor   │        │
+│         │  (localhost:8000)│     │  (localhost:3000)│     │
+│         └────────┬────────┘     └────────┬────────┘        │
+└──────────────────┼──────────────────────┼──────────────────┘
+                   │                    │
+┌──────────────────▼────────────────────▼──────────────────┐
+│                      FastAPI Backend                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐ │
+│  │ REST API     │  │ WebSocket    │  │ Static Files    │ │
+│  │ /api/jobs/  │  │ Progress    │  │ /web_ui/*      │ │
+│  └──────┬──────┘  └──────┬──────┘  └────────────────┘ │
+│         │                 │                               │
+│   ┌─────▼─────────────────▼─────┐                      │
+│   │     Pipeline Runner         │                      │
+│   │     (Background Thread)     │                      │
+│   └──────────────┬──────────────┘                      │
+│                  │                                     │
+│   ┌──────────────▼──────────────┐                      │
+│   │     Caption Engine         │                      │
+│   │  15-Stage Pipeline      │                      │
+│   └──────────────────────────┘                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Video Editor Architecture (Engine-First)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Video Editor (React + Next.js)           │
-│              http://localhost:3000/edit                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-           ┌──────────────────┼──────────────────┐
-           │                  │                  │
-           ▼                  ▼                  ▼
-    ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-    │   Timeline  │   │   Player    │   │   Panels    │
-    │  (Canvas)   │   │ (Remotion)  │   │  (UI)       │
-    └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-           │                  │                  │
-           └──────────────────┼──────────────────┘
-                              ▼
-              ┌────────────────────────────────┐
-              │      ENGINE (engine-core.ts)   │
-              │   ┌─────────────────────────┐ │
-              │   │ Pure Reducer Function    │ │
-              │   │ - tracks, clips        │ │
-              │   │ - ui (playhead, zoom) │ │
-              │   └─────────────────────────┘ │
-              │   ┌─────────────────────────┐ │
-              │   │ Commands (builders)     │ │
-              │   │ - addTrack, addClip     │ │
-              │   │ - moveClip, deleteClip │ │
-              │   └─────────────────────────┘ │
-              │   ┌─────────────────────────┐ │
-              │   │ Selectors (queries)      │ │
-              │   │ - selectTracksByGroup  │ │
-              │   │ - selectTrackClips     │ │
-              │   └─────────────────────────┘ │
-              └────────────────────────────────┘
-```
-
----
-
-## 15-Stage Caption Pipeline
+### Caption Engine Pipeline (15 Stages)
 
 | Stage | Component | Purpose |
 |-------|-----------|---------|
@@ -242,165 +301,106 @@ caption-tool-master/
 | 14 | Alignment Validation | Verify alignment quality |
 | 15 | Output Rendering | Generate SRT/VTT formats |
 
----
-
-## Engine-First Architecture
-
-### Core Concepts
-
-The video editor uses a **custom engine-first architecture** with pure reducers and selectors:
+### Video Editor Architecture (Engine-First)
 
 ```
-engine/
-├── engine-core.ts    # Core state management with reducer
-├── commands.ts       # Command builders
-└── selectors.ts     # State selection functions
-```
-
-**Key Principles**:
-- **Pure Reducers**: All state changes via explicit commands (no scattered setState)
-- **Track Groups**: 4 groups in order (subtitle → video → text → audio)
-- **Group Selectors**: Filter tracks/clips by group, not type
-- **Lane Commands**: Insert track above/below, clone to new lane
-
-### Track Groups
-
-```
-┌──────────────────────────────────────────┐
-│         Track Groups (Priority Order)      │
-├──────────────────────────────────────────┤
-│ 1. SUBTITLE (S1, S2...)  - Captions        │
-│ 2. VIDEO   (V1, V2...)  - Video/Images    │
-│ 3. TEXT    (T1, T2...)  - Text overlays   │
-│ 4. AUDIO   (A1, A2...)  - Audio tracks    │
-└──────────────────────────────────────────┘
-```
-
-### Timeline Constants
-
-```typescript
-const TIMELINE_GUTTER = 120;  // Left margin for track headers
-const TRACK_HEIGHT = 60;      // Default track height
-const RULER_HEIGHT = 30;    // Ruler height
-```
-
-### Engine Commands
-
-```typescript
-// Track commands
-addTrack(track)
-addClip(clip, trackId)
-moveClip(clipId, newStart, newTrackId)
-
-// Lane commands
-INSERT_TRACK_ABOVE, INSERT_TRACK_BELOW, CLONE_CLIP_TO_NEW_LANE
-
-// Selection
-setSelection(clipIds[])
-setPlayheadTime(timeMs)
-
-// Zoom
-setZoom(zoomLevel)
+┌─────────────────────────────────────────────────────────────┐
+│                     Video Editor (React + Next.js)           │
+└─────────────────────────────────────────────────────────────┘
+                               │
+            ┌──────────────────┼──────────────────┐
+            │                  │                  │
+            ▼                  ▼                  ▼
+     ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+     │   Timeline  │   │   Player    │   │   Panels    │
+     │  (Canvas)   │   │ (Remotion)  │   │  (UI)       │
+     └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+            │                  │                  │
+            └──────────────────┼──────────────────┘
+                               ▼
+               ┌────────────────────────────────┐
+               │      ENGINE (engine-core.ts)   │
+               │   ┌─────────────────────────┐ │
+               │   │ Pure Reducer Function    │ │
+               │   │ - tracks, clips        │ │
+               │   │ - ui (playhead, zoom) │ │
+               │   └─────────────────────────┘ │
+               │   ┌─────────────────────────┐ │
+               │   │ Commands (builders)     │ │
+               │   │ - addTrack, addClip     │ │
+               │   │ - moveClip, deleteClip │ │
+               │   └─────────────────────────┘ │
+               │   ┌─────────────────────────┐ │
+               │   │ Selectors (queries)      │ │
+               │   │ - selectTracksByGroup  │ │
+               │   │ - selectTrackClips     │ │
+               │   └─────────────────────────┘ │
+               └────────────────────────────────┘
 ```
 
 ---
 
-## API Configuration
+## Backend API Endpoints
 
-All external API endpoints are centralized in `constants/api.ts`:
-
-```typescript
-const API_CONFIG = {
-  RENDER: {
-    BASE_URL: "https://api.designcombo.dev/v1",
-    AUTH_PREFIX: "Bearer",
-    ENV_KEY: process.env.COMBO_SK
-  },
-  TRANSCRIBE: {
-    BASE_URL: "...",
-    // ...
-  }
-};
-
-const API_ENDPOINTS = {
-  RENDER: {
-    CREATE_PROJECT: () => `${BASE_URL}/projects`,
-    CREATE_EXPORT: (id) => `${BASE_URL}/projects/${id}/export`
-  }
-};
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/jobs/` | Upload video, start captioning |
+| GET | `/api/jobs/` | List recent jobs |
+| GET | `/api/jobs/{id}` | Job details with captions |
+| GET | `/api/jobs/{id}/video` | Stream original video |
+| GET | `/api/jobs/{id}/export` | Download video with burned captions |
+| WS | `/api/jobs/{id}/ws` | Real-time progress updates |
+| GET | `/api/health/` | Health check |
 
 ---
 
-## Current Status
+## Video Editor Features
 
-### What's Working
+### Timeline
+- Multi-track support (Video, Audio, Text, Subtitle)
+- Drag-and-drop clip placement
+- Snap-to-grid with visual feedback
+- Track type validation
+- Context menus (Track header, Clip)
+- Playhead with seek functionality
+- Zoom and pan controls
 
-1. **Caption Engine**
-   - ✅ 15-stage transcription pipeline
-   - ✅ Whisper + LLM refinement
-   - ✅ Dual scoring (semantic + keyword)
-   - ✅ Hallucination guard
-   - ✅ SRT/VTT output
+### Track Management
+- Add/Delete tracks with smart naming
+- Lock/Unlock tracks
+- Mute/Unmute audio
+- Show/Hide tracks
+- Track type validation (video→video tracks, audio→audio tracks, etc.)
 
-2. **Video Editor**
-   - ✅ Engine-first architecture with pure reducers
-   - ✅ Track groups (subtitle, video, text, audio)
-   - ✅ Timeline with playhead sync
-   - ✅ Video player with Remotion
-   - ✅ Clip append logic (sequential)
-   - ✅ Track headers with labels (S/T/V/A)
-   - ✅ Media upload and probing
+### Clip Operations
+- Cut, Copy, Paste, Clear
+- Ripple Delete
+- Speed/Duration adjustment
+- Scale to Frame / Fit to Frame
+- Label colors (13 options)
+- Enable/Disable clips
 
-### In Progress
+### Media Support
+- Video: MP4, WebM, MOV
+- Audio: MP3, WAV, AAC
+- Images: PNG, JPG, WebP, GIF
+- Adjustment Layer: Transparent overlays
+- Color Matte: Solid color backgrounds
+- Text overlays with animations
+- Captions with word-level timing
 
-1. **Timeline**
-   - ⚙️ Clip drag and drop
-   - ⚙️ Trim tools (ripple, rolling, slip)
-   - ⚙️ Keyframe animation
+### Text Animations
+- **In**: 14 animation presets
+- **Loop**: 13 animation presets
+- **Out**: 11 animation presets
 
-2. **Export**
-   - ⚙️ Render to video via DesignCombo API
-   - ⚙️ Progress tracking
+### Transitions
+- Circle, Rectangle, Slide, Sliding Doors, Star
 
-### Future Goals
-
-1. **AI Video Generation**
-   - 🔄 Automated video creation from audio/script
-   - 🔄 Smart caption corrections
-   - 🔄 AI-generated graphics
-   - 🔄 Machine learning integration
-
-2. **Enhanced Editor**
-   - 🔄 More effects and transitions
-   - 🔄 Template system
-   - 🔄 Collaboration features
-
----
-
-## Benefits
-
-### High Accuracy
-- **Dual Scoring**: Semantic similarity (60%) + keyword retention (40%)
-- **Hallucination Guard**: Blocks Whisper hallucinations before they propagate
-- **Adaptive Thresholds**: Adjusts confidence based on audio quality
-- **Language-Specific Models**: English and Hindi alignment models
-
-### Robust Error Handling
-- **Retry Logic**: Transcription and alignment with exponential backoff
-- **Fallback Strategy**: Falls back to raw transcript if refined version fails checks
-- **Multi-Stage Validation**: Each stage validates before passing to next
-
-### Production-Ready Features
-- **Real-time Progress**: WebSocket updates during transcription
-- **Background Processing**: Non-blocking job queue
-- **Persistent Storage**: SQLite for job history
-- **Export Options**: Raw captions or burned-in subtitles
-
-### Easy Deployment
-- **Single Command Start**: `python -m uvicorn backend.main:app --reload`
-- **CDN-Based Frontend**: No build step required
-- **Self-Contained**: All components in one repo
+### Effects
+- Opacity, Brightness, Blur
+- Shadow, Outline
+- Flip, Transform
 
 ---
 
@@ -438,66 +438,38 @@ Open: `http://localhost:3000/edit`
 
 ---
 
-## API Endpoints
+## Future Roadmap
 
-### Backend API
+### Phase 1: Video Editor Completion
+- [x] Track type validation
+- [x] Track context menu
+- [x] Add/Delete track modals
+- [x] Clip context menu
+- [x] Adjustment Layer & Color Matte
+- [ ] Keyframe animation
+- [ ] More transitions
+- [ ] Export rendering
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/jobs/` | Upload video, start captioning |
-| GET | `/api/jobs/` | List recent jobs |
-| GET | `/api/jobs/{id}` | Job details with captions |
-| GET | `/api/jobs/{id}/video` | Stream original video |
-| GET | `/api/jobs/{id}/export` | Download video with burned captions |
-| WS | `/api/jobs/{id}/ws` | Real-time progress updates |
+### Phase 2: AI Integration
+- [ ] Auto-generate captions from audio
+- [ ] AI-powered caption correction
+- [ ] Smart clip suggestions
+- [ ] Auto-layout generation
 
-### Video Editor API
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/render` | Create and export video |
-| POST | `/api/transcribe` | Transcribe audio file |
-
----
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| Space | Play/Pause |
-| Left Arrow | Previous Frame |
-| Right Arrow | Next Frame |
-| Ctrl+Z | Undo |
-| Ctrl+Shift+Z | Redo |
-| Delete | Delete Selected |
+### Phase 3: One-Click Video Creation
+- [ ] Upload audio/script
+- [ ] AI generates entire video
+- [ ] All effects, animations, captions automatic
+- [ ] No manual editing needed
 
 ---
 
-## File Explanations
+## License
 
-### Key Engine Files
-
-| File | Purpose |
-|------|---------|
-| `engine-core.ts` | Redux-like reducer with all state logic |
-| `commands.ts` | Command builder functions for all operations |
-| `selectors.ts` | State query functions (get tracks, clips, etc.) |
-| `player.tsx` | Remotion player wrapper with seek sync |
-| `composition.tsx` | Video composition with clip filtering |
-| `upload-store.ts` | File upload and clip append logic |
-
-### Key UI Files
-
-| File | Purpose |
-|------|---------|
-| `timeline.tsx` | Main timeline canvas |
-| `header.tsx` | Timeline header with controls |
-| `ruler.tsx` | Time ruler with click-to-seek |
-| `track-headers.tsx` | Group-based track labels |
-| `project-panel.tsx` | Media bin and file management |
+Private - All rights reserved
 
 ---
 
 *Document Generated: April 2026*
 *Version: 1.0.0*
-*Auto Caption Software - Evolved into FYAP Pro*
+*Auto Caption Software → Video Editor → AI Video Generation*
