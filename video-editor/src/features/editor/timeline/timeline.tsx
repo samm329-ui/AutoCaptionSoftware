@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Header from "./header";
-import { Magnet, Bookmark } from "lucide-react";
+import { Magnet, Bookmark, AlertCircle } from "lucide-react";
 import Ruler from "./ruler";
 import Playhead from "./playhead";
 import TrackHeaders from "./track-headers";
@@ -40,6 +40,32 @@ import { usePlayerRef } from "../engine/engine-hooks";
 
 const TRACK_HEIGHT = 36;
 const TRACK_LABEL_WIDTH = 140;
+
+// Track type validation
+const FILE_TYPE_TO_TRACK_GROUP: Record<string, string> = {
+  video: "video",
+  image: "video",
+  audio: "audio",
+  text: "text",
+  caption: "subtitle",
+  adjustment: "video",
+  colormatte: "video",
+};
+
+function getTrackGroupForFileType(fileType: string): string {
+  return FILE_TYPE_TO_TRACK_GROUP[fileType] || "video";
+}
+
+function isTrackValidForFileType(trackGroup: string, fileType: string): boolean {
+  const requiredGroup = getTrackGroupForFileType(fileType);
+  return trackGroup === requiredGroup;
+}
+
+// Helper to get file type from drag data
+function getFileTypeFromDrag(dragData: Record<string, any> | null): string {
+  if (!dragData) return "video";
+  return dragData.type || dragData.fileType || "video";
+}
 
 function getTrackGroups(tracks: { id: string; type: string; group?: string }[]) {
   const groups: { group: string; tracks: { id: string; type: string; group?: string }[] }[] = [];
@@ -113,6 +139,12 @@ const Timeline = () => {
   const [dragStartY, setDragStartY] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
   const [dragStartTrackId, setDragStartTrackId] = useState<string | null>(null);
+  
+  // Track hover state for drag and drop
+  const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
+  const [hoveredTrackGroup, setHoveredTrackGroup] = useState<string>("video");
+  const [isDragOverTimeline, setIsDragOverTimeline] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
   
   // Calculate pixels per millisecond using shared helper
   const pixelsPerMs = zoomToPixelsPerMs(zoom);
@@ -229,33 +261,27 @@ const Timeline = () => {
       const deltaTime = deltaX / pixelsPerMs;
       let newStart = Math.max(0, dragStartTime + deltaTime);
       
+      // MAGNET SNAP - respects button toggle
       if (snapEnabled) {
-        const state = engineStore.getState();
-        const clip = state.clips[dragClipId];
-        if (clip && clip.trackId) {
-          const clipDuration = clip.display.to - clip.display.from;
-          const myTrackId = clip.trackId;
-          const myEnd = newStart + clipDuration;
+        const clipDuration = clip.display.to - clip.display.from;
+        const myStart = newStart;
+        const myEnd = newStart + clipDuration;
+        
+        let snapped = false;
+        
+        for (const otherId in state.clips) {
+          const other = state.clips[otherId];
+          if (!other) continue;
+          if (other.id === dragClipId) continue;
+          if (other.trackId !== clip.trackId) continue;
           
-          let leftBound = 0;
-          let rightBound = 999999;
+          const oStart = other.display.from;
+          const oEnd = other.display.to;
           
-          for (const otherId of Object.keys(state.clips)) {
-            const other = state.clips[otherId];
-            if (other.id === dragClipId) continue;
-            if (other.trackId !== myTrackId) continue;
-            
-            if (other.display.to <= newStart) {
-              leftBound = Math.max(leftBound, other.display.to);
-            }
-            if (other.display.from >= myEnd) {
-              rightBound = Math.min(rightBound, other.display.from);
-            }
-          }
-          
-          newStart = Math.max(leftBound, newStart);
-          newStart = Math.min(rightBound - clipDuration, newStart);
-          newStart = Math.max(0, newStart);
+          if (Math.abs(myStart - oStart) < 100) { newStart = oStart; snapped = true; }
+          if (Math.abs(myStart - oEnd) < 100) { newStart = oEnd; snapped = true; }
+          if (Math.abs(myEnd - oStart) < 100) { newStart = oStart - clipDuration; snapped = true; }
+          if (Math.abs(myEnd - oEnd) < 100) { newStart = oEnd - clipDuration; snapped = true; }
         }
       }
       
@@ -268,7 +294,7 @@ const Timeline = () => {
       const newScrollX = Math.max(0, scrollX - deltaX);
       dispatch(setScroll(newScrollX, undefined));
     }
-  }, [isDraggingClip, dragClipId, dragStartX, dragStartTime, pixelsPerMs, snapEnabled, activeTool, scrollX, dispatch]);
+  }, [isDraggingClip, dragClipId, dragStartX, dragStartTime, pixelsPerMs, activeTool, scrollX, dispatch]);
 
   const handleMouseUp = useCallback(() => {
     setIsDraggingClip(false);
@@ -316,33 +342,122 @@ const Timeline = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragOverTime, setDragOverTime] = useState<number | null>(null);
 
+  // Helper to detect which track the mouse is over during drag
+  const detectTrackFromMousePosition = useCallback((clientY: number, timelineElement: HTMLElement): { trackId: string; trackGroup: string } | null => {
+    // Find the inner container that holds the track lanes
+    const innerContainer = timelineElement.querySelector('.relative[style*="minHeight"], .relative:not(.bg-sidebar)') as HTMLElement;
+    
+    let trackAreaTop: number;
+    let scrollTop = 0;
+    
+    if (innerContainer) {
+      const innerRect = innerContainer.getBoundingClientRect();
+      trackAreaTop = innerRect.top;
+      // Get scroll position from the timeline area parent
+      const scrollContainer = timelineElement.closest('.timeline-area') as HTMLElement;
+      if (scrollContainer) {
+        scrollTop = scrollContainer.scrollTop;
+      }
+    } else {
+      // Fallback: use timeline element rect minus header
+      const rect = timelineElement.getBoundingClientRect();
+      trackAreaTop = rect.top + 50;
+    }
+    
+    const relativeY = clientY - trackAreaTop + scrollTop;
+    
+    let cumulativeY = 0;
+    const trackGroupsList = getTrackGroups(tracks);
+    
+    for (const { group, tracks: groupTracks } of trackGroupsList) {
+      const trackHeight = segmentHeights[group] ?? 36;
+      
+      for (const track of groupTracks) {
+        if (relativeY >= cumulativeY && relativeY < cumulativeY + trackHeight) {
+          return { trackId: track.id, trackGroup: group };
+        }
+        cumulativeY += trackHeight;
+      }
+    }
+    
+    return null;
+  }, [tracks, segmentHeights]);
+
+  // Get appropriate error message for invalid file type on track
+  const getDropErrorMessage = (fileType: string, trackGroup: string): string | null => {
+    const requiredGroup = getTrackGroupForFileType(fileType);
+    
+    if (trackGroup !== requiredGroup) {
+      if (requiredGroup === "video") {
+        return "Video/Image files can only be dropped on Video tracks (V1, V2...)";
+      } else if (requiredGroup === "audio") {
+        return "Audio files can only be dropped on Audio tracks (A1, A2...)";
+      } else if (requiredGroup === "text") {
+        return "Text can only be dropped on Text tracks (T1, T2...)";
+      } else if (requiredGroup === "subtitle") {
+        return "Captions can only be dropped on Subtitle tracks (S1, S2...)";
+      }
+    }
+    return null;
+  };
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
     
     const dragData = getDragData();
+    const fileType = getFileTypeFromDrag(dragData);
+    
+    const timelineElement = e.currentTarget as HTMLElement;
+    const trackInfo = detectTrackFromMousePosition(e.clientY, timelineElement);
+    
+    // Update track hover state
+    if (trackInfo) {
+      setHoveredTrackId(trackInfo.trackId);
+      setHoveredTrackGroup(trackInfo.trackGroup);
+      
+      // Check if file type is valid for this track
+      const errorMsg = getDropErrorMessage(fileType, trackInfo.trackGroup);
+      setDropError(errorMsg);
+      
+      if (errorMsg) {
+        e.dataTransfer.dropEffect = "none";
+      } else {
+        e.dataTransfer.dropEffect = "copy";
+      }
+    } else {
+      // Not over a specific track, try to find any valid track in the correct group
+      setHoveredTrackId(null);
+      setHoveredTrackGroup(getTrackGroupForFileType(fileType));
+      setDropError(null);
+      e.dataTransfer.dropEffect = "copy";
+    }
+    
     if (dragData && dragData.type) {
       setIsDragOver(true);
       
       // Calculate time based on drop position
-      const rect = e.currentTarget.getBoundingClientRect();
+      const rect = timelineElement.getBoundingClientRect();
       const x = e.clientX - rect.left - TRACK_LABEL_WIDTH;
       if (x > 0) {
         const timeMs = pxToMs(x, pixelsPerMs);
         setDragOverTime(timeMs);
       }
     }
-  }, [pixelsPerMs]);
+  }, [pixelsPerMs, detectTrackFromMousePosition]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     setDragOverTime(null);
+    setHoveredTrackId(null);
+    setDropError(null);
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    setHoveredTrackId(null);
+    setDropError(null);
     
     const dragData = getDragData();
     console.log("Timeline handleDrop, dragData:", dragData);
@@ -357,6 +472,35 @@ const Timeline = () => {
     // The default 5000 is also in seconds (5 seconds), not ms
     const durationSec = dragData.display?.to || dragData.duration || 5;
     const fileType = dragData.type;
+    
+    // Validate file type against target track
+    const targetTrackId = hoveredTrackId;
+    let targetTrackGroup = hoveredTrackGroup;
+    
+    // If we have a specific track, validate against it
+    if (targetTrackId) {
+      const targetTrack = tracks.find(t => t.id === targetTrackId);
+      if (targetTrack) {
+        targetTrackGroup = targetTrack.group || "video";
+        
+        const errorMsg = getDropErrorMessage(fileType, targetTrackGroup);
+        if (errorMsg) {
+          console.log("Drop rejected:", errorMsg);
+          setDropError(errorMsg);
+          setDragOverTime(null);
+          return;
+        }
+      }
+    }
+
+    // Check file type against determined track group
+    const validationError = getDropErrorMessage(fileType, targetTrackGroup);
+    if (validationError) {
+      console.log("Drop rejected:", validationError);
+      setDropError(validationError);
+      setDragOverTime(null);
+      return;
+    }
     
     // Create a mock upload object from drag data to use addFileToTimeline
     const mockUpload: UploadedFile = {
@@ -377,9 +521,10 @@ const Timeline = () => {
     };
 
     // Use the same addFileToTimeline function that the "+" button uses
-    addFileToTimeline(mockUpload);
+    // Pass the specific target track if we're hovering over one
+    addFileToTimeline(mockUpload, hoveredTrackId || undefined);
     setDragOverTime(null);
-  }, []);
+  }, [hoveredTrackId, hoveredTrackGroup, tracks]);
 
   // Create track index map with dynamic group heights
   const trackIndexMap = useMemo(() => {
@@ -469,7 +614,7 @@ const Timeline = () => {
           className={`p-1 rounded transition-colors ${snapEnabled ? 'text-amber-400' : 'text-muted-foreground/50'}`}
           title={snapEnabled ? "Snap Enabled" : "Snap Disabled"}
         >
-          <Magnet className="w-3.5 h-3.5" />
+          <Magnet className="w-3.5 h-3.5 -rotate-45" />
         </button>
         <button
           onClick={addMarker}
@@ -498,6 +643,14 @@ const Timeline = () => {
             onSegmentResize={handleSegmentResize} 
           />
         </div>
+        
+        {/* Drop error display */}
+        {dropError && (
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-red-600/90 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-medium">{dropError}</span>
+          </div>
+        )}
         
         {/* Timeline content */}
         <div 
@@ -534,13 +687,31 @@ const Timeline = () => {
                     {groupTracks.map((track, trackIndex) => {
                       const trackTop = cumulativeHeight;
                       cumulativeHeight += trackHeight;
+                      
+                      // Determine if this track is being hovered during drag
+                      const isThisTrackHovered = hoveredTrackId === track.id;
+                      const trackGroup = track.group || track.type;
+                      const fileType = getFileTypeFromDrag(getDragData());
+                      const isValidDrop = isTrackValidForFileType(trackGroup, fileType) && !dropError;
+                      
+                      // Track hover styling
+                      let trackHoverClass = "";
+                      if (isThisTrackHovered) {
+                        if (dropError || !isValidDrop) {
+                          trackHoverClass = "ring-2 ring-red-500/70 ring-inset bg-red-500/10";
+                        } else {
+                          trackHoverClass = "ring-2 ring-green-500/70 ring-inset bg-green-500/10";
+                        }
+                      }
+                      
                       return (
                         <div
                           key={`lane-${track.id}`}
-                          className="border-b border-border"
+                          className={`border-b border-border transition-colors ${trackHoverClass}`}
                           style={{ height: trackHeight }}
                           data-track-id={track.id}
                           data-track-top={trackTop}
+                          data-track-group={trackGroup}
                         />
                       );
                     })}
