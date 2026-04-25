@@ -3,8 +3,12 @@ import { HorizontalScroll } from "@/components/ui/horizontal-scroll";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Ellipsis } from "lucide-react";
+import { ChevronLeft, ChevronRight, Ellipsis, Layers, Palette, Plus } from "lucide-react";
 import { useState } from "react";
+import Draggable from "@/components/shared/draggable";
+import { addFileToTimeline } from "@/store/upload-store";
+import { nanoid } from "nanoid";
+import { useIsDraggingOverTimeline } from "../hooks/is-dragging-over-timeline";
 
 const ADD_LINEAL_AUDIO_BARS = "ADD_LINEAL_AUDIO_BARS";
 const ADD_RADIAL_AUDIO_BARS = "ADD_RADIAL_AUDIO_BARS";
@@ -234,6 +238,7 @@ export const Elements = () => {
   >(null);
 
   const [activeAll, setActiveAll] = useState<ActiveAllState | null>(null);
+  const isDraggingOverTimeline = useIsDraggingOverTimeline();
 
   const handleCategoryStickersClick = async (categoryId: string) => {
     setSelectedCategoryStickers(categoryId);
@@ -241,6 +246,38 @@ export const Elements = () => {
 
   const handleAllClick = async (type: string | null, all: string | null) => {
     setActiveAll({ type, all });
+  };
+
+  const handleAddAdjustmentLayer = () => {
+    addFileToTimeline({
+      id: nanoid(),
+      fileName: "Adjustment Layer",
+      filePath: "",
+      fileSize: 0,
+      contentType: "adjustment/layer",
+      type: "adjustment",
+      objectUrl: "",
+      status: "completed",
+      progress: 100,
+      createdAt: Date.now(),
+      duration: 5000,
+    });
+  };
+
+  const handleAddColorMatte = () => {
+    addFileToTimeline({
+      id: nanoid(),
+      fileName: "Color Matte",
+      filePath: "",
+      fileSize: 0,
+      contentType: "colormatte/layer",
+      type: "colormatte",
+      objectUrl: "",
+      status: "completed",
+      progress: 100,
+      createdAt: Date.now(),
+      duration: 5000,
+    });
   };
   return (
     <>
@@ -252,6 +289,60 @@ export const Elements = () => {
 
           <ScrollArea className="flex-1 h-[calc(100%-98px)] max-w-full">
             <div className="flex flex-col space-y-4">
+              {/* Video Layers Section */}
+              <div className="px-4">
+                <h3 className="text-xs font-medium text-muted-foreground mb-2">Video Layers</h3>
+                <div className="space-y-2">
+                  <Draggable
+                    data={{
+                      id: nanoid(),
+                      type: "adjustment",
+                      details: { name: "Adjustment Layer" },
+                    }}
+                  >
+                    <div
+                      className="flex items-center gap-3 p-3 bg-secondary rounded-sm border hover:border-white/20 transition-colors cursor-pointer"
+                      onClick={handleAddAdjustmentLayer}
+                    >
+                      <div className="w-10 h-10 rounded bg-amber-500/20 flex items-center justify-center">
+                        <Layers className="w-5 h-5 text-amber-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Adjustment Layer</div>
+                        <div className="text-xs text-muted-foreground">Apply effects to all layers below</div>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </Draggable>
+
+                  <Draggable
+                    data={{
+                      id: nanoid(),
+                      type: "colormatte",
+                      details: { name: "Color Matte" },
+                    }}
+                  >
+                    <div
+                      className="flex items-center gap-3 p-3 bg-secondary rounded-sm border hover:border-white/20 transition-colors cursor-pointer"
+                      onClick={handleAddColorMatte}
+                    >
+                      <div className="w-10 h-10 rounded bg-gradient-to-br from-red-500 to-blue-500 flex items-center justify-center">
+                        <Palette className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Color Matte</div>
+                        <div className="text-xs text-muted-foreground">Solid color layer</div>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </Draggable>
+                </div>
+              </div>
+
               <div className="px-4">
                 <HorizontalScroll className="w-full" debug={false}>
                   <div className="flex gap-2 pb-2 min-w-max">
