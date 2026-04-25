@@ -237,8 +237,8 @@ export function nanoid(): string {
 export function createEmptyProject(overrides?: Partial<Project>): Project {
   const seqId = nanoid();
   
-  const videoTrack = createTrack("video", { order: 2 });
-  const audioTrack = createTrack("audio", { order: 3 });
+  const videoTrack = createTrack("video", { name: "V1", order: 0 });
+  const audioTrack = createTrack("audio", { name: "A1", order: 1 });
   
   const seq: Sequence = {
     id: seqId,
@@ -319,12 +319,16 @@ export function createTrack(type: Track["type"], overrides?: Partial<Track>): Tr
     : type === "text" ? "text" 
     : type === "video" || type === "overlay" ? "video" 
     : "audio";
+  
+  const prefix = group === "subtitle" ? "S" : group === "text" ? "T" : group === "video" ? "V" : "A";
+  const trackNumber = overrides?.name ? parseInt(overrides.name.replace(prefix, '')) || 1 : 1;
+  
   return {
     id: nanoid(),
     type,
     group,
-    name: type.charAt(0).toUpperCase() + type.slice(1),
-    order: 0,
+    name: `${prefix}${trackNumber}`,
+    order: overrides?.order ?? 0,
     locked: false,
     muted: false,
     hidden: false,
