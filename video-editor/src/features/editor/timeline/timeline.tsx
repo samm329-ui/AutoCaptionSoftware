@@ -37,6 +37,7 @@ import { snapEngine } from "../engine/subsystems/snap-engine";
 import { getDragData } from "@/components/shared/drag-data";
 import { addFileToTimeline, validateFileTypeForTrack, type UploadedFile } from "@/store/upload-store";
 import { usePlayerRef } from "../engine/engine-hooks";
+import ClipContextMenu from "./clip-context-menu";
 
 const TRACK_HEIGHT = 36;
 const TRACK_LABEL_WIDTH = 140;
@@ -149,6 +150,17 @@ const Timeline = () => {
   const [isDragOverTimeline, setIsDragOverTimeline] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
   
+  // Clip context menu state
+  const [clipContextMenu, setClipContextMenu] = useState<{
+    x: number;
+    y: number;
+    clipId: string;
+    clipName: string;
+    clipType: string;
+    isEnabled: boolean;
+    isLocked: boolean;
+  } | null>(null);
+  
   // Calculate pixels per millisecond using shared helper
   const pixelsPerMs = zoomToPixelsPerMs(zoom);
 
@@ -188,6 +200,35 @@ const Timeline = () => {
   const handleClipClick = useCallback((e: React.MouseEvent, clipId: string) => {
     e.stopPropagation();
     
+    const isAlreadySelected = selection?.includes(clipId);
+    
+    // Right-click opens context menu ONLY if clip is already selected
+    if (e.button === 2) {
+      e.preventDefault();
+      if (isAlreadySelected) {
+        const clip = clips.find(c => c.id === clipId);
+        const track = tracks.find(t => t.id === clip?.trackId);
+        if (clip && track) {
+          const menuHeight = 420;
+          const menuY = e.clientY - menuHeight + 10;
+          
+          setClipContextMenu({
+            x: e.clientX,
+            y: Math.max(50, menuY),
+            clipId: clip.id,
+            clipName: clip.name || clip.type,
+            clipType: clip.type,
+            isEnabled: !track.locked && !track.muted,
+            isLocked: track.locked || false,
+          });
+        }
+      }
+      return;
+    }
+    
+    e.preventDefault();
+    
+    // Always select the clip first
     if (activeTool === "select") {
       if (e.shiftKey || e.ctrlKey || e.metaKey) {
         const currentSelection = selection ?? [];
@@ -221,7 +262,7 @@ const Timeline = () => {
     } else {
       dispatch(setSelection([clipId]));
     }
-  }, [dispatch, activeTool, selection, playheadTime, clips]);
+  }, [dispatch, activeTool, selection, playheadTime, clips, tracks]);
 
   const handleClipMouseDown = useCallback((e: React.MouseEvent, clipId: string) => {
     if (activeTool === "select" || activeTool === "rippleEdit") {
@@ -762,6 +803,7 @@ const Timeline = () => {
                     top: `${displayY}px`,
                   }}
                   onClick={(e) => handleClipClick(e, clip.id)}
+                  onContextMenu={(e) => { e.preventDefault(); handleClipClick(e, clip.id); }}
                   onMouseDown={(e) => handleClipMouseDown(e, clip.id)}
                 >
                   <div className="px-1.5 py-0.5 text-[9px] truncate font-medium leading-tight overflow-hidden">
@@ -777,6 +819,32 @@ const Timeline = () => {
           
           {/* Markers */}
           <TimelineMarkersLayer scrollLeft={scrollLeft} />
+          
+          {/* Clip Context Menu */}
+          {clipContextMenu && (
+            <ClipContextMenu
+              x={clipContextMenu.x}
+              y={clipContextMenu.y}
+              clipId={clipContextMenu.clipId}
+              clipName={clipContextMenu.clipName}
+              clipType={clipContextMenu.clipType}
+              isEnabled={clipContextMenu.isEnabled}
+              isLocked={clipContextMenu.isLocked}
+              onClose={() => setClipContextMenu(null)}
+              onCut={() => console.log("Cut")}
+              onCopy={() => console.log("Copy")}
+              onPaste={() => console.log("Paste")}
+              onClear={() => console.log("Clear")}
+              onRippleDelete={() => console.log("Ripple Delete")}
+              onToggleEnable={() => console.log("Toggle Enable")}
+              onRename={() => console.log("Rename")}
+              onSpeedDuration={() => console.log("Speed/Duration")}
+              onNest={() => console.log("Nest")}
+              onLabel={(color: string) => console.log("Label:", color)}
+              onScaleToFrame={() => console.log("Scale to Frame")}
+              onFitToFrame={() => console.log("Fit to Frame")}
+            />
+          )}
         </div>
       </div>
     </div>
