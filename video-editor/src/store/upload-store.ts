@@ -176,6 +176,10 @@ export function addFileToTimeline(upload: UploadedFile, targetTrackId?: string):
       ? "audio"
       : upload.type === "image"
       ? "image"
+      : upload.type === "adjustment"
+      ? "adjustment"
+      : upload.type === "colormatte"
+      ? "colormatte"
       : "video";
 
   type TrackType = "video" | "audio" | "text" | "caption" | "overlay";
@@ -194,6 +198,10 @@ export function addFileToTimeline(upload: UploadedFile, targetTrackId?: string):
     trackGroup = "video";
   } else if (upload.type === "video") {
     // Video MUST go to video track only
+    trackType = "video";
+    trackGroup = "video";
+  } else if (upload.type === "adjustment" || upload.type === "colormatte") {
+    // Adjustment layer and color matte go to video track
     trackType = "video";
     trackGroup = "video";
   } else {
