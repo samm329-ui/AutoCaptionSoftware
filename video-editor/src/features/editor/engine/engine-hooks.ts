@@ -247,14 +247,36 @@ export function useClipKeyframes(clipId: string) {
 import type { PlayerRef } from "@remotion/player";
 import { useRef, useEffect } from "react";
 
+// Type guard to check if something is a valid PlayerRef
+function isValidPlayerRef(obj: unknown): obj is PlayerRef {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "play" in obj &&
+    "pause" in obj &&
+    "seekTo" in obj &&
+    "addEventListener" in obj
+  );
+}
+
 function getPlayerRefFromState(state: any): PlayerRef | null {
   const stored = state.playerRef;
   if (!stored) return null;
-  // Handle both direct PlayerRef and { current: PlayerRef } format
-  if (typeof stored === 'object' && 'current' in stored) {
-    return stored.current as PlayerRef;
+  
+  // If it's already a valid PlayerRef, return it directly
+  if (isValidPlayerRef(stored)) {
+    return stored;
   }
-  return stored as PlayerRef;
+  
+  // Handle { current: PlayerRef } format
+  if (typeof stored === 'object' && stored !== null && 'current' in stored) {
+    const current = (stored as { current: unknown }).current;
+    if (isValidPlayerRef(current)) {
+      return current;
+    }
+  }
+  
+  return null;
 }
 
 export function usePlayerRef(): PlayerRef | null {
