@@ -333,6 +333,27 @@ export function createTrack(type: Track["type"], overrides?: Partial<Track>): Tr
   };
 }
 
+// ─── Track type validation for clip moves ────────────────────────────────────────
+const CLIP_TYPE_TO_TRACK_GROUP: Record<string, Track["group"]> = {
+  video: "video",
+  image: "video",
+  audio: "audio",
+  text: "text",
+  caption: "subtitle",
+  overlay: "video",
+  shape: "video",
+  transition: "video",
+};
+
+export function validateClipMoveToTrack(clipType: string, targetTrackGroup: Track["group"]): boolean {
+  const requiredGroup = CLIP_TYPE_TO_TRACK_GROUP[clipType];
+  return requiredGroup === targetTrackGroup;
+}
+
+export function getTrackGroup(track: Track): Track["group"] {
+  return track.group || (track.type === "audio" ? "audio" : track.type === "caption" ? "subtitle" : track.type === "text" ? "text" : "video");
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 // Every command must be explicitly handled in the reducer below.
 // No command may rely on sentinel/marker fields in details.
@@ -972,6 +993,19 @@ function reducer(state: Project, command: EditorCommand): Project {
       const { clipId, newStart, newTrackId } = command.payload;
       const clip = state.clips[clipId];
       if (!clip) return state;
+      
+      // Validate track change - prevent moving clips to incompatible track types
+      if (newTrackId && newTrackId !== clip.trackId) {
+        const targetTrack = state.tracks[newTrackId];
+        if (targetTrack) {
+          const targetGroup = getTrackGroup(targetTrack);
+          if (!validateClipMoveToTrack(clip.type, targetGroup)) {
+            console.warn(`Cannot move ${clip.type} clip to ${targetGroup} track`);
+            return state;
+          }
+        }
+      }
+      
       const dur = clip.display.to - clip.display.from;
       const updated: Clip = {
         ...clip,
