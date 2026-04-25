@@ -105,9 +105,43 @@ export function useUploadStoreWithActions() {
   };
 }
 
+// Track type validation for file types
+const FILE_TYPE_TO_TRACK_GROUP: Record<string, "video" | "audio" | "text" | "subtitle"> = {
+  video: "video",
+  image: "video",
+  audio: "audio",
+  text: "text",
+  caption: "subtitle",
+  adjustment: "video",
+  colormatte: "video",
+  overlay: "video",
+  shape: "video",
+  transition: "video",
+};
+
+export function getTrackGroupForFileType(fileType: string): "video" | "audio" | "text" | "subtitle" {
+  return FILE_TYPE_TO_TRACK_GROUP[fileType] || "video";
+}
+
+export function validateFileTypeForTrack(fileType: string, trackGroup: string): { valid: boolean; error: string | null } {
+  const requiredGroup = getTrackGroupForFileType(fileType);
+  
+  if (trackGroup !== requiredGroup) {
+    const trackGroupLabel = trackGroup === "video" ? "Video" : trackGroup === "audio" ? "Audio" : trackGroup === "text" ? "Text" : "Subtitle";
+    const fileGroupLabel = requiredGroup === "video" ? "Video/Image" : requiredGroup === "audio" ? "Audio" : requiredGroup === "text" ? "Text" : "Caption";
+    
+    return {
+      valid: false,
+      error: `${fileGroupLabel} clips cannot be moved to ${trackGroupLabel} tracks`,
+    };
+  }
+  
+  return { valid: true, error: null };
+}
+
 export { type UploadedFile, type ProjectFolder };
 
-export function addFileToTimeline(upload: UploadedFile, targetTrackId?: string): void {
+export function addFileToTimeline(upload: UploadedFile, targetTrackId?: string): { success: boolean; error: string | null } {
   const state = engineStore.getState();
   
   // Check if this is the FIRST clip - if so, set project settings
@@ -175,17 +209,27 @@ export function addFileToTimeline(upload: UploadedFile, targetTrackId?: string):
   if (targetTrackId) {
     // Use the specified track
     targetTrack = state.tracks[targetTrackId];
-    if (targetTrack) {
-      // Get existing clips on this track to calculate start position
-      const trackClips = Object.values(state.clips).filter(
-        c => c && c.trackId === targetTrackId
-      );
-      if (trackClips.length > 0) {
-        // Start at the end of existing clips (allow overlap by using max)
-        // Actually user wants overlap supported, so we start at 0 or find gap
-        // For now, let's append to end to allow overlap scenario
-        startMs = Math.max(...trackClips.map(c => c.display.to));
-      }
+    if (!targetTrack) {
+      return { success: false, error: "Target track not found" };
+    }
+    
+    // VALIDATE: Check if file type is allowed on this track
+    const trackGroup = targetTrack.group || (targetTrack.type === "audio" ? "audio" : targetTrack.type === "caption" ? "subtitle" : targetTrack.type === "text" ? "text" : "video");
+    const uploadType = upload.type || "video";
+    const validation = validateFileTypeForTrack(uploadType, trackGroup);
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
+    }
+    
+    // Get existing clips on this track to calculate start position
+    const trackClips = Object.values(state.clips).filter(
+      c => c && c.trackId === targetTrackId
+    );
+    if (trackClips.length > 0) {
+      // Start at the end of existing clips (allow overlap by using max)
+      // Actually user wants overlap supported, so we start at 0 or find gap
+      // For now, let's append to end to allow overlap scenario
+      startMs = Math.max(...trackClips.map(c => c.display.to));
     }
   }
   
@@ -307,6 +351,8 @@ engineStore.dispatch(addTrack(track));
   }
 
   engineStore.dispatch(selectClip(clipId));
+  
+  return { success: true, error: null };
 }
 
 export async function handleFileUpload(files: File[]): Promise<UploadedFile[]> {
