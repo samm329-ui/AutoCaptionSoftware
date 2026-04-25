@@ -64,6 +64,9 @@ const Player = () => {
   useEffect(() => {
     if (playerRef.current) {
       console.log("Registering playerRef to engine:", playerRef.current);
+      console.log("PlayerRef type:", typeof playerRef.current);
+      console.log("PlayerRef keys:", Object.keys(playerRef.current));
+      console.log("Has addEventListener:", typeof (playerRef.current as any).addEventListener);
       engineDispatch(setPlayerRef(playerRef.current));
     }
     

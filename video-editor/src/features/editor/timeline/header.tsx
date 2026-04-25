@@ -11,7 +11,7 @@ import {
   getZoomByIndex
 } from "../utils/timeline";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
@@ -46,7 +46,7 @@ const IconPlayerPauseFilled = ({ size }: { size: number }) => (
 );
 
 const Header = () => {
-  const playerRef = usePlayerRef();
+  const playerRef = usePlayerRef(); // Returns PlayerRef | null
   const engineSelection = useEngineSelection();
   const engineDispatch = useEngineDispatch();
   const engineZoom = useEngineZoom();
@@ -64,7 +64,8 @@ const Header = () => {
   const safeDuration = clipDuration;
   
   // Derive playing state from playerRef
-  const isPlaying = playerRef?.current?.isPlaying?.() ?? false;
+  const [playing, setPlaying] = useState(false);
+  const isPlaying = playing || (playerRef?.isPlaying?.() ?? false);
   
   const computedDuration = Math.round(naturalEndMs > 0 ? naturalEndMs : sequenceDuration);
 
@@ -114,31 +115,58 @@ const Header = () => {
     engineDispatch(setZoom(newZoom));
   };
 
-  const handlePlay = () => {
-    const ref = playerRef?.current;
-    if (ref && typeof ref.play === "function") {
-      ref.play();
+const handlePlay = () => {
+    console.log("handlePlay called, playerRef:", playerRef);
+    if (playerRef && typeof (playerRef as any).play === "function") {
+      (playerRef as any).play();
     } else {
-      console.error("Player ref not available or play method missing - playerRef:", ref);
+      console.error("Player ref not available or play method missing - playerRef:", playerRef, typeof playerRef);
     }
   };
 
   const handlePause = () => {
-    const ref = playerRef?.current;
-    if (ref && typeof ref.pause === "function") {
-      ref.pause();
+    console.log("handlePause called, playerRef:", playerRef);
+    if (playerRef && typeof (playerRef as any).pause === "function") {
+      (playerRef as any).pause();
     } else {
-      console.error("Player ref not available or pause method missing - playerRef:", ref);
+      console.error("Player ref not available or pause method missing - playerRef:", playerRef, typeof playerRef);
     }
   };
 
   // Space key handler for play/pause toggle
   const togglePlayPause = useCallback(() => {
-    if (playerRef?.current?.isPlaying?.()) {
+    if (playerRef?.isPlaying?.()) {
       handlePause();
     } else {
       handlePlay();
     }
+  }, [playerRef]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlayPause();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [togglePlayPause]);
+
+  useEffect(() => {
+    const player = playerRef;
+    if (!player) return;
+    
+    const playHandler = () => setPlaying(true);
+    const pauseHandler = () => setPlaying(false);
+    
+    player.addEventListener("play", playHandler);
+    player.addEventListener("pause", pauseHandler);
+    
+    return () => {
+      player.removeEventListener("play", playHandler);
+      player.removeEventListener("pause", pauseHandler);
+    };
   }, [playerRef]);
 
   useEffect(() => {
@@ -170,20 +198,31 @@ const handleFrameBack = () => {
     seekPlayer(newFrame);
   };
 
-  useEffect(() => {
-    playerRef?.current?.addEventListener("play", () => {
-      setPlaying(true);
-    });
-    playerRef?.current?.addEventListener("pause", () => {
-      setPlaying(false);
-    });
+useEffect(() => {
+    const player = playerRef;
+    // Extensive logging to debug playerRef
+    if (!player) {
+      return;
+    }
+    console.log("Player ref type:", typeof player);
+    console.log("Player ref keys:", Object.keys(player));
+    console.log("Has addEventListener:", typeof (player as any).addEventListener);
+    
+    // Defensive check - ensure player is a valid PlayerRef with addEventListener
+    if (typeof (player as any).addEventListener !== 'function') {
+      console.log("Player doesn't have addEventListener, skipping event listeners");
+      return;
+    }
+    
+    const playHandler = () => setPlaying(true);
+    const pauseHandler = () => setPlaying(false);
+    
+    (player as any).addEventListener("play", playHandler);
+    (player as any).addEventListener("pause", pauseHandler);
+    
     return () => {
-      playerRef?.current?.removeEventListener("play", () => {
-        setPlaying(true);
-      });
-      playerRef?.current?.removeEventListener("pause", () => {
-        setPlaying(false);
-      });
+      (player as any).removeEventListener("play", playHandler);
+      (player as any).removeEventListener("pause", pauseHandler);
     };
   }, [playerRef]);
 

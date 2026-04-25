@@ -83,7 +83,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       const newFrame = msToFrame(newTimeMs, fps);
       
       dragPositionRef.current = msToPx(newTimeMs, pixelsPerMs);
-      playerRef.current?.seekTo(newFrame);
+      playerRef?.seekTo(newFrame);
       engineDispatch(setPlayhead(newTimeMs));
     };
 
@@ -95,7 +95,7 @@ const Playhead = ({ scrollLeft, pixelsPerMs }: PlayheadProps) => {
       const newFrame = msToFrame(newTimeMs, fps);
       
       dragPositionRef.current = msToPx(newTimeMs, pixelsPerMs);
-      playerRef.current?.seekTo(newFrame);
+      playerRef?.seekTo(newFrame);
       engineDispatch(setPlayhead(newTimeMs));
     };
 
