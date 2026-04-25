@@ -107,7 +107,7 @@ export function useUploadStoreWithActions() {
 
 export { type UploadedFile, type ProjectFolder };
 
-export function addFileToTimeline(upload: UploadedFile): void {
+export function addFileToTimeline(upload: UploadedFile, targetTrackId?: string): void {
   const state = engineStore.getState();
   
   // Check if this is the FIRST clip - if so, set project settings
@@ -167,19 +167,44 @@ export function addFileToTimeline(upload: UploadedFile): void {
     trackType = "video";
     trackGroup = "video";
   }
-
-  // Get tracks from the correct group
-  const existingTracks = selectTracksByGroup(trackGroup)(state);
   
-  // Generate proper track name with increment (V1, V2, A1, A2, etc.)
-  const trackNumber = existingTracks.length + 1;
-  const prefix = trackGroup === "video" ? "V" : trackGroup === "audio" ? "A" : trackGroup === "text" ? "T" : "S";
-  const trackName = `${prefix}${trackNumber}`;
-  
-  let track: ReturnType<typeof createTrack> | undefined;
+  // If a specific target track is provided, use it directly
+  let targetTrack: ReturnType<typeof createTrack> | undefined;
   let startMs = 0;
   
-  if (existingTracks.length > 0) {
+  if (targetTrackId) {
+    // Use the specified track
+    targetTrack = state.tracks[targetTrackId];
+    if (targetTrack) {
+      // Get existing clips on this track to calculate start position
+      const trackClips = Object.values(state.clips).filter(
+        c => c && c.trackId === targetTrackId
+      );
+      if (trackClips.length > 0) {
+        // Start at the end of existing clips (allow overlap by using max)
+        // Actually user wants overlap supported, so we start at 0 or find gap
+        // For now, let's append to end to allow overlap scenario
+        startMs = Math.max(...trackClips.map(c => c.display.to));
+      }
+    }
+  }
+  
+  // Get tracks from the correct group (only if no specific target)
+  let existingTracks: ReturnType<typeof createTrack>[] = [];
+  if (!targetTrack) {
+    existingTracks = selectTracksByGroup(trackGroup)(state);
+  }
+  
+  const trackNumber = !targetTrack ? existingTracks.length + 1 : 1;
+  const prefix = trackGroup === "video" ? "V" : trackGroup === "audio" ? "A" : trackGroup === "text" ? "T" : "S";
+  const trackName = !targetTrack ? `${prefix}${trackNumber}` : targetTrack.name;
+  
+  let track: ReturnType<typeof createTrack> | undefined;
+  
+  if (targetTrack) {
+    // Use provided track
+    track = targetTrack;
+  } else if (existingTracks.length > 0) {
     // Find the empty track or the one with lowest end time
     let bestTrack = existingTracks[0];
     let maxEndMs = 0;
@@ -211,13 +236,12 @@ export function addFileToTimeline(upload: UploadedFile): void {
   } else {
     // Create new track with proper name and order
     const newOrder = existingTracks.length;
-    const prefix = trackGroup === "video" ? "V" : trackGroup === "audio" ? "A" : trackGroup === "text" ? "T" : "S";
     const newTrackName = `${prefix}${newOrder + 1}`;
     track = createTrack(trackType, {
       name: newTrackName,
       order: newOrder,
     });
-    engineStore.dispatch(addTrack(track));
+engineStore.dispatch(addTrack(track));
     startMs = 0;
   }
 
@@ -262,38 +286,24 @@ export function addFileToTimeline(upload: UploadedFile): void {
 
   engineStore.dispatch(addClip(clip, track.id));
 
-  if (
-    (clipType === "video" || clipType === "image") &&
-    upload.width &&
-    upload.height
-  ) {
-    const seq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
-    if (seq && Object.keys(engineStore.getState().clips).length === 1) {
-      engineStore.dispatch(setCanvas(upload.width, upload.height));
-    }
-  }
-
-  const seq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
-  if (seq && Object.keys(engineStore.getState().clips).length === 1 && upload.fps) {
-    engineStore.dispatch(setFps(upload.fps));
-  }
-
-  const newEndMs = startMs + durationMs;
-  const currentSeq = engineStore.getState().sequences[engineStore.getState().rootSequenceId];
-  if (currentSeq && newEndMs > currentSeq.duration) {
-    const updatedSeq = { ...currentSeq, duration: newEndMs };
-    engineStore.dispatch({
-      type: "LOAD_PROJECT",
-      payload: {
-        project: {
-          ...engineStore.getState(),
-          sequences: {
-            ...engineStore.getState().sequences,
-            [engineStore.getState().rootSequenceId]: updatedSeq,
+  const currentSeq = state.sequences[state.rootSequenceId];
+  if (currentSeq) {
+    const newEndMs = startMs + durationMs;
+    if (newEndMs > currentSeq.duration) {
+      const updatedSeq = { ...currentSeq, duration: newEndMs };
+      engineStore.dispatch({
+        type: "LOAD_PROJECT",
+        payload: {
+          project: {
+            ...state,
+            sequences: {
+              ...state.sequences,
+              [state.rootSequenceId]: updatedSeq,
+            },
           },
         },
-      },
-    });
+      });
+    }
   }
 
   engineStore.dispatch(selectClip(clipId));
