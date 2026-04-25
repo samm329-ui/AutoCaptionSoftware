@@ -32,10 +32,10 @@ import {
 } from "../engine/selectors";
 import { setSelection, setPlayhead, seekPlayer, splitClip, moveClip, setScroll } from "../engine/commands";
 import { msToPx, pxToMs, pxToFrame, zoomToPixelsPerMs } from "../engine/time-scale";
-import { engineStore, nanoid } from "../engine/engine-core";
+import { engineStore, nanoid, validateClipMoveToTrack, getTrackGroup } from "../engine/engine-core";
 import { snapEngine } from "../engine/subsystems/snap-engine";
 import { getDragData } from "@/components/shared/drag-data";
-import { addFileToTimeline, type UploadedFile } from "@/store/upload-store";
+import { addFileToTimeline, validateFileTypeForTrack, type UploadedFile } from "@/store/upload-store";
 import { usePlayerRef } from "../engine/engine-hooks";
 
 const TRACK_HEIGHT = 36;
@@ -50,6 +50,9 @@ const FILE_TYPE_TO_TRACK_GROUP: Record<string, string> = {
   caption: "subtitle",
   adjustment: "video",
   colormatte: "video",
+  overlay: "video",
+  shape: "video",
+  transition: "video",
 };
 
 function getTrackGroupForFileType(fileType: string): string {
@@ -244,17 +247,33 @@ const Timeline = () => {
       // Detect which track we're hovering over while dragging
       const trackElements = document.querySelectorAll('[data-track-id]');
       let detectedTrackId: string | null = null;
+      let detectedTrackGroup: string | null = null;
       for (const el of trackElements) {
         const rect = el.getBoundingClientRect();
         if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
           detectedTrackId = (el as HTMLElement).dataset.trackId;
+          detectedTrackGroup = (el as HTMLElement).dataset.trackGroup || "video";
           break;
         }
       }
       
-      // Switch track if mouse moved to a different track
+      // Switch track if mouse moved to a different track - WITH VALIDATION
       if (detectedTrackId && detectedTrackId !== clip.trackId) {
-        dispatch(moveClip(dragClipId, clip.display.from, detectedTrackId));
+        // Validate clip type against target track group using engine validation
+        const targetTrack = state.tracks[detectedTrackId];
+        if (targetTrack) {
+          const targetGroup = getTrackGroup(targetTrack);
+          const isValid = validateClipMoveToTrack(clip.type, targetGroup);
+          
+          if (isValid) {
+            dispatch(moveClip(dragClipId, clip.display.from, detectedTrackId));
+            setDropError(null);
+          } else {
+            setDropError(`${clip.type.charAt(0).toUpperCase() + clip.type.slice(1)} clips cannot be moved to ${targetGroup.charAt(0).toUpperCase() + targetGroup.slice(1)} tracks`);
+          }
+        }
+      } else if (!detectedTrackId || detectedTrackId === clip.trackId) {
+        setDropError(null);
       }
       
       const deltaX = e.clientX - dragStartX;
@@ -383,24 +402,6 @@ const Timeline = () => {
     return null;
   }, [tracks, segmentHeights]);
 
-  // Get appropriate error message for invalid file type on track
-  const getDropErrorMessage = (fileType: string, trackGroup: string): string | null => {
-    const requiredGroup = getTrackGroupForFileType(fileType);
-    
-    if (trackGroup !== requiredGroup) {
-      if (requiredGroup === "video") {
-        return "Video/Image files can only be dropped on Video tracks (V1, V2...)";
-      } else if (requiredGroup === "audio") {
-        return "Audio files can only be dropped on Audio tracks (A1, A2...)";
-      } else if (requiredGroup === "text") {
-        return "Text can only be dropped on Text tracks (T1, T2...)";
-      } else if (requiredGroup === "subtitle") {
-        return "Captions can only be dropped on Subtitle tracks (S1, S2...)";
-      }
-    }
-    return null;
-  };
-
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     
@@ -416,10 +417,10 @@ const Timeline = () => {
       setHoveredTrackGroup(trackInfo.trackGroup);
       
       // Check if file type is valid for this track
-      const errorMsg = getDropErrorMessage(fileType, trackInfo.trackGroup);
-      setDropError(errorMsg);
+      const validation = validateFileTypeForTrack(fileType, trackInfo.trackGroup);
+      setDropError(validation.error);
       
-      if (errorMsg) {
+      if (validation.error) {
         e.dataTransfer.dropEffect = "none";
       } else {
         e.dataTransfer.dropEffect = "copy";
@@ -482,23 +483,15 @@ const Timeline = () => {
       const targetTrack = tracks.find(t => t.id === targetTrackId);
       if (targetTrack) {
         targetTrackGroup = targetTrack.group || "video";
-        
-        const errorMsg = getDropErrorMessage(fileType, targetTrackGroup);
-        if (errorMsg) {
-          console.log("Drop rejected:", errorMsg);
-          setDropError(errorMsg);
-          setDragOverTime(null);
-          return;
-        }
       }
     }
 
     // Check file type against determined track group
-    const validationError = getDropErrorMessage(fileType, targetTrackGroup);
-    if (validationError) {
-      console.log("Drop rejected:", validationError);
-      setDropError(validationError);
-      setDragOverTime(null);
+    const validation = validateFileTypeForTrack(fileType, targetTrackGroup);
+    if (!validation.valid) {
+      console.log("Drop rejected:", validation.error);
+      setDropError(validation.error);
+      e.dataTransfer.dropEffect = "none";
       return;
     }
     
@@ -522,7 +515,15 @@ const Timeline = () => {
 
     // Use the same addFileToTimeline function that the "+" button uses
     // Pass the specific target track if we're hovering over one
-    addFileToTimeline(mockUpload, hoveredTrackId || undefined);
+    const result = addFileToTimeline(mockUpload, hoveredTrackId || undefined);
+    
+    if (!result.success) {
+      console.log("Drop rejected:", result.error);
+      setDropError(result.error);
+      setDragOverTime(null);
+      return;
+    }
+    
     setDragOverTime(null);
   }, [hoveredTrackId, hoveredTrackGroup, tracks]);
 
