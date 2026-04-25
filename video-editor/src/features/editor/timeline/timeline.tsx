@@ -654,7 +654,7 @@ const Timeline = () => {
         
         {/* Timeline content */}
         <div 
-          className={`flex-1 relative bg-card ${isDragOver ? 'bg-primary/5 ring-2 ring-primary/30' : ''}`}
+          className={`flex-1 relative bg-card ${isDragOver ? 'bg-primary/5' : ''}`}
           onClick={() => dispatch(setSelection([]))}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -694,20 +694,20 @@ const Timeline = () => {
                       const fileType = getFileTypeFromDrag(getDragData());
                       const isValidDrop = isTrackValidForFileType(trackGroup, fileType) && !dropError;
                       
-                      // Track hover styling
+                      // Track hover styling - just background color, no border
                       let trackHoverClass = "";
                       if (isThisTrackHovered) {
                         if (dropError || !isValidDrop) {
-                          trackHoverClass = "ring-2 ring-red-500/70 ring-inset bg-red-500/10";
+                          trackHoverClass = "bg-red-500/20";
                         } else {
-                          trackHoverClass = "ring-2 ring-green-500/70 ring-inset bg-green-500/10";
+                          trackHoverClass = "bg-green-500/20";
                         }
                       }
                       
                       return (
                         <div
                           key={`lane-${track.id}`}
-                          className={`border-b border-border transition-colors ${trackHoverClass}`}
+                          className={`transition-colors ${trackHoverClass}`}
                           style={{ height: trackHeight }}
                           data-track-id={track.id}
                           data-track-top={trackTop}
