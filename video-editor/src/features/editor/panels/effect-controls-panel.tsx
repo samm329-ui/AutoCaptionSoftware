@@ -12,6 +12,9 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  Pause,
+  Play,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import useStore from "../store/use-store";
@@ -33,6 +36,10 @@ import {
 } from "../engine/engine-provider";
 import { selectFps } from "../engine/selectors";
 import { updateTransform } from "../engine/commands";
+import { PresetDropdown } from "./components/preset-dropdown";
+import { SimpleEffectList } from "./components/effect-reorder-list";
+import { AppliedEffectsContextMenu } from "./components/effect-context-menu";
+import { useEffectClipboard, useEffectKeyboardShortcuts } from "../hooks/use-effect-clipboard";
 
 interface PropertyRowProps {
   clipId: string;
@@ -158,12 +165,15 @@ interface AppliedEffectRowProps {
   effect: AppliedEffect;
   clipId: string;
   onRemove: () => void;
+  onCopy?: () => void;
+  bypassAll?: boolean;
 }
 
-const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onRemove }) => {
+const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onRemove, onCopy, bypassAll }) => {
   const engineDispatch = useEngineDispatch();
   const effectDef = getEffectDef(effect.kind);
-  const [isMuted, setIsMuted] = useState(effect.params?.__muted || false);
+  // Use bypassAll prop OR individual effect's __muted state
+  const isMuted = bypassAll || (effect.params?.__muted || false);
 
   const handleParamChange = useCallback(
     (key: string, value: number | string | boolean) => {
@@ -176,36 +186,84 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onR
   );
 
   const handleToggleMute = useCallback(() => {
+    // Don't allow individual toggle when bypassAll is active
+    if (bypassAll) return;
+    
     const newMuted = !isMuted;
-    setIsMuted(newMuted);
     engineDispatch({ 
       type: "UPDATE_EFFECT", 
       payload: { clipId, effectId: effect.id, params: { ...effect.params, __muted: newMuted } } 
     });
-  }, [clipId, effect, isMuted, engineDispatch]);
+  }, [clipId, effect, isMuted, bypassAll, engineDispatch]);
+
+  const handleApplyPreset = useCallback(
+    (params: Record<string, number | string | boolean>) => {
+      engineDispatch({
+        type: "UPDATE_EFFECT",
+        payload: { clipId, effectId: effect.id, params: { ...params } }
+      });
+    },
+    [clipId, effect, engineDispatch]
+  );
 
   if (!effectDef) return null;
 
   return (
     <div className={cn("px-3 py-2 border-b border-border/20 last:border-b-0", isMuted && "opacity-50")}>
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={handleToggleMute} title={isMuted ? "Unmute effect" : "Mute effect"}>
+        {/* Bypass Toggle */}
+        <button 
+          onClick={handleToggleMute} 
+          title={isMuted ? "Enable effect" : "Bypass effect (keep but disable)"}
+          className={cn(
+            "w-6 h-6 flex items-center justify-center rounded transition-colors",
+            isMuted 
+              ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30" 
+              : "hover:bg-white/10 text-muted-foreground hover:text-foreground"
+          )}
+        >
           {isMuted ? (
-            <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+            <Pause className="w-3 h-3" />
           ) : (
-            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+            <Eye className="w-3.5 h-3.5" />
           )}
         </button>
+        
+        {/* Effect Name */}
         <span className="text-xs font-medium flex-1">{effectDef.name}</span>
+        
+        {/* Copy Button */}
+        {onCopy && (
+          <button 
+            onClick={onCopy} 
+            title="Copy effect (Ctrl+Shift+C)" 
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
+        
+        {/* Preset Dropdown */}
+        <PresetDropdown 
+          effect={effect}
+          clipId={clipId}
+          onApplyPreset={handleApplyPreset}
+        />
+        
+        {/* Remove Button */}
         <button onClick={onRemove} title="Remove effect" className="text-muted-foreground hover:text-red-400">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
+      
+      {/* Parameter Controls */}
       <div className="space-y-1.5 ml-5">
         {effectDef.controls.map((ctrl) => {
           const value = effect.params?.[ctrl.key] ?? ctrl.default;
+          const isDisabled = isMuted;
+          
           return (
-            <div key={ctrl.key} className="flex items-center gap-2">
+            <div key={ctrl.key} className={cn("flex items-center gap-2", isDisabled && "opacity-50")}>
               <span className="text-[10px] text-muted-foreground w-16">{ctrl.label}</span>
               {ctrl.type === "range" && (
                 <>
@@ -214,13 +272,15 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onR
                     min={ctrl.min ?? 0}
                     max={ctrl.max ?? 100}
                     step={ctrl.step ?? 1}
-                    onValueChange={([v]) => handleParamChange(ctrl.key, v)}
+                    onValueChange={([v]) => !isDisabled && handleParamChange(ctrl.key, v)}
+                    disabled={isDisabled}
                     className="flex-1 h-1"
                   />
                   <Input
                     type="number"
                     value={typeof value === "boolean" ? 0 : value}
-                    onChange={(e) => handleParamChange(ctrl.key, parseFloat(e.target.value) || 0)}
+                    onChange={(e) => !isDisabled && handleParamChange(ctrl.key, parseFloat(e.target.value) || 0)}
+                    disabled={isDisabled}
                     className="w-12 h-5 text-[10px]"
                   />
                 </>
@@ -229,15 +289,17 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onR
                 <input
                   type="color"
                   value={String(value)}
-                  onChange={(e) => handleParamChange(ctrl.key, e.target.value)}
-                  className="w-5 h-5 rounded cursor-pointer"
+                  onChange={(e) => !isDisabled && handleParamChange(ctrl.key, e.target.value)}
+                  disabled={isDisabled}
+                  className="w-5 h-5 rounded cursor-pointer disabled:opacity-50"
                 />
               )}
               {ctrl.type === "select" && ctrl.options && (
                 <select
                   value={String(value)}
-                  onChange={(e) => handleParamChange(ctrl.key, e.target.value)}
-                  className="text-[10px] bg-transparent border border-border/40 rounded px-1"
+                  onChange={(e) => !isDisabled && handleParamChange(ctrl.key, e.target.value)}
+                  disabled={isDisabled}
+                  className="text-[10px] bg-transparent border border-border/40 rounded px-1 disabled:opacity-50"
                 >
                   {ctrl.options.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -248,8 +310,9 @@ const AppliedEffectRow: React.FC<AppliedEffectRowProps> = ({ effect, clipId, onR
               )}
               {ctrl.type === "toggle" && (
                 <button
-                  onClick={() => handleParamChange(ctrl.key, !value)}
-                  className={cn("w-8 h-4 rounded-full transition-colors", value ? "bg-primary" : "bg-muted")}
+                  onClick={() => !isDisabled && handleParamChange(ctrl.key, !value)}
+                  disabled={isDisabled}
+                  className={cn("w-8 h-4 rounded-full transition-colors", value ? "bg-primary" : "bg-muted", isDisabled && "opacity-50")}
                 >
                   <div
                     className={cn(
@@ -275,13 +338,16 @@ const EffectSection: React.FC<{
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border-b border-border/30">
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 w-full px-1.5 py-1 text-[10px] font-medium text-muted-foreground hover:text-white transition-colors"
+        onKeyDown={(e) => e.key === 'Enter' && setOpen(!open)}
+        className="flex items-center gap-1 w-full px-1.5 py-1 text-[10px] font-medium text-muted-foreground hover:text-white transition-colors cursor-pointer"
       >
         {open ? <ChevronDown className="w-2 h-2 shrink-0" /> : <ChevronRight className="w-2 h-2 shrink-0" />}
         <span className="truncate">{title}</span>
-      </button>
+      </div>
       {open && <div className="pb-0.5">{children}</div>}
     </div>
   );
@@ -293,12 +359,22 @@ const EffectControlsPanel: React.FC = () => {
   const clipId = engineSelection[0] ?? null;
   const engineDispatch = useEngineDispatch();
   const fps = useEngineSelector(selectFps);
-
   const clip = useEngineSelector<Clip | null>(
     (p) => (clipId ? (p.clips[clipId] ?? null) : null)
   );
+  
+  // Copy/Paste functionality
+  const {
+    clipboard,
+    hasClipboard,
+    clipboardCount,
+    copyEffect,
+    copyAllEffects,
+    pasteEffects,
+    clearClipboard,
+  } = useEffectClipboard();
 
-  const getCurrentTimeMs = useCallback(() => {
+  const currentTimeMs = useCallback(() => {
     try {
       const frame = playerRef?.current?.getCurrentFrame() ?? 0;
       return (frame / (fps || 30)) * 1000;
@@ -338,11 +414,87 @@ const EffectControlsPanel: React.FC = () => {
     [clipId, engineDispatch]
   );
 
-  const currentTimeMs = getCurrentTimeMs();
+  const currentTimeMsValue = currentTimeMs();
   const details = (clip?.details ?? {}) as Record<string, any>;
   const from = clip?.display?.from ?? 0;
-  const clipLocalTime = Math.max(0, currentTimeMs - from);
+  const clipLocalTime = Math.max(0, currentTimeMsValue - from);
   const appliedEffects: AppliedEffect[] = clip?.appliedEffects || [];
+
+  // Bypass All Effects toggle
+  const [bypassAll, setBypassAll] = useState(false);
+
+  // Handle paste effects (defined after appliedEffects)
+  const handlePasteEffects = useCallback(() => {
+    if (!clipId || !hasClipboard) return;
+    const newEffects = pasteEffects(clipId);
+    if (newEffects) {
+      engineDispatch({
+        type: "UPDATE_CLIP",
+        payload: {
+          clipId,
+          details: { appliedEffects: [...appliedEffects, ...newEffects] }
+        },
+      });
+    }
+  }, [clipId, hasClipboard, pasteEffects, appliedEffects, engineDispatch]);
+
+  // Handle copy all effects (defined after appliedEffects)
+  const handleCopyAllEffects = useCallback(() => {
+    if (!clipId || appliedEffects.length === 0) return;
+    copyAllEffects(appliedEffects, clipId);
+  }, [clipId, appliedEffects, copyAllEffects]);
+
+  // Handle remove all effects
+  const handleRemoveAllEffects = useCallback(() => {
+    if (!clipId) return;
+    engineDispatch({
+      type: "UPDATE_CLIP",
+      payload: {
+        clipId,
+        details: { appliedEffects: [] }
+      },
+    });
+  }, [clipId, engineDispatch]);
+
+  // Toggle bypass all effects
+  const handleToggleBypassAll = useCallback(() => {
+    if (!clipId) return;
+    const newBypassState = !bypassAll;
+    setBypassAll(newBypassState);
+    
+    // Update all effects with __muted flag
+    const updatedEffects = appliedEffects.map(eff => ({
+      ...eff,
+      params: { ...eff.params, __muted: newBypassState }
+    }));
+    
+    engineDispatch({
+      type: "UPDATE_CLIP",
+      payload: {
+        clipId,
+        details: { appliedEffects: updatedEffects }
+      },
+    });
+  }, [clipId, bypassAll, appliedEffects, engineDispatch]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!clipId) return;
+      // Ctrl+Shift+C = Copy all effects
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        handleCopyAllEffects();
+      }
+      // Ctrl+Shift+V = Paste effects
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        handlePasteEffects();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [clipId, handleCopyAllEffects, handlePasteEffects]);
 
   if (!clip) {
     return (
@@ -583,20 +735,75 @@ const EffectControlsPanel: React.FC = () => {
         )}
 
         {(clip.type === "video" || clip.type === "image") && (
-          <EffectSection title={`Applied Effects (${appliedEffects.length})`} defaultOpen>
+          <EffectSection 
+            title={
+              <div className="flex items-center gap-2">
+                <span>Applied Effects ({appliedEffects.length})</span>
+                {appliedEffects.length > 0 && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleToggleBypassAll}
+                    onKeyDown={(e) => e.key === 'Enter' && handleToggleBypassAll()}
+                    className={cn(
+                      "text-[9px] px-1.5 py-0.5 rounded transition-colors cursor-pointer",
+                      bypassAll 
+                        ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30" 
+                        : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                    )}
+                    title={bypassAll ? "Enable all effects" : "Bypass all effects"}
+                  >
+                    {bypassAll ? "◉ BYPASSED" : "○ BYPASS"}
+                  </div>
+                )}
+              </div>
+            } 
+            defaultOpen
+          >
             {appliedEffects.length === 0 ? (
               <div className="px-1.5 py-1 text-[8px] text-muted-foreground">
-                No effects applied.
+                No effects applied. Drag effects from the Effects tab or use keyboard shortcuts.
+                <div className="mt-1 text-[7px] opacity-60">
+                  Ctrl+Shift+C = Copy | Ctrl+Shift+V = Paste
+                </div>
               </div>
             ) : (
-              appliedEffects.map((effect, index) => (
-                <AppliedEffectRow
-                  key={`${effect.kind}-${index}`}
-                  effect={effect}
-                  clipId={clipId}
-                  onRemove={() => removeEffect(index, appliedEffects)}
-                />
-              ))
+              <AppliedEffectsContextMenu
+                effects={appliedEffects}
+                hasClipboard={hasClipboard}
+                clipboardCount={clipboardCount}
+                onCopyAllEffects={handleCopyAllEffects}
+                onPasteEffects={handlePasteEffects}
+                onRemoveAllEffects={handleRemoveAllEffects}
+              >
+                <SimpleEffectList
+                  effects={appliedEffects}
+                  onReorder={(fromIndex, toIndex) => {
+                    if (!clipId) return;
+                    const newEffects = [...appliedEffects];
+                    const [moved] = newEffects.splice(fromIndex, 1);
+                    newEffects.splice(toIndex, 0, moved);
+                    engineDispatch({
+                      type: "UPDATE_CLIP",
+                      payload: {
+                        clipId,
+                        details: { appliedEffects: newEffects }
+                      },
+                    });
+                  }}
+                >
+                  {(effect, index) => (
+                    <AppliedEffectRow
+                      key={`${effect.id}-${index}`}
+                      effect={effect}
+                      clipId={clipId}
+                      onRemove={() => removeEffect(index, appliedEffects)}
+                      onCopy={() => copyEffect(effect, clipId)}
+                      bypassAll={bypassAll}
+                    />
+                  )}
+                </SimpleEffectList>
+              </AppliedEffectsContextMenu>
             )}
           </EffectSection>
         )}
