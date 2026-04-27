@@ -56,6 +56,7 @@ import {
 import { setDragData } from "@/components/shared/drag-data";
 import { useEngineSelection, useEngineDispatch, useEngineSelector } from "../engine/engine-provider";
 import { selectActiveClip } from "../engine/selectors";
+import { usePresetStore, DEFAULT_PRESETS } from "../store/use-preset-store";
 
 const EDIT_OBJECT = "EDIT_OBJECT";
 
@@ -263,11 +264,86 @@ const EffectsSubTab: React.FC<{ search: string }> = ({ search }) => {
     );
   }
 
+  // Preset hooks
+  const { getFavoritePresets, getRecentPresets, allPresets } = usePresetStore();
+  
+  // Get unique effect kinds that have presets
+  const presetEffectKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    allPresets.forEach(p => kinds.add(p.effectKind));
+    return Array.from(kinds);
+  }, [allPresets]);
+
+  const favoritePresets = getFavoritePresets;
+  const recentPresets = getRecentPresets;
+
+  const handleApplyPreset = useCallback((preset: typeof DEFAULT_PRESETS[0]) => {
+    const clipId = activeIds[0];
+    if (!clipId) return;
+
+    const effectDef = VIDEO_EFFECTS.find(e => e.kind === preset.effectKind);
+    if (!effectDef) return;
+
+    engineDispatch({
+      type: "APPLY_EFFECT",
+      payload: {
+        clipId,
+        effect: {
+          id: `${preset.effectKind}_${Date.now()}`,
+          kind: preset.effectKind,
+          params: { ...preset.params },
+          enabled: true,
+        },
+      },
+    });
+  }, [activeIds, engineDispatch]);
+
   return (
     <div>
       {!activeIds[0] && (
         <div className="mx-2.5 mb-2 mt-1 px-2.5 py-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-400/80 leading-relaxed">
           Select a clip in the timeline to apply effects
+        </div>
+      )}
+
+      {/* Quick Presets Section */}
+      {activeIds[0] && (favoritePresets.length > 0 || recentPresets.length > 0) && (
+        <div className="border-b border-border/20">
+          <div className="px-2.5 py-1.5">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+              Quick Presets
+            </span>
+          </div>
+          
+          {/* Favorites Row */}
+          {favoritePresets.length > 0 && (
+            <div className="flex gap-1 px-2.5 pb-2 overflow-x-auto">
+              {favoritePresets.slice(0, 5).map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => handleApplyPreset(preset)}
+                  className="flex-shrink-0 px-2 py-1 rounded bg-yellow-500/10 text-[10px] text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+                >
+                  ★ {preset.name}
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* Recent Row */}
+          {recentPresets.length > 0 && (
+            <div className="flex gap-1 px-2.5 pb-2 overflow-x-auto">
+              {recentPresets.slice(0, 5).map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => handleApplyPreset(preset)}
+                  className="flex-shrink-0 px-2 py-1 rounded bg-muted/30 text-[10px] text-muted-foreground hover:bg-muted/50 transition-colors"
+                >
+                  ⏱ {preset.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
