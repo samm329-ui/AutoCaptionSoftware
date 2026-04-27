@@ -48,6 +48,8 @@ export function toTrackItem(clip: Clip): Record<string, unknown> {
       scaleY:  clip.transform.scaleY,
       flipX:   clip.transform.flipX,
       flipY:   clip.transform.flipY,
+      // Include applied effects so player can render them
+      appliedEffects: clip.appliedEffects || [],
     },
     playbackRate: (clip.details as Record<string, unknown>).playbackRate ?? 1,
   };
